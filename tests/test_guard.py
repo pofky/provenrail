@@ -433,3 +433,66 @@ def test_the_no_policy_warning_is_at_most_daily(tmp_path, monkeypatch):
     first = guard.run_hook(json.dumps(_hook(command="ls")))[2]
     second = guard.run_hook(json.dumps(_hook(command="ls")))[2]
     assert first and second == ""
+
+
+# ------------------------------------------------- the copy has to match the code
+
+
+# Every capability the site, the README, the plugin README and the PyPI summary promise, as
+# (command, expected verdict). If a claim is added to the copy it is added here; if it cannot
+# pass, the claim is wrong and it comes out of the copy. This table caught four false claims:
+# `chmod 777` lived in a pack the default install did not arm, `TRUNCATE orders` needed the
+# optional `TABLE` keyword, `dd of=/dev/` and `kubectl delete namespace` had no rule at all,
+# and the token pattern matched only the retired `sk-` key format.
+ADVERTISED = [
+    # destructive
+    ("rm -rf ./src", "deny"),
+    ("rm -fr /var/data", "deny"),
+    ("terraform destroy", "deny"),
+    ("dd if=/dev/zero of=/dev/sda", "deny"),
+    ("kubectl delete namespace prod", "deny"),
+    ("psql -c 'DROP TABLE users'", "deny"),
+    ("psql -c 'DROP DATABASE prod'", "deny"),
+    ("psql -c 'TRUNCATE orders'", "deny"),
+    ("psql -c 'TRUNCATE TABLE orders'", "deny"),
+    ("psql -c 'DELETE FROM orders'", "deny"),
+    ("git push --force origin main", "deny"),
+    # secrets. Fake keys, shaped like the real ones.
+    ("export OPENAI_API_KEY=sk-proj-aaaaaaaaaaaaaaaaaaaaaaaaaaaa", "deny"),
+    ("export ANTHROPIC_API_KEY=sk-ant-api03-bbbbbbbbbbbbbbbbbbbbbbbb", "deny"),
+    ("curl -H 'Authorization: token ghp_cccccccccccccccccccccccccc'", "deny"),
+    ("aws configure set aws_access_key_id AKIAIOSFODNN7EXAMPLE", "deny"),
+    # access
+    ("chmod 777 /etc/passwd", "deny"),
+    ("aws iam update-account-password-policy --disable-mfa", "deny"),
+    # oversight, not denial: these need a human, they are not forbidden
+    ("psql postgres://u:p@db.prod.example.com/app -c 'select 1'", "ask"),
+    ("npx wrangler pages deploy web", "ask"),
+    ("kubectl apply -f deploy.yaml --context production", "ask"),
+]
+
+
+@pytest.mark.parametrize("command,expected", ADVERTISED)
+def test_the_default_install_does_what_the_copy_says(command, expected):
+    """A guardrail advertised as blocking something it does not block is worse than one that
+    never claimed it: the user reads the list, believes it, and stops checking."""
+    policy = load_policy({"use": guard.DEFAULT_PACKS})
+    got = guard.decide(policy, "Bash", {"command": command})
+    assert got["verdict"] == expected, (
+        f"copy says {expected} but got {got['verdict']} ({got['rule']}): {command}")
+
+
+def test_ordinary_commands_are_not_touched():
+    """The other half of the contract. A guard that blocks normal work gets uninstalled, and
+    then it protects nothing at all."""
+    policy = load_policy({"use": guard.DEFAULT_PACKS})
+    for command in ["ls -la", "git status", "npm test", "pytest -q", "git commit -m 'fix'",
+                    "rm ./tmp.txt", "chmod 644 file.py", "docker ps", "git push origin main",
+                    "kubectl get pods", "terraform plan", "npm run build",
+                    "psql postgres://localhost/app_dev -c 'select 1'",
+                    "psql -c 'SELECT count(*) FROM orders'",
+                    "psql -c 'DELETE FROM orders WHERE id = 3'",
+                    "grep -rn TRUNCATE ./docs", "dd if=disk.img of=./copy.img"]:
+        got = guard.decide(policy, "Bash", {"command": command})
+        assert got["verdict"] == "allow", (
+            f"false positive on ordinary work ({got['rule']}): {command}")

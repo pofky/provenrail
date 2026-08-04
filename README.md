@@ -18,7 +18,7 @@ Then once per project:
 ```bash
 uv tool install provenrail   # or: pip install provenrail
 pr quickstart                # local sink, no account, nothing leaves your machine
-pr guard install             # arms destructive + secrets + production
+pr guard install             # arms destructive + secrets + production + access
 ```
 
 `rm -rf`, `terraform destroy`, `git push --force`, `DROP TABLE`, `chmod 777` and leaked
@@ -106,7 +106,7 @@ then `/plugin install provenrail-guard@provenrail`), or wire the hooks directly:
 ```bash
 uv tool install provenrail
 pr quickstart        # local sink, no account, nothing leaves your machine
-pr guard install     # arms destructive + secrets + production, installs Claude Code hooks
+pr guard install     # arms destructive + secrets + production + access, installs the hooks
 ```
 
 From your next Claude Code session in that folder:
@@ -338,7 +338,7 @@ over across timestampers for availability.
 
 Guardrails are configurable without touching agent code and alert in real time: enable
 prebuilt rule packs by name (`{"policy": {"use": ["destructive", "secrets", "money"]}}`,
-seven packs covering destructive tools, leaked credentials, money movement, production
+seven packs (35 rules) covering destructive tools, leaked credentials, money movement, production
 changes, privilege escalation, exfiltration shapes, and per-session blast-radius caps; list
 them with `pr rules`, check which would match your actual tool names with
 `pr rules --check bundle.json`), or declare a

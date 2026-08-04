@@ -160,21 +160,23 @@
     <p>Then once per project you want guarded:</p>
     <pre><code>uv tool install provenrail     # or: pip install provenrail
 pr quickstart                  # local sink, no account, nothing leaves your machine
-pr guard install               # arms destructive + secrets + production</code></pre>
+pr guard install               # arms destructive + secrets + production + access</code></pre>
     <p>No signup, no API key, no network call in the decision path. The verdict is computed locally before anything is sent anywhere, so a guardrail never waits on a server and never fails because one is down.</p>
     <p>Prefer not to install a plugin? <code>pr guard install</code> writes the same hooks into the project's <code>.claude/settings.json</code> directly, preserving any hooks already there.</p>
 
     <h2 id="what-is-blocked">What is blocked</h2>
-    <p>Three rule packs are armed by default, 31 rules across seven packs are available. A representative sample:</p>
+    <p>Four rule packs are armed by default (destructive, secrets, production, access), 35 rules across seven packs are available. Every row below is asserted in the test suite against the default install, so this table cannot drift away from what the code does:</p>
     <table>
       <thead><tr><th>Pack</th><th>Blocks</th><th>Example</th></tr></thead>
       <tbody>
-        <tr><td>destructive</td><td>Recursive and forced deletion, disk overwrites, history rewrites</td><td><code>rm -rf ./src</code>, <code>git push --force</code>, <code>dd of=/dev/</code></td></tr>
+        <tr><td>destructive</td><td>Recursive and forced deletion, raw disk writes, history rewrites</td><td><code>rm -rf ./src</code>, <code>dd of=/dev/sda</code>, <code>git push --force</code></td></tr>
         <tr><td>destructive</td><td>Irreversible infrastructure teardown</td><td><code>terraform destroy</code>, <code>kubectl delete namespace</code></td></tr>
-        <tr><td>destructive</td><td>Schema and data loss in SQL</td><td><code>DROP TABLE</code>, <code>TRUNCATE</code>, <code>DELETE</code> with no <code>WHERE</code></td></tr>
-        <tr><td>secrets</td><td>API keys and tokens appearing in a tool call</td><td>an <code>sk-</code> key pasted into a command, a private key written to disk</td></tr>
-        <tr><td>secrets</td><td>Permission changes that expose files</td><td><code>chmod 777</code></td></tr>
-        <tr><td>production</td><td>Anything pointed at a production host or database</td><td>a connection string containing <code>prod</code>, a deploy command</td></tr>
+        <tr><td>destructive</td><td>Schema and data loss in SQL</td><td><code>DROP TABLE</code>, <code>DROP DATABASE</code>, <code>TRUNCATE</code>, <code>DELETE</code> with no <code>WHERE</code></td></tr>
+        <tr><td>secrets</td><td>API keys, tokens and private keys appearing in a tool call</td><td><code>sk-proj-</code>, <code>sk-ant-</code>, <code>ghp_</code>, <code>xox*-</code>, <code>AKIA</code>, <code>AIza</code>, a JWT, a <code>BEGIN PRIVATE KEY</code> block</td></tr>
+        <tr><td>secrets</td><td>Reading a <code>.env</code> file <em>(asks, does not deny)</em></td><td>any path ending <code>.env</code> or <code>.env.local</code></td></tr>
+        <tr><td>access</td><td>Permission changes that expose files, or weaken authentication</td><td><code>chmod 777</code>, disabling MFA</td></tr>
+        <tr><td>production</td><td>A connection string pointed at production <em>(asks)</em></td><td><code>postgres://&hellip;db.prod&hellip;</code></td></tr>
+        <tr><td>production</td><td>A deployment <em>(asks)</em></td><td><code>wrangler deploy</code>, <code>vercel deploy</code>, <code>kubectl --context production</code></td></tr>
       </tbody>
     </table>
     <p>Rules are declared in a <code>.provenrail.json</code> file in the repo, so the policy is reviewable in a pull request like any other code. Nothing is "suspicious by default": if a rule did not declare it, it is not flagged.</p>

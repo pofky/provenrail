@@ -48,6 +48,17 @@ CATALOG: dict[str, dict[str, Any]] = {
             {"id": "destructive.destroy-tools", "effect": "deny", "event_type": "tool_call",
              "tool": "destroy_*", "reason": "destructive tool: destroys a resource",
              "note": "Matches Terraform-style destroy_ helpers."},
+            {"id": "destructive.raw-device-write", "effect": "deny",
+             "event_type": "tool_call", "arg_contains": r"\bdd\s[^\n]*\bof=/dev/",
+             "reason": "argument writes raw bytes to a block device",
+             "note": "Very low false-positive risk: `dd of=/dev/...` outside an imaging "
+                     "workflow destroys a disk and cannot be undone."},
+            {"id": "destructive.kubectl-delete-namespace", "effect": "deny",
+             "event_type": "tool_call",
+             "arg_contains": r"kubectl\s+delete\s+(namespace|ns)\b",
+             "reason": "argument deletes a Kubernetes namespace and everything in it",
+             "note": "A namespace delete cascades to every resource inside it. Scope this "
+                     "out if your agent legitimately tears down ephemeral namespaces."},
             {"id": "destructive.recursive-force-remove", "effect": "deny",
              "event_type": "tool_call", "arg_contains": r"\brm\s+(-[a-zA-Z]*[rf][a-zA-Z]*\s+)+",
              "reason": "argument contains a recursive or forced rm",
@@ -55,7 +66,11 @@ CATALOG: dict[str, dict[str, Any]] = {
                      "`terminal` or `bash` tool. Can fire on a doc string that quotes rm -rf."},
             {"id": "destructive.sql-drop-or-truncate", "effect": "deny",
              "event_type": "tool_call",
-             "arg_contains": r"\b(DROP\s+(TABLE|DATABASE|SCHEMA)|TRUNCATE\s+TABLE)\b",
+             # `TABLE` is optional after TRUNCATE: PostgreSQL and MySQL both accept
+             # `TRUNCATE orders`, and requiring the keyword let the most common spelling of the
+             # statement straight through while the copy advertised TRUNCATE as blocked.
+             "arg_contains": r"\b(DROP\s+(TABLE|DATABASE|SCHEMA)\b"
+                             r"|TRUNCATE\s+(TABLE\s+)?[\"'`\w])",
              "reason": "argument contains a destructive SQL statement",
              "note": "Covers a generic query tool. Fires on the text, so a migration tool "
                      "that legitimately drops tables will be blocked."},
@@ -83,10 +98,17 @@ CATALOG: dict[str, dict[str, Any]] = {
              "reason": "argument contains a private key block",
              "note": "Very low false-positive risk."},
             {"id": "secrets.bearer-token", "effect": "deny", "event_type": "tool_call",
-             "arg_contains": r"\b(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})\b",
+             # `sk-[A-Za-z0-9]{16,}` missed every current OpenAI and Anthropic key, because
+             # `sk-proj-...` and `sk-ant-...` carry a hyphen inside the prefix and the class
+             # stopped at it. The copy has advertised "leaked API keys are blocked" throughout,
+             # so this matched only the retired key format.
+             "arg_contains": r"\b(sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}"
+                             r"|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}"
+                             r"|AIza[0-9A-Za-z_-]{30,})",
              "reason": "argument contains what looks like an API token",
-             "note": "Covers OpenAI sk-, GitHub ghp_ and Slack xox tokens. A doc example "
-                     "containing a fake token will also match."},
+             "note": "Covers OpenAI/Anthropic sk- (including sk-proj- and sk-ant-), GitHub "
+                     "gh*_, Slack xox and Google AIza tokens. A doc example containing a fake "
+                     "token will also match."},
             {"id": "secrets.jwt", "effect": "deny", "event_type": "tool_call",
              "arg_contains": r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b",
              "reason": "argument contains what looks like a JWT",
@@ -133,6 +155,28 @@ CATALOG: dict[str, dict[str, Any]] = {
              "event_type": "tool_call", "tool": "*dns*",
              "reason": "a DNS change requires a recorded human approval",
              "note": "DNS mistakes are slow to detect and hard to reverse."},
+            {"id": "production.connection-string", "effect": "require_oversight",
+             "event_type": "tool_call",
+             # The three tool-name rules above (deploy*, *migrat*, *dns*) never fire under a
+             # coding agent, whose tools are Bash/Edit/Write. Without a text rule the whole
+             # pack was inert for the host we actually ship for, while the copy advertised
+             # "anything pointed at a production host or database".
+             "arg_contains": r"(postgres(ql)?|mysql|mongodb(\+srv)?|redis|amqp)://[^\s\"']*"
+                             r"(prod|production)",
+             "reason": "argument points a database connection at production",
+             "note": "Oversight, not deny: reading production is often legitimate, deciding "
+                     "to is a human's call. Matches the host or database name, so a staging "
+                     "host called prod-replica also matches."},
+            {"id": "production.deploy-command", "effect": "require_oversight",
+             "event_type": "tool_call",
+             "arg_contains": r"\b((kubectl|helm)\s[^\n]*(--context|--namespace)[= ]\s*"
+                             r"[\"']?(prod|production)"
+                             r"|(vercel|netlify|fly|wrangler|serverless|sls)\s+deploy\b"
+                             r"|npx\s+wrangler\s+(pages\s+)?deploy\b"
+                             r"|git\s+push\s+[^\n]*\b(production|prod)\b)",
+             "reason": "argument runs a deployment",
+             "note": "Oversight, not deny: shipping is the job. The point is that a human "
+                     "signed off and it is recorded, not that it is impossible."},
             {"id": "production.force-push", "effect": "deny", "event_type": "tool_call",
              "arg_contains": r"git\s+push\b[^\n]*(--force\b|(?<![\w-])-f(?![\w-]))",
              "reason": "argument contains a force push",

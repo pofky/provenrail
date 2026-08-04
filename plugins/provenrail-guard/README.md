@@ -13,7 +13,7 @@ Then, once, in each project you want guarded:
 ```bash
 uv tool install provenrail    # or: pip install provenrail
 pr quickstart                 # local sink, no account, nothing leaves your machine
-pr guard install              # arms destructive + secrets + production
+pr guard install              # arms destructive + secrets + production + access
 ```
 
 ## What it does

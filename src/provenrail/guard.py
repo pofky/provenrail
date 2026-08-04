@@ -53,11 +53,18 @@ HOOK_COMMAND = "pr guard hook"
 HOOK_TIMEOUT_S = 15
 
 # What `pr guard install` arms when the project has no policy yet. Chosen for a coding agent
-# working in a repo: the things that destroy work or leak credentials. Money, access,
-# exfiltration and blast-radius packs exist and are one word away in `.provenrail.json`, but
-# they fire on tool-name patterns a coding agent does not use, so arming them by default would
-# add noise without adding protection.
-DEFAULT_PACKS = ["destructive", "secrets", "production"]
+# working in a repo: the things that destroy work, leak credentials, or hand out access.
+#
+# `access` is included because two of its rules (world-writable chmod, disabling MFA) match on
+# command text a coding agent really does produce, and both are advertised as blocked. Its other
+# two match tool-name patterns Claude Code never emits, so they cost nothing. Money, exfiltration
+# and blast-radius are still opt-in: they fire on tool names a coding agent does not use, so
+# arming them by default would add noise without adding protection.
+#
+# Anything named in the marketing copy has to be in this list. `tests/test_guard.py` asserts it
+# command by command, because "we say it blocks X" and "it blocks X" drifting apart is the one
+# bug a guardrail cannot survive.
+DEFAULT_PACKS = ["destructive", "secrets", "production", "access"]
 
 # Claude Code tools whose input can carry a destructive payload. Everything else (Read, Glob,
 # Grep, TodoWrite...) is still recorded on PostToolUse but is not worth a pre-dispatch gate.

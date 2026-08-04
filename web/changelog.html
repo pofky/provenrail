@@ -90,6 +90,16 @@
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.17</span><span class="date">August 4, 2026</span><span class="tag">Guardrails</span></div>
+      <ul>
+        <li><b>Everything we advertise is now actually blocked.</b> Testing a fresh install against our own marketing copy found five claims the code did not keep: <code>chmod 777</code> lived in a pack the default install never armed; <code>TRUNCATE orders</code> slipped through because the rule required the optional <code>TABLE</code> keyword; <code>dd of=/dev/</code> and <code>kubectl delete namespace</code> had no rule at all; and the token pattern matched only the retired <code>sk-</code> key format, missing every current <code>sk-proj-</code> and <code>sk-ant-</code> key.</li>
+        <li><b>The <code>access</code> pack is armed by default</b>, so world-writable <code>chmod</code> and disabling MFA are blocked out of the box. Existing projects keep the packs written in their <code>.provenrail.json</code>; an upgrade never starts blocking on its own.</li>
+        <li><b>Production rules that fire under a coding agent.</b> The pack matched only tool names like <code>deploy*</code>, which Claude Code never emits, so it was inert for the host we ship for. A connection string pointed at production and a deploy command now ask for a human, rather than being silently allowed.</li>
+        <li><b>The copy is a test now.</b> Every capability named on the site, in both READMEs and in the PyPI summary is asserted command by command against the default install, alongside 17 ordinary commands that must not trip. Marketing and code can no longer drift apart quietly.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.2.16</span><span class="date">August 4, 2026</span><span class="tag">Guardrails</span></div>
       <ul>
         <li><b>The policy is found from a subdirectory.</b> <code>pr guard install</code> writes the policy at the repo root, but agents are routinely launched from a package inside a monorepo. The lookup only checked the current directory, so a session started in <code>apps/web</code> found no policy and allowed everything, silently. It now searches upward to the repo root. This was the worst failure available: you installed it, so you believed you were covered.</li>
@@ -130,7 +140,7 @@
     <div class="rel">
       <div class="rel-head"><span class="ver">0.2.10 to 0.2.12</span><span class="date">July 30, 2026</span><span class="tag">Guardrails</span></div>
       <ul>
-        <li><b>A catalogue of prebuilt guardrails.</b> Seven packs and 31 rules covering destructive actions, credentials, money movement, production infrastructure, access changes, data exfiltration and blast-radius caps. Enable by name in <code>.provenrail.json</code>. Nothing is on by default: an upgrade must never start blocking your agent on its own.</li>
+        <li><b>A catalogue of prebuilt guardrails.</b> Seven packs and 31 rules (35 today) covering destructive actions, credentials, money movement, production infrastructure, access changes, data exfiltration and blast-radius caps. Enable by name in <code>.provenrail.json</code>. Nothing is on by default: an upgrade must never start blocking your agent on its own.</li>
         <li><b>Rules you can check instead of hope about.</b> <code>pr rules</code> lists the catalogue with each rule's false-positive risk; <code>pr rules --check bundle.json</code> reports which rules would match the tool names in a real recorded run, and says plainly that content rules cannot be judged from names alone.</li>
         <li><b>Denials as evidence.</b> A blocked action is written into the signed chain, shown in red on the public proof page, and can fire a signed webhook the moment it is ingested.</li>
         <li><b>Re-running an agent works.</b> Multiple runs on one stream are now verified as independent sessions, each rooted in its own genesis record, in both the Python and browser verifiers. A persistent device key at <code>.provenrail.key</code> keeps runs on a pinned stream signing under one identity.</li>
