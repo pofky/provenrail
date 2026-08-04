@@ -133,12 +133,32 @@ def prior_spend(agent_id: str = "default", path: Path | None = None,
         # would tell a day budget that nothing had been spent today, on authority, and lift
         # the cap. Fail to "unknown" so the budget degrades to session scope and says so.
         return 0.0, 0.0, False
-    entry = data.get("agents", {}).get(agent_id) if isinstance(data.get("agents"), dict) else None
-    if not isinstance(entry, dict):
+    agents = data.get("agents")
+    if not isinstance(agents, dict):
+        return 0.0, 0.0, False  # readable JSON, but not a ledger: unknown, not empty
+    if agent_id not in agents:
         return 0.0, 0.0, True   # ledger exists and is readable; this agent has no spend yet
-    days = entry.get("days", {})
-    today = float(days.get(_today(now), 0.0) or 0.0) if isinstance(days, dict) else 0.0
-    total = float(entry.get("total_usd", 0.0) or 0.0)
+    entry = agents[agent_id]
+    if not isinstance(entry, dict):
+        # The key IS present, so this agent has history; it is just unreadable. Absent key and
+        # malformed value are opposite facts, and collapsing them into the same (0, 0, True)
+        # turns damaged history into an authoritative zero and lifts the cap.
+        return 0.0, 0.0, False
+    days = entry.get("days")
+    try:
+        total = float(entry.get("total_usd", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0, 0.0, False
+    if "days" in entry and not isinstance(days, dict):
+        # A day budget must not read $0.00 today off a mangled days map while a total budget
+        # reads the real lifetime figure from the same entry.
+        return 0.0, total, False
+    try:
+        today = float((days or {}).get(_today(now), 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0, total, False
+    if today < 0 or total < 0:
+        return 0.0, 0.0, False  # negative history would refund a blown cap
     return today, total, True
 
 

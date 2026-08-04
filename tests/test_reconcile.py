@@ -99,8 +99,8 @@ def test_estimate_below_invoice_points_at_uninstrumented_calls():
 
 
 def test_unpriced_calls_are_flagged_so_the_estimate_reads_as_a_floor():
-    streams = [("x", [genesis(), call(model="claude-opus-5")])]
-    out = reconcile(streams, "model,cost\nclaude-opus-5,40.00\n")
+    streams = [("x", [genesis(), call(model="grok-4")])]
+    out = reconcile(streams, "model,cost\ngrok-4,40.00\n")
     assert any("floor" in f for f in out["findings"])
 
 
@@ -147,3 +147,29 @@ def test_the_correct_model_still_matches_including_dated_suffixes():
     exact = reconcile([("x", [genesis(), call(model="gpt-4o-mini")])],
                       "model,cost\ngpt-4o-mini,0.15\n")
     assert exact["rows"] and exact["rows"][0]["model"] == "gpt-4o-mini"
+
+
+def test_a_non_usd_invoice_is_refused_not_silently_read_as_zero():
+    """Every figure this product produces is in USD. A EUR invoice parsed to $0.00 on every
+    line, which zeroed the invoice total, which made drift undefined, which skipped every
+    drift finding and left the report concluding "nothing to flag" over a real bill."""
+    streams = [("x", [genesis(), call()])]
+    out = reconcile(streams, 'model,amount\nclaude-sonnet-4-5,"€1.234,56"\n')
+    assert out["invoice"]["currencies"] == ["EUR"]
+    assert any("not USD" in w for w in out["warnings"])
+    assert any("not USD" in f for f in out["findings"])
+    assert not any("Nothing to flag" in f for f in out["findings"])
+
+
+def test_a_usd_invoice_is_still_reconciled_normally():
+    streams = [("x", [genesis(), call()])]
+    out = reconcile(streams, "model,cost\nclaude-sonnet-4-5,$3.00\n")
+    assert out["invoice"]["currencies"] == []
+    assert not any("not USD" in w for w in out["warnings"])
+
+
+def test_an_unparseable_cost_cell_is_counted_and_reported():
+    streams = [("x", [genesis(), call()])]
+    out = reconcile(streams, "model,cost\nclaude-sonnet-4-5,see attached\n")
+    assert out["invoice"]["unreadable_cost_cells"] == 1
+    assert any("could not be read as a number" in w for w in out["warnings"])

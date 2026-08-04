@@ -79,7 +79,7 @@ def test_unattributed_spend_is_shown_not_dropped():
 
 def test_unpriced_calls_are_counted_so_a_row_is_never_mistaken_for_complete():
     records = [session("s1", {"agent": "a"}),
-               model_call("s1", 1_000_000, model="claude-opus-5")]   # known, deliberately unpriced
+               model_call("s1", 1_000_000, model="grok-4")]   # known, deliberately unpriced
     row = finance.rollup([("x", records)], group_by="agent")["rows"][0]
     assert row["cost_usd"] == 0.0
     assert row["unpriced_calls"] == 1

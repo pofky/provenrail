@@ -70,7 +70,7 @@ function fromHex(s) {
 async function sha256Hex(bytes) {
   return hex(await subtle.digest("SHA-256", bytes));
 }
-async function hashValue(value) {
+export async function hashValue(value) {
   return sha256Hex(enc.encode(canon(value)));
 }
 
@@ -598,14 +598,22 @@ async function verifyOts(bundle, rep, opts) {
 // actually applied, which is the claim the guardrail packs are sold on.
 const POLICY_MEANINGFUL = { model_call: "model_call", tool_call: "tool_call", mcp_call: "mcp_call", data_access: "data_access" };
 
+// Must equal policy.MAX_GLOB_PATTERN. A bundle is an untrusted input handed to a public web
+// page, and a 100k-character glob compiles to a ~600k-character regex, so this verifier will
+// not compile one. Rules that exceed it are excluded from the replay and REPORTED, upstream in
+// verifyPolicy, so the CLI and the browser skip the same rules and say the same thing.
+const MAX_GLOB_PATTERN = 512;
+
+function oversizedGlob(rule) {
+  return [rule.tool, rule.resource, rule.provider].some(p => String(p ?? "").length > MAX_GLOB_PATTERN);
+}
+
 function globMatch(pattern, value) {
   // fnmatch subset used by policy.Rule: *, ?, and [seq]. Case-insensitive, like _glob().
   const p = String(pattern == null ? "*" : pattern).toLowerCase();
   const v = String(value == null ? "" : value).toLowerCase();
-  // The pattern comes from a bundle, which anyone can hand to the public /verify page. A
-  // 100k-character glob compiles to a ~600k-character regex; no rule a human writes is
-  // anywhere near this, so refusing to match is safer than compiling it.
-  if (p.length > 512) return false;
+  // Belt and braces: verifyPolicy already drops these rules before replay.
+  if (p.length > MAX_GLOB_PATTERN) return false;
   let re = "";
   for (let i = 0; i < p.length; i++) {
     const c = p[i];
@@ -622,24 +630,41 @@ function globMatch(pattern, value) {
 
 // Price table mirror of pricing.py, restricted to what a cost estimate needs. It is used
 // ONLY to replay a spend cap; it never touches a hash or a signature, exactly as in Python.
+// Rates verified against each provider's own pricing page on 2026-08-04. These mirror
+// pricing.py entry for entry: a divergence here is a divergence in the verdict a budget
+// replay reaches, which is the one thing two independent implementations exist to prevent.
+// Anthropic: cache read 0.1x input, 5m write 1.25x, 1h write 2x, usage EXCLUSIVE of cache.
+const _a = (i, o) => ({ in: i, out: o, cr: i * 0.10, cw: i * 1.25, cw1h: i * 2.00, incl: false });
+// OpenAI: cached input at a discount, no separate write charge, usage INCLUSIVE.
+const _o = (i, o, ratio = 0.25) => ({ in: i, out: o, cr: i * ratio, cw: null, incl: true });
+// Google: cache read 0.1x input, usage INCLUSIVE, thinking tokens billed at the output rate
+// ON TOP of candidatesTokenCount (totalTokenCount is defined as prompt + thoughts + candidates).
+const _g = (i, o, tier) => ({ in: i, out: o, cr: i * 0.10, cw: null, incl: true, radd: true, ...(tier || {}) });
+const _flat = (i, o) => ({ in: i, out: o, cr: null, cw: null, incl: false });
 const JS_PRICES = {
-  "gpt-4o-mini": [0.15, 0.60, 0.075, null, true], "gpt-4o": [2.50, 10.00, 1.25, null, true],
-  "gpt-4.1-nano": [0.10, 0.40, 0.025, null, true], "gpt-4.1-mini": [0.40, 1.60, 0.10, null, true],
-  "gpt-4.1": [2.00, 8.00, 0.50, null, true], "gpt-4-turbo": [10.00, 30.00, 10.00, null, true],
-  "gpt-3.5-turbo": [0.50, 1.50, 0.50, null, true], "o4-mini": [1.10, 4.40, 0.275, null, true],
-  "o3-mini": [1.10, 4.40, 0.275, null, true], "o3": [2.00, 8.00, 0.50, null, true],
-  "o1-mini": [1.10, 4.40, 0.275, null, true], "o1": [15.00, 60.00, 3.75, null, true],
-  "claude-3-5-haiku": [0.80, 4.00, 0.08, 1.0, false], "claude-3-5-sonnet": [3.00, 15.00, 0.30, 3.75, false],
-  "claude-3-haiku": [0.25, 1.25, 0.025, 0.3125, false], "claude-3-opus": [15.00, 75.00, 1.50, 18.75, false],
-  "claude-haiku-4-5": [1.00, 5.00, 0.10, 1.25, false], "claude-haiku-4": [1.00, 5.00, 0.10, 1.25, false],
-  "claude-sonnet-4-5": [3.00, 15.00, 0.30, 3.75, false], "claude-sonnet-4": [3.00, 15.00, 0.30, 3.75, false],
-  "claude-opus-4-5": [5.00, 25.00, 0.50, 6.25, false], "claude-opus-4": [15.00, 75.00, 1.50, 18.75, false],
-  "gemini-2.5-flash-lite": [0.10, 0.40, 0.025, null, true], "gemini-2.5-flash": [0.30, 2.50, 0.075, null, true],
-  "gemini-2.5-pro": [1.25, 10.00, 0.3125, null, true], "gemini-1.5-flash": [0.075, 0.30, 0.01875, null, true],
-  "gemini-1.5-pro": [1.25, 5.00, 0.3125, null, true],
-  "llama-3.1-405b": [3.50, 3.50, null, null, false], "llama-3.1-70b": [0.90, 0.90, null, null, false],
-  "mistral-large": [2.00, 6.00, null, null, false],
-  "deepseek-chat": [0.27, 1.10, null, null, false], "deepseek-reasoner": [0.55, 2.19, null, null, false],
+  "gpt-4o-mini": _o(0.15, 0.60, 0.50), "gpt-4o": _o(2.50, 10.00, 0.50),
+  "gpt-4.1-nano": _o(0.10, 0.40), "gpt-4.1-mini": _o(0.40, 1.60),
+  "gpt-4.1": _o(2.00, 8.00), "gpt-4-turbo": _o(10.00, 30.00, 1.0),
+  "gpt-3.5-turbo": _o(0.50, 1.50, 1.0), "o4-mini": _o(1.10, 4.40),
+  "o3-mini": _o(1.10, 4.40), "o3": _o(2.00, 8.00),
+  "o1-mini": _o(1.10, 4.40), "o1": _o(15.00, 60.00),
+  "claude-3-5-haiku": _a(0.80, 4.00), "claude-3-5-sonnet": _a(3.00, 15.00),
+  "claude-3-haiku": _a(0.25, 1.25), "claude-3-opus": _a(15.00, 75.00),
+  "claude-haiku-4-5": _a(1.00, 5.00), "claude-haiku-4": _a(1.00, 5.00),
+  "claude-sonnet-4-5": _a(3.00, 15.00), "claude-sonnet-4-6": _a(3.00, 15.00),
+  "claude-sonnet-4": _a(3.00, 15.00), "claude-sonnet-5": _a(2.00, 10.00),
+  // Every current Opus is listed: longest-substring resolution would otherwise hand 4-6, 4-7
+  // and 4-8 to "claude-opus-4" and bill them at the retired $15/$75 rate.
+  "claude-opus-4-5": _a(5.00, 25.00), "claude-opus-4-6": _a(5.00, 25.00),
+  "claude-opus-4-7": _a(5.00, 25.00), "claude-opus-4-8": _a(5.00, 25.00),
+  "claude-opus-4-1": _a(15.00, 75.00), "claude-opus-4": _a(15.00, 75.00),
+  "claude-opus-5": _a(5.00, 25.00), "claude-fable-5": _a(10.00, 50.00),
+  "gemini-2.5-flash-lite": _g(0.10, 0.40), "gemini-2.5-flash": _g(0.30, 2.50),
+  "gemini-2.5-pro": _g(1.25, 10.00, { tierAt: 200000, tierIn: 2.50, tierOut: 15.00 }),
+  "gemini-1.5-flash": _g(0.075, 0.30), "gemini-1.5-pro": _g(1.25, 5.00),
+  "llama-3.1-405b": _flat(3.50, 3.50), "llama-3.1-70b": _flat(0.90, 0.90),
+  "mistral-large": _flat(2.00, 6.00),
+  "deepseek-chat": _flat(0.27, 1.10), "deepseek-reasoner": _flat(0.55, 2.19),
 };
 // Must stay identical to pricing.py's key lists, including Google's camelCase REST spellings
 // and the Python SDK's snake_case ones, or a budget replays differently here than on the CLI.
@@ -647,6 +672,8 @@ const IN_KEYS = ["input", "in", "input_tokens", "prompt_tokens", "prompt", "toke
 const OUT_KEYS = ["output", "out", "output_tokens", "completion_tokens", "completion", "tokens_out", "candidatesTokenCount", "candidates_token_count"];
 const CACHE_READ_KEYS = ["cache_read_input_tokens", "cached_tokens", "cache_read_tokens", "cache_read", "cached_input_tokens", "cached_content_token_count", "cachedContentTokenCount"];
 const CACHE_WRITE_KEYS = ["cache_creation_input_tokens", "cache_write_tokens", "cache_write", "cache_creation_tokens"];
+const CACHE_WRITE_1H_KEYS = ["ephemeral_1h_input_tokens", "ephemeral1hInputTokens"];
+const REASONING_KEYS = ["reasoning_tokens", "thinking_tokens", "reasoning", "thoughtsTokenCount", "thoughts_token_count"];
 
 function flatUsage(usage) {
   const flat = {};
@@ -670,13 +697,38 @@ function estimateCost(model, usage) {
   const u = flatUsage(usage);
   const tin = pickTokens(u, IN_KEYS), tout = pickTokens(u, OUT_KEYS);
   const cr = pickTokens(u, CACHE_READ_KEYS), cw = pickTokens(u, CACHE_WRITE_KEYS);
-  const [pin, pout, pcr, pcw, inclusive] = price;
-  const uncached = inclusive ? Math.max(0, tin - cr) : tin;
-  const billableWrite = inclusive ? 0 : cw;
-  const crRate = pcr === null ? pin : pcr;
-  const cwRate = pcw === null ? pin : pcw;
-  const cost = (uncached * pin + tout * pout + cr * crRate + billableWrite * cwRate) / 1e6;
-  return Math.round(cost * 1e6) / 1e6;
+  const reasoning = pickTokens(u, REASONING_KEYS);
+  const uncached = price.incl ? Math.max(0, tin - cr) : tin;
+  const billableWrite = price.incl ? 0 : cw;
+  // The higher tier applies to the whole call, not only to the tokens above the threshold.
+  const tiered = price.tierAt !== undefined && tin > price.tierAt;
+  const pin = tiered && price.tierIn !== undefined ? price.tierIn : price.in;
+  const pout = tiered && price.tierOut !== undefined ? price.tierOut : price.out;
+  const crRate = price.cr === null || price.cr === undefined ? pin : price.cr;
+  const cwRate = price.cw === null || price.cw === undefined ? pin : price.cw;
+  // The 1h portion is INSIDE the reported write total, so split it out and reprice it rather
+  // than adding it, or the same tokens are billed twice.
+  const w1h = price.cw1h === undefined ? 0 : Math.min(pickTokens(u, CACHE_WRITE_1H_KEYS), billableWrite);
+  const w5m = billableWrite - w1h;
+  const w1hRate = price.cw1h === undefined ? cwRate : price.cw1h;
+  // Reasoning tokens sit inside the output count everywhere except Google, where they are
+  // additive and billed at the output rate.
+  const billableReasoning = price.radd ? reasoning : 0;
+  const cost = (uncached * pin + (tout + billableReasoning) * pout + cr * crRate
+                + w5m * cwRate + w1h * w1hRate) / 1e6;
+  return round6(cost);
+}
+
+// Python's round() is round-half-to-EVEN, and Math.round is round-half-UP. On a cost landing
+// exactly on a half-microdollar the two verifiers then disagree by 1e-6, and the whole point
+// of a second implementation is that it reaches the same verdict. The CLI is the reference,
+// so this mirrors its rule rather than the language default.
+function round6(x) {
+  const scaled = x * 1e6;
+  const floor = Math.floor(scaled);
+  const frac = scaled - floor;
+  if (Math.abs(frac - 0.5) < 1e-9) return (floor % 2 === 0 ? floor : floor + 1) / 1e6;
+  return Math.round(scaled) / 1e6;
 }
 
 function policyDecide(policy, eventType, ctx, state) {
@@ -709,6 +761,56 @@ function policyDecide(policy, eventType, ctx, state) {
   return { effect: "allow", ruleId: null, reason: "no rule matched" };
 }
 
+// The committed hash is taken over `Policy.to_dict()`, NOT over whatever dict happens to sit
+// in the bundle. Hashing the raw dict here made the two verifiers disagree about tampering on
+// any policy that was not already in exactly that shape: an explicit `"budgets": []`, a rule
+// that omitted an optional field, or any extra key. Python normalized those away and passed;
+// the browser hashed them literally and called a genuine bundle tampered. This mirrors
+// `Policy.to_dict()` field for field so both sides hash the same bytes.
+const _RULE_FIELDS = ["id", "effect", "event_type", "tool", "resource", "provider",
+                      "arg_contains", "max_per_session", "reason"];
+const _RULE_DEFAULTS = { effect: "", event_type: "*", tool: "*", resource: "*", provider: "*",
+                         arg_contains: "", max_per_session: null, reason: "", id: "" };
+
+export function policyCanonicalForm(dict) {
+  const d = dict && typeof dict === "object" ? dict : {};
+  const rules = (Array.isArray(d.rules) ? d.rules : []).map(r => {
+    const out = {};
+    // Only the known fields, always all of them: Rule.from_dict drops anything unrecognised
+    // and Rule.to_dict emits every field including the defaults.
+    for (const f of _RULE_FIELDS) out[f] = (r && r[f] !== undefined) ? r[f] : _RULE_DEFAULTS[f];
+    return out;
+  });
+  const cap = d.session_spend_cap_usd;
+  // Python writes the cap as a fixed 6-decimal STRING, because the canonicalizer forbids
+  // floats in a record. Number formatting is where a lockstep quietly dies, so it is explicit.
+  const out = { rules, session_spend_cap_usd: (cap === null || cap === undefined) ? null : fixed6(cap) };
+  const budgets = Array.isArray(d.budgets) ? d.budgets : [];
+  if (budgets.length) {
+    out.budgets = budgets.map(b => ({
+      id: b.id || `budget.${String(b.scope || "session").toLowerCase()}`,
+      scope: String(b.scope || "session").toLowerCase(),
+      limit_usd: fixed6(b.limit_usd ?? 0),
+      // 4 decimals, and clamped to [0, 1], exactly as Budget.__post_init__ and Budget.to_dict
+      // do it. A fraction written with the wrong precision hashes differently.
+      warn_at: clamp01(b.warn_at === undefined ? 0.8 : b.warn_at).toFixed(4),
+    }));
+  }
+  const onUnpriced = String(d.on_unpriced || "warn").toLowerCase();
+  if (onUnpriced !== "warn") out.on_unpriced = onUnpriced;
+  return out;
+}
+
+function fixed6(v) {
+  const n = typeof v === "number" ? v : parseFloat(String(v));
+  return Number.isFinite(n) ? n.toFixed(6) : "0.000000";
+}
+
+function clamp01(v) {
+  const n = typeof v === "number" ? v : parseFloat(String(v));
+  return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
+}
+
 function normalizePolicy(dict) {
   const rules = (dict.rules || []).map(r => ({
     id: r.id, effect: r.effect, event_type: r.event_type ?? "*", tool: r.tool ?? "*",
@@ -732,7 +834,7 @@ async function verifyPolicy(sessions, rep) {
     const policyDict = meta.policy;
     if (policyDict === undefined || policyDict === null) continue;
     const committed = meta.policy_sha256;
-    const recomputed = await hashValue(policyDict);
+    const recomputed = await hashValue(policyCanonicalForm(policyDict));
     if (committed !== undefined && committed !== null && recomputed !== committed) {
       rep.add("fail", "policy_commit_mismatch",
         "the committed policy hash does not match the embedded policy (the recorded guardrails were altered after the session started)");
@@ -741,13 +843,21 @@ async function verifyPolicy(sessions, rep) {
     const full = normalizePolicy(policyDict);
     const contentRules = full.rules.filter(r => r.arg_contains).length;
     const crossSession = full.budgets.filter(b => b.scope !== "session").length;
+    const oversized = full.rules.filter(r => !r.arg_contains && oversizedGlob(r)).length;
     // A content gate matches on argument text, which is hashed out of the bundle, and a
     // cross-session budget needs history this bundle does not hold. Both are reported as
-    // enforced-but-not-re-checkable rather than silently trusted or silently dropped.
+    // enforced-but-not-re-checkable rather than silently trusted or silently dropped. An
+    // over-long glob is the third case, and it must be dropped HERE and reported, exactly as
+    // the CLI does. Leaving globMatch to quietly return false instead made this verifier call
+    // a bundle fully verified while the CLI reported the same rule as unenforced.
     const reverifiable = {
-      rules: full.rules.filter(r => !r.arg_contains),
+      rules: full.rules.filter(r => !r.arg_contains && !oversizedGlob(r)),
       budgets: full.budgets.filter(b => b.scope === "session"),
     };
+    if (oversized) {
+      rep.add("warn", "policy_rule_not_rechecked",
+        `${oversized} rule(s) carry a glob longer than ${MAX_GLOB_PATTERN} characters and were NOT re-evaluated. Enforcement at record time is unaffected; this verdict simply does not cover them`);
+    }
     const state = { spend: 0, oversight: false, oversightRules: new Set(), counts: {} };
     let checked = 0, violations = 0, recordedDenies = 0;
     for (const rec of sess) {

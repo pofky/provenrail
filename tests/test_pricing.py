@@ -77,7 +77,7 @@ def test_unknown_model_is_unpriced_and_zero():
 def test_known_model_without_a_verified_rate_says_so():
     """Refusing to invent a rate is the point; the caller must be able to tell the difference
     between 'never heard of it' and 'we know it and will not guess'."""
-    c = cost_for("claude-opus-5", {"input_tokens": 1000, "output_tokens": 1000})
+    c = cost_for("gpt-5", {"input_tokens": 1000, "output_tokens": 1000})
     assert c["priced"] is False
     assert c["known_unpriced"] is True
 
@@ -134,31 +134,107 @@ def test_google_camelcase_usage_is_priced_not_silently_zero():
         "cachedContentTokenCount": 400_000,
     })
     # Google reports the prompt count INCLUSIVE of cache, so 600k uncached at $0.30 +
-    # 400k cached at $0.075 + 200k out at $2.50
+    # 400k cached at $0.03 + 200k out at $2.50
     assert c["priced"] is True
-    assert c["cost_usd"] == pytest.approx(0.71)
+    assert c["cost_usd"] == pytest.approx(0.692)
     assert c["tokens_billable_in"] == 600_000
 
 
+def test_google_cache_read_is_a_tenth_of_input_not_a_quarter():
+    """The cache rate was carried at 0.25x from an assumption. The published rates are
+    $0.03 against $0.30 for flash, $0.01 against $0.10 for flash-lite, and $0.125 against
+    $1.25 for pro: one tenth in every case. At 0.25x every Google cache hit was overcharged
+    by 150%."""
+    for model, expected in (("gemini-2.5-flash", 0.03), ("gemini-2.5-flash-lite", 0.01),
+                            ("gemini-2.5-pro", 0.125)):
+        c = cost_for(model, {"promptTokenCount": 1_000_000,
+                             "cachedContentTokenCount": 1_000_000})
+        assert c["cost_usd"] == pytest.approx(expected), model
+
+
 def test_google_python_sdk_snake_case_usage_is_priced():
-    c = cost_for("gemini-2.5-pro", {"prompt_token_count": 1_000_000,
+    c = cost_for("gemini-2.5-pro", {"prompt_token_count": 100_000,
                                     "candidates_token_count": 0})
     assert c["priced"] is True
-    assert c["cost_usd"] == pytest.approx(1.25)
+    assert c["cost_usd"] == pytest.approx(0.125)
 
 
-def test_gemini_thoughts_tokens_are_surfaced_and_flagged_as_unverified():
-    """Whether thoughtsTokenCount is additive to candidatesTokenCount is not stated in
-    Google's official token documentation, so it is reported and left unbilled rather than
-    guessed at, and the blind spot is flagged rather than hidden."""
-    c = cost_for("gemini-2.5-flash", {"promptTokenCount": 0, "candidatesTokenCount": 1000,
-                                      "thoughtsTokenCount": 5000})
-    assert c["tokens_reasoning"] == 5000
-    assert c["reasoning_billing_unverified"] is True
-    # a provider whose convention IS documented is not flagged
-    openai = cost_for("o3", {"prompt_tokens": 0, "completion_tokens": 1000,
-                             "output_tokens_details": {"reasoning_tokens": 900}})
-    assert openai["reasoning_billing_unverified"] is False
+def test_gemini_pro_switches_to_the_long_prompt_tier_over_200k():
+    """Gemini 2.5 Pro lists two price tiers and the higher one applies to the whole call, not
+    only the excess. A flat rate undercharges precisely the long-context calls that cost the
+    most, so a budget would keep letting them through."""
+    under = cost_for("gemini-2.5-pro", {"promptTokenCount": 200_000,
+                                        "candidatesTokenCount": 100_000})
+    over = cost_for("gemini-2.5-pro", {"promptTokenCount": 200_001,
+                                       "candidatesTokenCount": 100_000})
+    assert under["tier_applied"] is False
+    assert under["cost_usd"] == pytest.approx(0.2 * 1.25 + 0.1 * 10.00)
+    assert over["tier_applied"] is True
+    assert over["cost_usd"] == pytest.approx(0.200001 * 2.50 + 0.1 * 15.00)
+
+
+def test_gemini_thinking_tokens_are_billed_on_top_of_the_candidate_count():
+    """Two official statements settle this. The REST reference defines totalTokenCount as
+    "prompt + thoughts + response candidates", so thoughts are not inside candidatesTokenCount,
+    and the pricing page labels the output row "Output price (including thinking tokens)".
+    Leaving them unbilled undercounted every Gemini thinking call."""
+    c = cost_for("gemini-2.5-flash", {"promptTokenCount": 0, "candidatesTokenCount": 1_000_000,
+                                      "thoughtsTokenCount": 1_000_000})
+    assert c["tokens_reasoning"] == 1_000_000
+    assert c["cost_usd"] == pytest.approx(5.00)   # 2M output tokens at $2.50
+    assert c["reasoning_billing_unverified"] is False
+
+
+def test_openai_and_anthropic_reasoning_stays_a_subset_and_is_not_double_charged():
+    openai = cost_for("o3", {"prompt_tokens": 0, "completion_tokens": 1_000_000,
+                             "output_tokens_details": {"reasoning_tokens": 900_000}})
+    assert openai["cost_usd"] == pytest.approx(8.00)
+    anthropic = cost_for("claude-sonnet-4-5", {"input_tokens": 0, "output_tokens": 1_000_000,
+                                               "output_tokens_details":
+                                                   {"thinking_tokens": 900_000}})
+    assert anthropic["cost_usd"] == pytest.approx(15.00)
+
+
+def test_anthropic_one_hour_cache_writes_cost_double_not_1_25x():
+    """`cache_creation_input_tokens` is the 5m + 1h total and the TTL split arrives nested in
+    `cache_creation`. Pricing the whole total at the 5-minute 1.25x rate undercounts every
+    long-TTL write, which is the tier a large repeated system prompt actually uses."""
+    c = cost_for("claude-sonnet-4-5", {
+        "input_tokens": 0, "output_tokens": 0,
+        "cache_creation_input_tokens": 800_000,
+        "cache_creation": {"ephemeral_5m_input_tokens": 500_000,
+                           "ephemeral_1h_input_tokens": 300_000},
+    })
+    # 500k at 1.25 x $3 + 300k at 2.0 x $3
+    assert c["cost_usd"] == pytest.approx(0.5 * 3.75 + 0.3 * 6.00)
+    assert c["tokens_cache_write"] == 800_000 and c["tokens_cache_write_1h"] == 300_000
+    # with no split reported, the whole write stays at the 5-minute rate rather than guessing
+    plain = cost_for("claude-sonnet-4-5", {"cache_creation_input_tokens": 800_000})
+    assert plain["cost_usd"] == pytest.approx(0.8 * 3.75)
+
+
+def test_current_opus_models_are_not_billed_at_the_retired_opus_4_rate():
+    """Longest-substring resolution handed claude-opus-4-6/4-7/4-8 to the "claude-opus-4"
+    entry, because "claude-opus-4-5" does not contain them. Every current Opus call was
+    estimated at 3x its real price."""
+    for model in ("claude-opus-4-5", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8",
+                  "claude-opus-5"):
+        c = cost_for(model, {"input_tokens": 1_000_000, "output_tokens": 1_000_000})
+        assert c["cost_usd"] == pytest.approx(30.00), model
+    for retired in ("claude-opus-4-1", "claude-opus-4-20250514"):
+        c = cost_for(retired, {"input_tokens": 1_000_000, "output_tokens": 1_000_000})
+        assert c["cost_usd"] == pytest.approx(90.00), retired
+
+
+def test_a_published_future_price_change_is_flagged_before_it_bites():
+    """Sonnet 5 is on introductory pricing that the provider has already announced ends on
+    31 August 2026. The table is freshly verified and still about to be wrong, which ordinary
+    staleness cannot express."""
+    c = cost_for("claude-sonnet-5", {"input_tokens": 1_000_000, "output_tokens": 1_000_000})
+    assert c["cost_usd"] == pytest.approx(12.00)   # $2 in + $10 out, introductory
+    assert c["price_until"] == "2026-08-31"
+    assert c["price_expired"] is False             # today is 2026-08-04
+    assert cost_for("claude-sonnet-4-5", {"input_tokens": 1})["price_until"] is None
 
 
 def test_negative_token_counts_cannot_reduce_a_budget():

@@ -23,7 +23,7 @@ from typing import Any
 
 from .. import GENESIS_PREV_HASH
 from ..anchor import merkle_root
-from ..canonical import canonicalize, sha256_hex
+from ..canonical import CanonicalError, canonicalize, sha256_hex
 from ..chain import (
     DATA_ACCESS,
     GENESIS,
@@ -167,6 +167,43 @@ def verify_bundle(bundle: dict[str, Any], pin: dict[str, Any] | None = None,
                   registry_pubkey: str | None = None,
                   disclosure_openings: dict[str, Any] | None = None,
                   bitcoin_headers: dict[int, str] | None = None) -> Report:
+    """Verify a bundle and return a Report. Never raises on bad input.
+
+    A bundle is an untrusted file, often a hostile one: this is the function a stranger's
+    upload reaches. A malformed bundle must come back as a verdict, not as a traceback. A
+    float anywhere in a record used to escape as an unhandled CanonicalError, which exited
+    non-zero with a stack trace instead of saying "this is not a valid record", and told the
+    submitter more about the internals than about their file.
+    """
+    try:
+        return _verify_bundle(
+            bundle, pin=pin, tlog_log_key=tlog_log_key, witness_pubkeys=witness_pubkeys,
+            max_cosig_age_days=max_cosig_age_days, now_utc=now_utc, audit_trail=audit_trail,
+            registry_pubkey=registry_pubkey, disclosure_openings=disclosure_openings,
+            bitcoin_headers=bitcoin_headers)
+    except CanonicalError as exc:
+        rep = Report()
+        rep.add("fail", "not_canonicalizable",
+                f"a record in this bundle cannot be canonicalized, so no hash over it can be "
+                f"checked and nothing in it can be verified: {exc}")
+        return rep
+    except (TypeError, ValueError, KeyError, AttributeError) as exc:
+        rep = Report()
+        rep.add("fail", "malformed_bundle",
+                f"this bundle is structurally invalid and could not be verified "
+                f"({type(exc).__name__}: {exc})")
+        return rep
+
+
+def _verify_bundle(bundle: dict[str, Any], pin: dict[str, Any] | None = None,
+                   tlog_log_key: str | None = None,
+                   witness_pubkeys: dict[str, str] | None = None,
+                   max_cosig_age_days: float = 30.0,
+                   now_utc: str | None = None,
+                   audit_trail: bool = False,
+                   registry_pubkey: str | None = None,
+                   disclosure_openings: dict[str, Any] | None = None,
+                   bitcoin_headers: dict[int, str] | None = None) -> Report:
     rep = Report()
     if not isinstance(bundle, dict):
         rep.add("fail", "not_a_bundle",
@@ -482,6 +519,7 @@ def _verify_policy(ordered: list[dict[str, Any]], rep: Report) -> None:
 
     from ..policy import (
         ALLOW,
+        MAX_GLOB_PATTERN,
         Policy,
         SessionState,
         _estimate_cost,
@@ -502,10 +540,12 @@ def _verify_policy(ordered: list[dict[str, Any]], rep: Report) -> None:
     from ..policy import SESSION
     session_budgets = [b for b in policy.budgets if b.scope == SESSION]
     cross_session_budgets = len(policy.budgets) - len(session_budgets)
-    reverifiable = Policy(rules=[r for r in policy.rules if not r.content_based],
+    reverifiable = Policy(rules=[r for r in policy.rules if r.offline_reverifiable],
                           budgets=session_budgets,
-                          session_spend_cap_usd=policy.session_spend_cap_usd)
+                          session_spend_cap_usd=policy.session_spend_cap_usd,
+                          on_unpriced=policy.on_unpriced)
     content_rules = sum(1 for r in policy.rules if r.content_based)
+    oversized_rules = sum(1 for r in policy.rules if not r.content_based and r.oversized_glob)
 
     event_for = {MODEL_CALL: "model_call", TOOL_CALL: "tool_call",
                  MCP_CALL: "mcp_call", DATA_ACCESS: "data_access"}
@@ -543,7 +583,7 @@ def _verify_policy(ordered: list[dict[str, Any]], rep: Report) -> None:
                     f"policy was not enforced for this call")
         # Mirror the SDK's post-call spend accounting so the spend cap replays correctly.
         if action == MODEL_CALL:
-            state.spend_usd += _estimate_cost(ctx)
+            state.spend_usd += _estimate_cost(ctx)[0]
 
     if violations == 0:
         detail = (f"committed policy {committed[:12] if committed else 'present'} verified: "
@@ -556,6 +596,14 @@ def _verify_policy(ordered: list[dict[str, Any]], rep: Report) -> None:
             detail += (f"; {cross_session_budgets} cross-session budget(s) were enforced but "
                        f"cannot be re-checked from this bundle alone, which covers one session")
         rep.add("info", "policy_verified", detail)
+    if oversized_rules:
+        # Warned unconditionally, including alongside a clean verdict, because the honest
+        # statement is "this rule was skipped", and a skipped rule hidden inside a green
+        # result is the shape of every audit failure this product exists to prevent.
+        rep.add("warn", "policy_rule_not_rechecked",
+                f"{oversized_rules} rule(s) carry a glob longer than {MAX_GLOB_PATTERN} "
+                f"characters and were NOT re-evaluated. Enforcement at record time is "
+                f"unaffected; this verdict simply does not cover them")
 
 
 def load_openings(obj: dict[str, Any] | None) -> dict[str, Any]:

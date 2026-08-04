@@ -58,6 +58,13 @@ REQUIRE_OVERSIGHT = "require_oversight"
 LIMIT = "limit"
 ALLOW = "allow"
 
+#: Longest glob a rule may carry and still be re-evaluated by an offline verifier. Enforcement
+#: at record time has no such limit; this bounds only what a verifier will compile from an
+#: untrusted bundle. It is shared with web/verify.js, and it has to be, because a limit on one
+#: side alone is a lockstep break: the CLI reported the rule as unenforced while the browser
+#: reported the same bundle as fully verified.
+MAX_GLOB_PATTERN = 512
+
 # Effects whose verdicts a standalone verifier can re-evaluate offline from recorded metadata
 # alone (tool name, provider, model, usage, oversight, counts). A rule that additionally gates on
 # argument content (arg_contains) cannot be re-checked once content is hashed, so it is reported
@@ -98,6 +105,25 @@ class Rule:
     @property
     def content_based(self) -> bool:
         return bool(self.arg_contains)
+
+    @property
+    def offline_reverifiable(self) -> bool:
+        """False when an offline verifier cannot faithfully re-evaluate this rule.
+
+        A content gate needs argument text the bundle hashes away. An over-long glob is the
+        other case: a bundle is an untrusted input handed to a public web page, and a 100k
+        character pattern compiles to a regex that is a denial-of-service on the reader's
+        browser, so the browser verifier refuses to evaluate it. `fnmatch` on the CLI has no
+        such limit, and that difference alone made the two implementations reach opposite
+        conclusions about whether a rule had been enforced. They now both decline the same
+        patterns and both say so, rather than one quietly skipping the rule.
+        """
+        return not self.content_based and not self.oversized_glob
+
+    @property
+    def oversized_glob(self) -> bool:
+        return any(len(p or "") > MAX_GLOB_PATTERN
+                   for p in (self.tool, self.resource, self.provider))
 
     def matches(self, event_type: str, ctx: dict[str, Any]) -> bool:
         if self.event_type != "*" and self.event_type != event_type:
@@ -169,6 +195,17 @@ class Policy:
     rules: list[Rule] = field(default_factory=list)
     session_spend_cap_usd: float | None = None
     budgets: list[Budget] = field(default_factory=list)
+    #: What a budget does about a model it cannot price. "warn" (the default) allows the call
+    #: and says plainly that no cap binds it; "deny" refuses to run a model whose spend cannot
+    #: be counted. Warn is the default because a provider shipping a new model would otherwise
+    #: stop every budgeted agent on the day of the announcement, which is a worse failure than
+    #: a visible blind spot. Teams that treat a cap as a hard control set "deny".
+    on_unpriced: str = "warn"
+
+    def __post_init__(self) -> None:
+        self.on_unpriced = (self.on_unpriced or "warn").lower()
+        if self.on_unpriced not in ("warn", DENY):
+            raise ValueError(f"on_unpriced must be 'warn' or 'deny', got {self.on_unpriced!r}")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Policy:
@@ -176,6 +213,7 @@ class Policy:
         cap = data.get("session_spend_cap_usd")
         budgets = [Budget.from_dict(b) for b in data.get("budgets", [])]
         return cls(rules=rules, budgets=budgets,
+                   on_unpriced=str(data.get("on_unpriced") or "warn"),
                    session_spend_cap_usd=None if cap is None else float(cap))
 
     def to_dict(self) -> dict[str, Any]:
@@ -190,6 +228,10 @@ class Policy:
                                "session_spend_cap_usd": None if cap is None else f"{cap:.6f}"}
         if self.budgets:
             out["budgets"] = [b.to_dict() for b in self.budgets]
+        if self.on_unpriced != "warn":
+            # Omitted at the default so adding this knob leaves every existing policy hash,
+            # and every frozen conformance vector, byte-identical.
+            out["on_unpriced"] = self.on_unpriced
         return out
 
     def effective_budgets(self) -> list[Budget]:
@@ -212,8 +254,18 @@ class Policy:
         # Budgets first, since they are session-level invariants independent of named rules.
         warning: str | None = None
         if event_type == "model_call":
-            cost = _estimate_cost(ctx)
-            for budget in self.effective_budgets():
+            cost, priced = _estimate_cost(ctx)
+            budgets = self.effective_budgets()
+            if budgets and not priced:
+                session.unpriced_calls += 1
+                model = str(ctx.get("model") or "(unnamed model)")
+                if self.on_unpriced == DENY:
+                    return Decision(DENY, "budget.unpriced",
+                                    f"no verified price for {model}, so this call cannot be "
+                                    f"counted against a spend cap")
+                warning = (f"budget.unpriced: {model} has no verified price, so this call adds "
+                           f"$0.00 to every cap. Spend limits are not binding for it.")
+            for budget in budgets:
                 projected = session.scope_spend(budget.scope) + cost
                 if projected > budget.limit_usd + 1e-9:
                     return Decision(DENY, budget.id,
@@ -269,6 +321,9 @@ class SessionState:
     prior_day_usd: float = 0.0
     prior_total_usd: float = 0.0
     prior_known: bool = False
+    #: Model calls this session that no budget could count, because the model has no verified
+    #: price. Every one of them is real money that no cap saw.
+    unpriced_calls: int = 0
 
     def satisfied(self, rule_id: str) -> bool:
         """True when a human has signed off THIS rule, or gave a rule-less blanket approval.
@@ -309,6 +364,10 @@ def budget_status(policy: Policy, session: SessionState) -> list[dict[str, Any]]
             "warning": budget.warn_at > 0 and spent >= limit_usd * budget.warn_at - 1e-9,
             "exceeded": spent > limit_usd + 1e-9,
             "prior_known": True if budget.scope == SESSION else session.prior_known,
+            # A cap reading 12% of its limit means nothing if half the run used a model with no
+            # rate. `binding` is False exactly when this figure is a floor rather than a total.
+            "unpriced_calls": session.unpriced_calls,
+            "binding": session.unpriced_calls == 0,
         })
     return out
 
@@ -317,6 +376,14 @@ def _glob(pattern: str, value: str) -> bool:
     return fnmatch.fnmatch((value or "").lower(), (pattern or "*").lower())
 
 
-def _estimate_cost(ctx: dict[str, Any]) -> float:
+def _estimate_cost(ctx: dict[str, Any]) -> tuple[float, bool]:
+    """(estimated cost, whether that estimate is real).
+
+    The second value is the one budgets get wrong if they ignore it. A model with no verified
+    rate estimates at $0.00, and $0.00 added to projected spend never crosses a cap, so a
+    budget silently stops binding the moment an agent moves to a model the price table has not
+    caught up with. The cost alone cannot express that; the caller needs the flag.
+    """
     from .pricing import cost_for
-    return cost_for(ctx.get("model", ""), ctx.get("usage")).get("cost_usd", 0.0)
+    c = cost_for(ctx.get("model", ""), ctx.get("usage"))
+    return c.get("cost_usd", 0.0), bool(c.get("priced"))

@@ -525,7 +525,13 @@ def test_js_and_python_cost_estimation_agree(tmp_path):
 
     models = ["claude-sonnet-4-5", "gpt-4.1", "gemini-2.5-pro", "gemini-2.5-flash",
               "claude-3-opus", "gpt-4o", "gpt-4o-mini", "deepseek-chat", "o3",
-              "llama-3.1-70b", "unknown-model-xyz"]
+              "llama-3.1-70b", "unknown-model-xyz",
+              # The whole current Anthropic line, because these resolve by longest substring
+              # and a table that lists only some of them silently bills the rest at a retired
+              # rate. Both verifiers must make the same mistake or the same correct choice.
+              "claude-opus-4-5", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8",
+              "claude-opus-4-1", "claude-opus-4-20250514", "claude-opus-5", "claude-sonnet-5",
+              "claude-fable-5", "claude-sonnet-4-6", "gemini-2.5-flash-lite", "gpt-5"]
     usages = [
         {"input_tokens": 1_000_000, "output_tokens": 250_000},
         # Google's two documented spellings, verified against the official REST reference and
@@ -539,6 +545,19 @@ def test_js_and_python_cost_estimation_agree(tmp_path):
         {"input_tokens": 1000, "output_tokens": 0, "cache_read_input_tokens": 50_000,
          "cache_creation_input_tokens": 20_000},
         {"output_tokens_details": {"reasoning_tokens": 5000}, "completion_tokens": 9000},
+        # Anthropic's TTL split: the 1h portion is inside cache_creation_input_tokens and is
+        # billed at 2x rather than 1.25x.
+        {"input_tokens": 0, "output_tokens": 0, "cache_creation_input_tokens": 800_000,
+         "cache_creation": {"ephemeral_5m_input_tokens": 500_000,
+                            "ephemeral_1h_input_tokens": 300_000}},
+        # A 1h figure larger than the total it belongs to must not be able to inflate the bill.
+        {"cache_creation_input_tokens": 100, "cache_creation": {"ephemeral_1h_input_tokens": 999}},
+        # Gemini thinking tokens, billed on top of the candidate count at the output rate.
+        {"promptTokenCount": 1000, "candidatesTokenCount": 1_000_000,
+         "thoughtsTokenCount": 1_000_000},
+        # Either side of Gemini 2.5 Pro's 200k prompt tier boundary.
+        {"promptTokenCount": 200_000, "candidatesTokenCount": 100_000},
+        {"promptTokenCount": 200_001, "candidatesTokenCount": 100_000},
         {},
     ]
     cases = [{"model": m, "usage": u, "py": cost_for(m, u)["cost_usd"]}
@@ -549,3 +568,131 @@ def test_js_and_python_cost_estimation_agree(tmp_path):
                             capture_output=True, text=True)
     assert result.returncode == 0, f"cost parity failed:\n{result.stdout}\n{result.stderr}"
     assert "PASS all" in result.stdout
+
+
+def _policy_hash_cases():
+    """Policy dicts whose committed hash is taken over Policy.to_dict(), in shapes a hand-built
+    or older-SDK bundle really produces. Each one used to make the two verifiers disagree about
+    whether the bundle had been tampered with."""
+    base_rule = {"id": "r1", "effect": "deny", "event_type": "tool_call", "tool": "bash",
+                 "resource": "*", "provider": "*", "arg_contains": "", "max_per_session": None,
+                 "reason": ""}
+    return [
+        {"rules": [base_rule], "session_spend_cap_usd": None},
+        # an explicit empty budgets list, which Policy.to_dict() omits entirely
+        {"rules": [base_rule], "session_spend_cap_usd": None, "budgets": []},
+        # a rule that omits every optional field, which from_dict fills with defaults
+        {"rules": [{"id": "r1", "effect": "deny", "tool": "bash"}],
+         "session_spend_cap_usd": None},
+        # an unknown key, which Rule.from_dict and Policy.from_dict both drop
+        {"rules": [{**base_rule, "_note": "ignored"}], "session_spend_cap_usd": None,
+         "unknown_top_level": 1},
+        {"rules": [base_rule], "session_spend_cap_usd": 5.0,
+         "budgets": [{"id": "b", "scope": "day", "limit_usd": "10.000000", "warn_at": "0.8000"}]},
+        {"rules": [], "session_spend_cap_usd": None, "on_unpriced": "deny"},
+    ]
+
+
+def test_policy_hash_is_computed_over_the_same_bytes_in_both_verifiers(tmp_path):
+    """The committed hash is taken over Policy.to_dict(), not over whatever dict sits in the
+    bundle. The browser verifier hashed the raw dict, so a genuine bundle carrying `budgets: []`
+    or a rule with defaults omitted verified on the CLI and was reported as TAMPERED in the
+    browser. Opposite verdicts on the same file is the one failure this product cannot have."""
+    from provenrail.policy import Policy
+
+    cases = [{"policy": p, "py": Policy.from_dict(p).policy_id()} for p in _policy_hash_cases()]
+    path = tmp_path / "policy_hash_cases.json"
+    path.write_text(json.dumps(cases), encoding="utf-8")
+    result = subprocess.run(["node", str(HERE / "js" / "policy_hash_parity.mjs"), str(path)],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, f"policy hash parity failed:\n{result.stdout}\n{result.stderr}"
+    assert "PASS all" in result.stdout
+
+
+def _bundle_with_policy(tmp_path, policy_dict, rule_tool="bash"):
+    """A real recorded session whose committed policy is `policy_dict`, with one tool call
+    that the rule under test is meant to catch."""
+    from provenrail.policy import Policy
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=False)
+    c = TestClient(app)
+    prov = provision_stream("http://t", http=c)
+    fr = FlightRecorder("http://t", prov["write_token"], prov["stream_id"], http=c)
+    policy = Policy.from_dict(policy_dict)
+    with fr.session({"agent": "demo", "policy": policy.to_dict(),
+                     "policy_sha256": policy.policy_id()}):
+        fr.record_tool_call(rule_tool, {"cmd": "x"}, {"ok": True}, _skip_policy=True)
+    return c.get(f"/v1/streams/{prov['stream_id']}/bundle").json()
+
+
+def test_an_oversized_glob_is_skipped_and_reported_by_both_verifiers(tmp_path):
+    """A bundle is an untrusted file handed to a public web page, so the browser verifier will
+    not compile a 100k-character glob into a regex. The CLI's fnmatch had no such limit, so the
+    same bundle came back "policy not enforced" on the CLI and "fully verified" in the browser.
+    Both must now skip the rule and both must SAY they skipped it: a rule quietly dropped
+    inside a green verdict is the exact shape of the audit failure this product exists to
+    prevent."""
+    from provenrail.verifier.verify import verify_bundle
+
+    long_pattern = "bash" + "*" * 600
+    bundle = _bundle_with_policy(tmp_path, {
+        "rules": [{"id": "deny-bash", "effect": "deny", "event_type": "tool_call",
+                   "tool": long_pattern, "resource": "*", "provider": "*",
+                   "arg_contains": "", "max_per_session": None, "reason": ""}],
+        "session_spend_cap_usd": None,
+    })
+    rep = verify_bundle(bundle)
+    codes = {f.code for f in rep.findings}
+    assert "policy_rule_not_rechecked" in codes
+    assert "policy_not_enforced" not in codes
+
+    path = tmp_path / "oversized.json"
+    path.write_text(json.dumps(bundle), encoding="utf-8")
+    manifest = [{"name": "oversized_glob", "bundle": "oversized.json", "expect_ok": rep.ok,
+                 "codes": ["policy_rule_not_rechecked"]}]
+    mpath = tmp_path / "oversized_manifest.json"
+    mpath.write_text(json.dumps(manifest), encoding="utf-8")
+    result = subprocess.run(["node", str(CONFORMANCE), str(mpath)],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, f"JS disagreed on the oversized glob:\n{result.stdout}"
+
+
+def test_a_normal_length_glob_is_still_enforced_and_re_checked(tmp_path):
+    """The guard must not become an escape hatch: an ordinary rule still fires in both."""
+    from provenrail.verifier.verify import verify_bundle
+
+    bundle = _bundle_with_policy(tmp_path, {
+        "rules": [{"id": "deny-bash", "effect": "deny", "event_type": "tool_call",
+                   "tool": "bash*", "resource": "*", "provider": "*",
+                   "arg_contains": "", "max_per_session": None, "reason": ""}],
+        "session_spend_cap_usd": None,
+    })
+    rep = verify_bundle(bundle)
+    codes = {f.code for f in rep.findings}
+    assert "policy_not_enforced" in codes
+    assert "policy_rule_not_rechecked" not in codes
+
+    path = tmp_path / "normal.json"
+    path.write_text(json.dumps(bundle), encoding="utf-8")
+    mpath = tmp_path / "normal_manifest.json"
+    mpath.write_text(json.dumps([{"name": "normal_glob", "bundle": "normal.json",
+                                  "expect_ok": rep.ok,
+                                  "codes": ["policy_not_enforced"]}]), encoding="utf-8")
+    result = subprocess.run(["node", str(CONFORMANCE), str(mpath)],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, f"JS disagreed on a normal glob:\n{result.stdout}"
+
+
+def test_a_float_in_a_record_is_a_verdict_not_a_traceback():
+    """verify_bundle is the function a stranger's upload reaches. A float anywhere in a record
+    escaped as an unhandled CanonicalError, so `pr verify` exited with a stack trace rather
+    than a verdict, and the browser verifier returned "tampered" for the same file."""
+    from provenrail.verifier.verify import verify_bundle
+
+    bundle = {"format": "flightrecorder.bundle/1",
+              "records": [{"recv_seq": 0, "recv_ts": "2026-08-04T00:00:00.000000Z",
+                           "recv_hash": "0" * 64, "server_prev_hash": "0" * 64,
+                           "server_record_hash": "0" * 64,
+                           "record": {"seq": 0, "session_id": "s", "payload": {"cost": 1.5}}}]}
+    rep = verify_bundle(bundle)          # must not raise
+    assert not rep.ok
+    assert "not_canonicalizable" in {f.code for f in rep.findings}

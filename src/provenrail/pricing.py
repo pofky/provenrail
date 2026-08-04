@@ -67,15 +67,38 @@ class ModelPrice:
     cache_inclusive: bool = False
     as_of: str = ""          # ISO date the rate was verified against the provider's public page
     source: str = "list"     # "list" | "override"
+    #: Cache write at the longer TTL, when the provider charges a second rate for it.
+    #: Anthropic bills a 5-minute cache write at 1.25x input and a 1-hour write at 2x, and
+    #: reports the split in `usage.cache_creation`. Pricing both at 1.25x undercounts every
+    #: long-TTL write, which is exactly the pattern a large repeated system prompt uses.
+    cache_write_1h: float | None = None
+    #: Prompt-size tier: above `tier_at` input tokens the provider charges different rates.
+    #: Gemini 2.5 Pro doubles its input rate and raises output by half over 200k tokens, so a
+    #: flat rate silently undercounts precisely the long-context calls that cost the most.
+    tier_at: int | None = None
+    tier_input: float | None = None
+    tier_output: float | None = None
+    #: Last date this rate is known to hold. A published future price change is not staleness:
+    #: the table is freshly verified and still about to be wrong, so it needs its own flag.
+    until: str = ""
+    #: True when the provider bills reasoning/thinking tokens IN ADDITION to the reported
+    #: output count, so they must be added rather than treated as an already-billed subset.
+    reasoning_additive: bool = False
 
     def as_tuple(self) -> tuple[float, float]:
         return (self.input, self.output)
 
 
-def _a(input_: float, output: float, as_of: str = "2026-05-01") -> ModelPrice:
-    """Anthropic: cache read 0.1x input, cache write (5m TTL) 1.25x input, usage EXCLUSIVE."""
+#: Every rate below was read off the provider's own pricing page on this date.
+VERIFIED = "2026-08-04"
+
+
+def _a(input_: float, output: float, as_of: str = VERIFIED, until: str = "") -> ModelPrice:
+    """Anthropic: cache read 0.1x input, 5m cache write 1.25x, 1h cache write 2x, usage
+    EXCLUSIVE. Multipliers from platform.claude.com/docs/en/about-claude/pricing."""
     return ModelPrice(input_, output, round(input_ * 0.10, 6), round(input_ * 1.25, 6),
-                      cache_inclusive=False, as_of=as_of)
+                      cache_inclusive=False, as_of=as_of,
+                      cache_write_1h=round(input_ * 2.00, 6), until=until)
 
 
 def _o(input_: float, output: float, cache_ratio: float = 0.25,
@@ -86,10 +109,19 @@ def _o(input_: float, output: float, cache_ratio: float = 0.25,
                       cache_inclusive=True, as_of=as_of)
 
 
-def _g(input_: float, output: float, as_of: str = "2026-05-01") -> ModelPrice:
-    """Google: context-cache reads at 0.25x input, usage INCLUSIVE."""
-    return ModelPrice(input_, output, round(input_ * 0.25, 6), None,
-                      cache_inclusive=True, as_of=as_of)
+def _g(input_: float, output: float, as_of: str = VERIFIED, tier_at: int | None = None,
+       tier_input: float | None = None, tier_output: float | None = None) -> ModelPrice:
+    """Google: context-cache reads at 0.10x input, usage INCLUSIVE, and thinking tokens billed
+    at the output rate ON TOP of `candidatesTokenCount`.
+
+    Two facts settle the thinking-token question that was previously left open. The REST
+    reference defines `totalTokenCount` as "prompt + thoughts + response candidates", so
+    thoughts are additive rather than a subset, and the pricing page labels the output row
+    "Output price (including thinking tokens)", so they are billed at the output rate.
+    """
+    return ModelPrice(input_, output, round(input_ * 0.10, 6), None,
+                      cache_inclusive=True, as_of=as_of, reasoning_additive=True,
+                      tier_at=tier_at, tier_input=tier_input, tier_output=tier_output)
 
 
 def _flat(input_: float, output: float, as_of: str = "2026-05-01") -> ModelPrice:
@@ -113,23 +145,35 @@ PRICES: dict[str, ModelPrice] = {
     "o3": _o(2.00, 8.00),
     "o1-mini": _o(1.10, 4.40),
     "o1": _o(15.00, 60.00),
-    # Anthropic
-    "claude-3-5-haiku": _a(0.80, 4.00),
-    "claude-3-5-sonnet": _a(3.00, 15.00),
-    "claude-3-haiku": _a(0.25, 1.25),
-    "claude-3-opus": _a(15.00, 75.00),
+    # Anthropic. Every current model is listed explicitly, because resolution is longest
+    # substring and "claude-opus-4" would otherwise capture claude-opus-4-6/4-7/4-8 and bill
+    # them at the retired Opus 4 rate of $15/$75 instead of their real $5/$25, a 3x overcharge.
+    "claude-3-5-haiku": _a(0.80, 4.00, as_of="2026-05-01"),
+    "claude-3-5-sonnet": _a(3.00, 15.00, as_of="2026-05-01"),
+    "claude-3-haiku": _a(0.25, 1.25, as_of="2026-05-01"),
+    "claude-3-opus": _a(15.00, 75.00, as_of="2026-05-01"),
     "claude-haiku-4-5": _a(1.00, 5.00),
     "claude-haiku-4": _a(1.00, 5.00),
     "claude-sonnet-4-5": _a(3.00, 15.00),
+    "claude-sonnet-4-6": _a(3.00, 15.00),
     "claude-sonnet-4": _a(3.00, 15.00),
+    # Introductory pricing, published as ending 31 August 2026. `until` makes the table say so
+    # rather than quietly overcharging by a third from 1 September.
+    "claude-sonnet-5": _a(2.00, 10.00, until="2026-08-31"),
     "claude-opus-4-5": _a(5.00, 25.00),
+    "claude-opus-4-6": _a(5.00, 25.00),
+    "claude-opus-4-7": _a(5.00, 25.00),
+    "claude-opus-4-8": _a(5.00, 25.00),
+    "claude-opus-4-1": _a(15.00, 75.00),
     "claude-opus-4": _a(15.00, 75.00),
+    "claude-opus-5": _a(5.00, 25.00),
+    "claude-fable-5": _a(10.00, 50.00),
     # Google
     "gemini-2.5-flash-lite": _g(0.10, 0.40),
     "gemini-2.5-flash": _g(0.30, 2.50),
-    "gemini-2.5-pro": _g(1.25, 10.00),
-    "gemini-1.5-flash": _g(0.075, 0.30),
-    "gemini-1.5-pro": _g(1.25, 5.00),
+    "gemini-2.5-pro": _g(1.25, 10.00, tier_at=200_000, tier_input=2.50, tier_output=15.00),
+    "gemini-1.5-flash": _g(0.075, 0.30, as_of="2026-05-01"),
+    "gemini-1.5-pro": _g(1.25, 5.00, as_of="2026-05-01"),
     # Meta / open weights / others (typical hosted price)
     "llama-3.1-405b": _flat(3.50, 3.50),
     "llama-3.1-70b": _flat(0.90, 0.90),
@@ -142,9 +186,6 @@ PRICES: dict[str, ModelPrice] = {
 #: verified rate" is honest; inventing a number would quietly corrupt every budget and finance
 #: total downstream. Set a rate in the override file to price them.
 KNOWN_UNPRICED: tuple[str, ...] = (
-    "claude-opus-5",
-    "claude-sonnet-5",
-    "claude-fable-5",
     "gpt-5",
     "grok",
 )
@@ -163,18 +204,18 @@ _CACHE_READ_KEYS = ("cache_read_input_tokens", "cached_tokens", "cache_read_toke
                     "cachedContentTokenCount")
 _CACHE_WRITE_KEYS = ("cache_creation_input_tokens", "cache_write_tokens", "cache_write",
                      "cache_creation_tokens")
-# Reported for visibility, never billed. For OpenAI and Anthropic that is provably right:
-# reasoning/thinking tokens are a subset of the output count and are already charged. For
-# Google, whether `thoughtsTokenCount` is additive to `candidatesTokenCount` is NOT stated in
-# the official token documentation, so it is surfaced and left unbilled rather than guessed at
-# in either direction. `cost_for` flags this via `reasoning_billing_unverified` so a caller can
-# say so instead of quietly under- or over-charging.
+#: Anthropic reports the TTL split inside `usage.cache_creation`, which `_flatten_usage` lifts
+#: to the top level. `cache_creation_input_tokens` is the 5m + 1h total, so the 1h portion is
+#: subtracted from it and repriced rather than added, or the write would be billed twice.
+_CACHE_WRITE_1H_KEYS = ("ephemeral_1h_input_tokens", "ephemeral1hInputTokens")
+# Reasoning tokens are a SUBSET of the output count for OpenAI and Anthropic (Anthropic states
+# thinking tokens are "always <= output_tokens"), so billing them again would double-charge.
+# Google is the opposite: the REST reference defines totalTokenCount as
+# "prompt + thoughts + response candidates", so thoughts sit outside candidatesTokenCount, and
+# the pricing page prices output "including thinking tokens". Per-model `reasoning_additive`
+# carries that difference instead of one global assumption.
 _REASONING_KEYS = ("reasoning_tokens", "thinking_tokens", "reasoning",
                    "thoughtsTokenCount", "thoughts_token_count")
-
-#: Model families whose reasoning-token billing relationship we have not been able to verify
-#: from official documentation.
-_UNVERIFIED_REASONING_BILLING = ("gemini",)
 
 
 def _to_int(value: Any) -> int:
@@ -228,6 +269,15 @@ def _coerce_price(value: Any) -> ModelPrice | None:
                 cache_inclusive=bool(value.get("cache_inclusive", False)),
                 as_of=str(value.get("as_of", "")),
                 source=str(value.get("source", "override")),
+                cache_write_1h=(None if value.get("cache_write_1h") is None
+                                else float(value["cache_write_1h"])),
+                tier_at=None if value.get("tier_at") is None else int(value["tier_at"]),
+                tier_input=(None if value.get("tier_input") is None
+                            else float(value["tier_input"])),
+                tier_output=(None if value.get("tier_output") is None
+                             else float(value["tier_output"])),
+                until=str(value.get("until", "")),
+                reasoning_additive=bool(value.get("reasoning_additive", False)),
             )
         except (TypeError, ValueError):
             return None
@@ -336,6 +386,7 @@ def cost_for(model: str, usage: dict[str, Any] | None,
     tout = _pick(usage, _OUTPUT_KEYS)
     t_cache_read = _pick(usage, _CACHE_READ_KEYS)
     t_cache_write = _pick(usage, _CACHE_WRITE_KEYS)
+    t_cache_write_1h = min(_pick(usage, _CACHE_WRITE_1H_KEYS), t_cache_write)
     t_reasoning = _pick(usage, _REASONING_KEYS)
 
     price = resolve(model, table)
@@ -344,6 +395,7 @@ def cost_for(model: str, usage: dict[str, Any] | None,
         "tokens_out": tout,
         "tokens_cache_read": t_cache_read,
         "tokens_cache_write": t_cache_write,
+        "tokens_cache_write_1h": t_cache_write_1h,
         "tokens_reasoning": t_reasoning,
     }
     if price is None:
@@ -355,16 +407,34 @@ def cost_for(model: str, usage: dict[str, Any] | None,
     uncached_in = max(0, tin - t_cache_read) if price.cache_inclusive else tin
     billable_write = 0 if price.cache_inclusive else t_cache_write
 
+    # Above the tier threshold the provider charges different rates for the WHOLE call, not
+    # just the excess. Gemini 2.5 Pro is the live example: over 200k prompt tokens, input goes
+    # $1.25 -> $2.50 and output $10 -> $15.
+    in_rate, out_rate = price.input, price.output
+    tiered = bool(price.tier_at is not None and tin > price.tier_at)
+    if tiered:
+        in_rate = price.tier_input if price.tier_input is not None else in_rate
+        out_rate = price.tier_output if price.tier_output is not None else out_rate
+
     if price.cache_read is None:
-        cache_read_rate, cache_basis = price.input, "assumed_input_rate"
+        cache_read_rate, cache_basis = in_rate, "assumed_input_rate"
     else:
         cache_read_rate, cache_basis = price.cache_read, "explicit"
-    cache_write_rate = price.cache_write if price.cache_write is not None else price.input
+    cache_write_rate = price.cache_write if price.cache_write is not None else in_rate
+    # The long-TTL portion is inside the reported write total, so split it out and reprice it.
+    write_1h = min(t_cache_write_1h, billable_write) if price.cache_write_1h is not None else 0
+    write_5m = billable_write - write_1h
+    write_1h_rate = price.cache_write_1h if price.cache_write_1h is not None else cache_write_rate
 
-    cost = (uncached_in * price.input
-            + tout * price.output
-            + t_cache_read * cache_read_rate
-            + billable_write * cache_write_rate) / 1_000_000.0
+    # Thinking tokens are already inside the output count for OpenAI and Anthropic; for Google
+    # they sit outside it and are billed at the output rate.
+    billable_reasoning = t_reasoning if price.reasoning_additive else 0
+
+    cost = ((uncached_in * in_rate
+             + (tout + billable_reasoning) * out_rate
+             + t_cache_read * cache_read_rate
+             + write_5m * cache_write_rate
+             + write_1h * write_1h_rate) / 1_000_000.0)
 
     return {
         **base,
@@ -374,10 +444,17 @@ def cost_for(model: str, usage: dict[str, Any] | None,
         "basis": price.source,
         "cache_basis": cache_basis,
         "as_of": price.as_of,
-        # True when this family's reasoning tokens might be additive to the output count and
-        # the provider has not documented it. The estimate then has a known blind spot, and
-        # saying so beats a confident number.
-        "reasoning_billing_unverified": bool(
-            t_reasoning and any(m in (model or "").lower()
-                                for m in _UNVERIFIED_REASONING_BILLING)),
+        "tier_applied": tiered,
+        # A published price change the table already knows about. The rate is freshly verified
+        # and still about to be wrong, which ordinary staleness cannot express.
+        "price_expired": bool(price.until and _today_iso() > price.until),
+        "price_until": price.until or None,
+        # Retained for callers and for parity with the browser verifier. Both providers whose
+        # convention was in doubt are now settled from their own documentation, so this is
+        # False throughout; it stays so a future unverified family has somewhere to say so.
+        "reasoning_billing_unverified": False,
     }
+
+
+def _today_iso() -> str:
+    return datetime.now(UTC).date().isoformat()

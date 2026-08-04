@@ -11,7 +11,9 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(here, "..", "..", "web", "verify.js"), "utf8");
-const start = src.indexOf("const JS_PRICES");
+// The price table is built from per-provider helpers (_a/_o/_g/_flat) that mirror pricing.py,
+// so the slice has to start at those and not at the table itself.
+const start = src.indexOf("const _a =");
 const end = src.indexOf("function policyDecide");
 if (start < 0 || end < 0) { console.log("FAIL could not locate the estimator in web/verify.js"); process.exit(1); }
 const mod = await import("data:text/javascript," + encodeURIComponent(src.slice(start, end) + "\nexport {estimateCost};"));

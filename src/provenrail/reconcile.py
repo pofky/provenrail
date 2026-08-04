@@ -78,7 +78,33 @@ def _pick_column(headers: list[str], candidates: tuple[str, ...],
     return None
 
 
+#: Currency marks that are NOT US dollars. Every estimate in this product is in USD, so a
+#: figure carrying one of these cannot be compared with one without converting it, and this
+#: module has no rate to convert with and no business inventing one.
+_FOREIGN_CURRENCY = {
+    "€": "EUR", "£": "GBP", "¥": "JPY", "₹": "INR", "₩": "KRW", "₽": "RUB", "R$": "BRL",
+    "EUR": "EUR", "GBP": "GBP", "JPY": "JPY", "INR": "INR", "CAD": "CAD", "AUD": "AUD",
+    "CHF": "CHF", "SEK": "SEK", "PLN": "PLN", "DKK": "DKK", "NOK": "NOK",
+}
+
+
+def _currency_of(value: Any) -> str | None:
+    """The non-USD currency this cell is denominated in, or None."""
+    text = str(value or "").strip().upper()
+    for mark, code in _FOREIGN_CURRENCY.items():
+        if mark.upper() in text:
+            return code
+    return None
+
+
 def _to_float(value: Any) -> float:
+    """Parse a money cell, or return 0.0 when it is not a number this module can read.
+
+    A cell in another currency parses to 0.0 here, which is why `parse_invoice` checks the
+    currency BEFORE relying on this. An unnoticed 0.0 is the dangerous case: it makes the
+    invoice total zero, which makes drift undefined, which suppresses every drift finding and
+    leaves the report saying "nothing to flag" over an invoice full of real money.
+    """
     text = str(value or "").strip().replace("$", "").replace(",", "").replace("USD", "").strip()
     if text.startswith("(") and text.endswith(")"):   # accounting negative
         text = "-" + text[1:-1]
@@ -123,8 +149,17 @@ def parse_invoice(text: str) -> dict[str, Any]:
 
     by_model: dict[str, float] = {}
     rows: list[dict[str, Any]] = []
+    currencies: set[str] = set()
+    unreadable = 0
     for raw in reader:
-        cost = _to_float(raw.get(cost_col)) if cost_col else 0.0
+        cell = raw.get(cost_col) if cost_col else None
+        currency = _currency_of(cell) if cost_col else None
+        if currency:
+            currencies.add(currency)
+        cost = _to_float(cell) if cost_col else 0.0
+        if cost_col and not currency and cost == 0.0 and str(cell or "").strip() not in (
+                "", "0", "0.0", "0.00", "$0", "$0.00"):
+            unreadable += 1
         model = str(raw.get(model_col) or "").strip() if model_col else "(all models)"
         row = {"model": model or "(all models)", "cost_usd": round(cost, 6),
                "date": str(raw.get(date_col) or "")[:10] if date_col else "",
@@ -132,12 +167,28 @@ def parse_invoice(text: str) -> dict[str, Any]:
         rows.append(row)
         by_model[row["model"]] = round(by_model.get(row["model"], 0.0) + cost, 6)
 
+    if currencies:
+        # Loud, and it must reach `findings`, because the failure mode is silent agreement:
+        # every line reads as $0.00, the invoice total is zero, drift is undefined, and the
+        # report concludes "nothing to flag" over a bill in another currency.
+        warnings.append(
+            f"the cost column is in {', '.join(sorted(currencies))}, not USD. Every estimate in "
+            f"Provenrail is in USD and no exchange rate is applied here, so these lines were "
+            f"read as $0.00 and this reconciliation is not valid. Convert the invoice to USD "
+            f"and re-run.")
+    if unreadable:
+        warnings.append(
+            f"{unreadable} cost cell(s) could not be read as a number and were counted as "
+            f"$0.00, so the invoice total is a floor rather than the real figure.")
+
     return {
         "rows": rows,
         "by_model": by_model,
         "total_usd": round(sum(by_model.values()), 6),
         "columns": {"model": model_col, "cost": cost_col, "date": date_col, "quantity": qty_col},
         "warnings": warnings,
+        "currencies": sorted(currencies),
+        "unreadable_cost_cells": unreadable,
     }
 
 
@@ -279,8 +330,12 @@ def reconcile(streams: list[tuple[str, list[dict[str, Any]]]], invoice_csv: str,
         "unmatched_invoice_lines": unmatched_invoice,
         "unmatched_recorded_models": unmatched_recorded,
         "invoice_columns": invoice["columns"],
+        "invoice": {"currencies": invoice.get("currencies", []),
+                    "unreadable_cost_cells": invoice.get("unreadable_cost_cells", 0)},
         "warnings": invoice["warnings"],
-        "findings": _findings(drift, drift_pct, unaccounted, unpriced_calls, unmatched_recorded),
+        "findings": _findings(drift, drift_pct, unaccounted, unpriced_calls, unmatched_recorded,
+                              invalid=[w for w in invoice["warnings"]
+                                       if "not USD" in w or "no cost column" in w]),
         "prices_as_of": table_as_of(table),
         "from": since,
         "to": until,
@@ -288,13 +343,21 @@ def reconcile(streams: list[tuple[str, list[dict[str, Any]]]], invoice_csv: str,
 
 
 def _findings(drift: float, drift_pct: float | None, unaccounted: float,
-              unpriced_calls: int, unmatched_recorded: list[dict[str, Any]]) -> list[str]:
+              unpriced_calls: int, unmatched_recorded: list[dict[str, Any]],
+              invalid: list[str] | None = None) -> list[str]:
     """Name what the numbers are consistent with, instead of leaving a bare percentage.
 
     A reader handed "-31%" has to invent an explanation, and the one they invent is usually
     "the tool is broken" when the real answer is a shadow agent or a negotiated rate.
     """
     out: list[str] = []
+    if invalid:
+        # First, and it suppresses the reassuring conclusion below. An invoice this module
+        # could not read produces a zero total, and a zero total makes drift undefined, which
+        # silently skips every drift finding. Without this the report ends on "nothing to
+        # flag" over a bill it never actually read.
+        out.extend(invalid)
+        return out
     if unaccounted > 0:
         out.append(
             f"${unaccounted:,.2f} on the invoice matches no recorded model. This is the finding "

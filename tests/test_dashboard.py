@@ -14,7 +14,9 @@ def test_cost_for_known_model():
     c = cost_for("claude-opus-4-8", {"input": "1000000", "output": "1000000"})
     assert c["priced"] is True
     assert c["tokens_in"] == 1_000_000 and c["tokens_out"] == 1_000_000
-    assert round(c["cost_usd"], 2) == 90.00  # 15 in + 75 out per 1M
+    # Opus 4.5 and later list at $5 in / $25 out. Substring resolution used to hand these to
+    # the "claude-opus-4" entry and bill the retired $15/$75 rate, a 3x overcharge.
+    assert round(c["cost_usd"], 2) == 30.00
 
 
 def test_cost_for_unknown_model_is_unpriced():
