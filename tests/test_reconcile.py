@@ -125,3 +125,25 @@ def test_rendered_report_states_the_invoice_never_amends_the_record():
     text = render_text(reconcile(streams, "model,cost\nclaude-sonnet-4-5,3.00\n"))
     assert "never to" in text and "amend it" in text
     assert "$3.00" in text
+
+
+def test_gpt4o_invoice_line_is_not_attributed_to_gpt4o_mini():
+    """Substring matching made `gpt4o` match `gpt4omini`, so an invoice line for the expensive
+    model was charged against recorded calls to the cheap one, producing a confident -99%
+    variance with a plausible but completely false explanation."""
+    streams = [("x", [genesis(), call(model="gpt-4o-mini", tokens_in=1_000_000)])]
+    out = reconcile(streams, "model,cost\nGPT-4o,500.00\n")
+    assert out["rows"] == [], "gpt-4o invoice line was matched to gpt-4o-mini calls"
+    assert out["unmatched_invoice_lines"][0]["model"] == "GPT-4o"
+    assert out["totals"]["unaccounted_on_invoice_usd"] == pytest.approx(500.0)
+
+
+def test_the_correct_model_still_matches_including_dated_suffixes():
+    """The anchored match must not become so strict that real invoices stop lining up."""
+    streams = [("x", [genesis(), call(model="claude-sonnet-4-5-20260101")])]
+    out = reconcile(streams, "model,cost\nClaude Sonnet 4.5 (input),3.00\n")
+    assert out["rows"] and out["rows"][0]["model"] == "claude-sonnet-4-5-20260101"
+
+    exact = reconcile([("x", [genesis(), call(model="gpt-4o-mini")])],
+                      "model,cost\ngpt-4o-mini,0.15\n")
+    assert exact["rows"] and exact["rows"][0]["model"] == "gpt-4o-mini"

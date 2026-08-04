@@ -57,3 +57,7 @@ tutorials/out/
 .provenrail-guard-counts.json.tmp
 .provenrail-guard-notice
 guard-receipt.json
+
+# Local budget ledger, not a record. See README.
+.provenrail-spend.json
+.provenrail-spend.json.lock

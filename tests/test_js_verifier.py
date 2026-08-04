@@ -523,10 +523,17 @@ def test_js_and_python_cost_estimation_agree(tmp_path):
 
     from provenrail.pricing import cost_for
 
-    models = ["claude-sonnet-4-5", "gpt-4.1", "gemini-2.5-pro", "claude-3-opus", "gpt-4o",
-              "gpt-4o-mini", "deepseek-chat", "o3", "llama-3.1-70b", "unknown-model-xyz"]
+    models = ["claude-sonnet-4-5", "gpt-4.1", "gemini-2.5-pro", "gemini-2.5-flash",
+              "claude-3-opus", "gpt-4o", "gpt-4o-mini", "deepseek-chat", "o3",
+              "llama-3.1-70b", "unknown-model-xyz"]
     usages = [
         {"input_tokens": 1_000_000, "output_tokens": 250_000},
+        # Google's two documented spellings, verified against the official REST reference and
+        # the google-genai Python SDK. These priced at $0.00 with priced=True before.
+        {"promptTokenCount": 1_000_000, "candidatesTokenCount": 200_000,
+         "cachedContentTokenCount": 400_000},
+        {"prompt_token_count": 900_000, "candidates_token_count": 100_000},
+        {"input_tokens": -1_000_000, "output_tokens": -5},   # must clamp, never go negative
         {"prompt_tokens": 800_000, "completion_tokens": 10,
          "prompt_tokens_details": {"cached_tokens": 300_000}},
         {"input_tokens": 1000, "output_tokens": 0, "cache_read_input_tokens": 50_000,

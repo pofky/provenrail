@@ -518,7 +518,13 @@ def _verify_policy(ordered: list[dict[str, Any]], rep: Report) -> None:
     for rec in ordered:
         action = rec.get("action_type")
         if action == HUMAN_OVERSIGHT:
-            state.had_oversight = True
+            # A sign-off that names its rule unlocks only that rule; one that does not is the
+            # blanket kind a permission prompt produces. Mirrors SessionState.satisfied().
+            rule = (rec.get("payload", {}) or {}).get("rule")
+            if rule:
+                state.oversight_rules.add(str(rule))
+            else:
+                state.had_oversight = True
             continue
         ev = event_for.get(action)
         if ev is None:

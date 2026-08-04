@@ -178,20 +178,44 @@ def _model_key(name: str) -> str:
     return "".join(ch for ch in (name or "").lower() if ch.isalnum())
 
 
+#: Suffixes an invoice appends to a model name that carry no model identity, so they can be
+#: trimmed before deciding whether two names are the same model.
+_LINE_ITEM_NOISE = ("input", "output", "inputtokens", "outputtokens", "cached", "cachedinput",
+                    "cacheread", "cachewrite", "batch", "tokens", "usage")
+
+
 def _match_model(invoice_model: str, recorded_models: list[str]) -> str | None:
     """Align an invoice line to a recorded model name.
 
-    Matching is on a punctuation-free substring in either direction, longest match wins.
+    Punctuation is stripped first, because an invoice writes "Claude Sonnet 4.5 (input)" where
+    the API says "claude-sonnet-4-5-20260101" and those share no substring otherwise.
+
+    Substring matching alone is then WRONG in a way that silently costs money: `gpt4o` is a
+    substring of `gpt4omini`, so an invoice line for the expensive model matched recorded
+    calls to the cheap one and produced a confident -99% variance with a plausible but false
+    explanation. Matching is therefore anchored: after trimming known line-item noise, the two
+    names must be equal, or one must extend the other at a token boundary that is not another
+    alphanumeric run. Anything ambiguous is left unmatched and reported, which is the honest
+    outcome, rather than attributed to the wrong model.
     """
     target = _model_key(invoice_model)
     if not target:
         return None
-    best, best_len = None, 0
+    for noise in sorted(_LINE_ITEM_NOISE, key=len, reverse=True):
+        if target.endswith(noise) and len(target) > len(noise):
+            target = target[: -len(noise)]
+            break
+    best, best_len = None, -1
     for model in recorded_models:
         candidate = _model_key(model)
         if not candidate:
             continue
-        if candidate in target or target in candidate:
+        if candidate == target:
+            return model                      # exact identity always wins outright
+        # One may extend the other only by a version/date suffix, never by more letters:
+        # "gpt4o" vs "gpt4o20260101" is the same model, "gpt4o" vs "gpt4omini" is not.
+        longer, shorter = (candidate, target) if len(candidate) > len(target) else (target, candidate)
+        if longer.startswith(shorter) and not longer[len(shorter):][:1].isalpha():
             if len(candidate) > best_len:
                 best, best_len = model, len(candidate)
     return best

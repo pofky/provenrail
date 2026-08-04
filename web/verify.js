@@ -602,6 +602,10 @@ function globMatch(pattern, value) {
   // fnmatch subset used by policy.Rule: *, ?, and [seq]. Case-insensitive, like _glob().
   const p = String(pattern == null ? "*" : pattern).toLowerCase();
   const v = String(value == null ? "" : value).toLowerCase();
+  // The pattern comes from a bundle, which anyone can hand to the public /verify page. A
+  // 100k-character glob compiles to a ~600k-character regex; no rule a human writes is
+  // anywhere near this, so refusing to match is safer than compiling it.
+  if (p.length > 512) return false;
   let re = "";
   for (let i = 0; i < p.length; i++) {
     const c = p[i];
@@ -637,9 +641,11 @@ const JS_PRICES = {
   "mistral-large": [2.00, 6.00, null, null, false],
   "deepseek-chat": [0.27, 1.10, null, null, false], "deepseek-reasoner": [0.55, 2.19, null, null, false],
 };
-const IN_KEYS = ["input", "in", "input_tokens", "prompt_tokens", "prompt", "tokens_in"];
-const OUT_KEYS = ["output", "out", "output_tokens", "completion_tokens", "completion", "tokens_out"];
-const CACHE_READ_KEYS = ["cache_read_input_tokens", "cached_tokens", "cache_read_tokens", "cache_read", "cached_input_tokens", "cached_content_token_count"];
+// Must stay identical to pricing.py's key lists, including Google's camelCase REST spellings
+// and the Python SDK's snake_case ones, or a budget replays differently here than on the CLI.
+const IN_KEYS = ["input", "in", "input_tokens", "prompt_tokens", "prompt", "tokens_in", "promptTokenCount", "prompt_token_count"];
+const OUT_KEYS = ["output", "out", "output_tokens", "completion_tokens", "completion", "tokens_out", "candidatesTokenCount", "candidates_token_count"];
+const CACHE_READ_KEYS = ["cache_read_input_tokens", "cached_tokens", "cache_read_tokens", "cache_read", "cached_input_tokens", "cached_content_token_count", "cachedContentTokenCount"];
 const CACHE_WRITE_KEYS = ["cache_creation_input_tokens", "cache_write_tokens", "cache_write", "cache_creation_tokens"];
 
 function flatUsage(usage) {
@@ -651,7 +657,9 @@ function flatUsage(usage) {
   return flat;
 }
 function pickTokens(usage, keys) {
-  for (const k of keys) if (usage[k] !== undefined && usage[k] !== null) { const n = parseInt(String(usage[k]).trim(), 10); return Number.isNaN(n) ? 0 : n; }
+  // Clamped at zero to match _to_int in pricing.py: a negative count would yield a negative
+  // cost, which subtracts from projected spend and can carry a session back under a cap.
+  for (const k of keys) if (usage[k] !== undefined && usage[k] !== null) { const n = parseInt(String(usage[k]).trim(), 10); return Number.isNaN(n) ? 0 : Math.max(0, n); }
   return 0;
 }
 function estimateCost(model, usage) {
@@ -688,7 +696,7 @@ function policyDecide(policy, eventType, ctx, state) {
     if (!globMatch(rule.resource, ctx.resource)) continue;
     if (!globMatch(rule.provider, ctx.provider)) continue;
     if (rule.effect === "deny") return { effect: "deny", ruleId: rule.id, reason: rule.reason || "denied by policy" };
-    if (rule.effect === "require_oversight" && !state.oversight)
+    if (rule.effect === "require_oversight" && !(state.oversightRules.has(rule.id) || state.oversight))
       return { effect: "deny", ruleId: rule.id, reason: rule.reason || "requires recorded human oversight" };
     if (rule.effect === "limit") {
       state.counts[rule.id] = (state.counts[rule.id] || 0) + 1;
@@ -740,13 +748,18 @@ async function verifyPolicy(sessions, rep) {
       rules: full.rules.filter(r => !r.arg_contains),
       budgets: full.budgets.filter(b => b.scope === "session"),
     };
-    const state = { spend: 0, oversight: false, counts: {} };
+    const state = { spend: 0, oversight: false, oversightRules: new Set(), counts: {} };
     let checked = 0, violations = 0, recordedDenies = 0;
     for (const rec of sess) {
       if (rec.action_type === "policy.decision" && String((rec.payload || {}).effect).toLowerCase() === "deny") recordedDenies++;
     }
     for (const rec of sess) {
-      if (rec.action_type === HUMAN_OVERSIGHT) { state.oversight = true; continue; }
+      if (rec.action_type === HUMAN_OVERSIGHT) {
+        // Rule-scoped sign-off unlocks that rule only; an unnamed one is the blanket kind.
+        const r = (rec.payload || {}).rule;
+        if (r) state.oversightRules.add(String(r)); else state.oversight = true;
+        continue;
+      }
       const ev = POLICY_MEANINGFUL[rec.action_type];
       if (!ev) continue;
       const payload = rec.payload || {};

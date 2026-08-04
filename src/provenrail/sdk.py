@@ -476,8 +476,19 @@ class FlightRecorder:
         return self.record(DATA_ACCESS, {"resource": resource, "op": op, **fields})
 
     def record_human_oversight(self, action: str, **fields) -> dict[str, Any]:
+        """Record that a human signed off.
+
+        Passing `rule=` scopes the sign-off to that one rule, so approving a harmless action
+        does not silently unlock every other oversight-gated rule in the session. Omitting it
+        keeps the older blanket behaviour, which is what a host that cannot name the rule (a
+        permission prompt, a manual call) can honestly report.
+        """
         if self._session_state is not None:
-            self._session_state.had_oversight = True
+            rule = fields.get("rule")
+            if rule:
+                self._session_state.oversight_rules.add(str(rule))
+            else:
+                self._session_state.had_oversight = True
         return self.record(HUMAN_OVERSIGHT, {"action": action, **fields})
 
     def tool(self, name: str | None = None, kind: str = TOOL_CALL) -> Callable:

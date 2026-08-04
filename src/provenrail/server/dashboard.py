@@ -56,7 +56,7 @@ button{cursor:pointer;font-family:inherit;color:inherit;background:none;border:n
 .topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:1rem;
   padding:.7rem var(--gutter);background:color-mix(in srgb,var(--bg) 84%,transparent);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
-.brand{display:flex;align-items:center;gap:.6rem;font-family:var(--font-mono);font-size:.86rem;letter-spacing:.04em;font-weight:500}
+.brand{display:flex;align-items:center;min-height:44px;gap:.6rem;font-family:var(--font-mono);font-size:.86rem;letter-spacing:.04em;font-weight:500}
 .brand svg{width:26px;height:26px;flex-shrink:0}
 .brand .sub{color:var(--text-lo);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase}
 .topbar-spacer{flex:1}
@@ -218,7 +218,9 @@ button{cursor:pointer;font-family:inherit;color:inherit;background:none;border:n
 .scrub-track{display:flex;gap:2px;margin-top:.45rem}
 .scrub-tick{flex:1;height:4px;border-radius:2px;background:var(--border-hi)}
 .scrub-tick.on{background:var(--accent)}
-.scrub-tick.diff{background:var(--red)}
+/* Shape as well as colour: protanopia shifts this red toward the unfilled grey, so a
+   red-only marker is invisible to roughly 1 in 25 men. Square means "differs". */
+.scrub-tick.diff{background:var(--red);border-radius:0;height:7px;margin-top:-1.5px}
 .scrub-frame{margin-top:.7rem;border-top:1px solid var(--border);padding-top:.7rem;
   font-family:var(--font-mono);font-size:.76rem;color:var(--text-mid);line-height:1.7}
 .scrub-frame .h{color:var(--text-hi);font-size:.85rem;margin-bottom:.3rem}
@@ -452,7 +454,7 @@ async function renderStream(id){
       <div class="cell hide-sm"><span class="ck">events</span>${fmtNum(s.events)}</div>
       <div class="cell hide-sm"><span class="ck">calls</span>${fmtNum(s.model_calls)}</div>
       <div class="cell hide-sm"><span class="ck">tokens</span>${fmtTokens((s.tokens_in||0)+(s.tokens_out||0))}</div>
-      <div class="cell"><span class="ck">cost</span><span style="color:var(--accent)">${fmtCost(s.cost_usd)}</span></div>
+      <div class="cell"><span class="ck">est. cost</span><span style="color:var(--accent)">${fmtCost(s.cost_usd)}</span></div>
       <div>${live?'<span class="badge live"><span class="bd"></span>Live</span>':`<span class="badge ${s.outcome==='failure'?'tampered':'verified'}"><span class="bd"></span>${esc(s.outcome||'sealed')}</span>`}</div>
     </button>`;
   }).join('') : `<div class="empty-state"><div class="ic">[ ]</div><div class="t">No sessions recorded</div></div>`;
@@ -515,7 +517,7 @@ async function renderSession(id,sid){
   const metaChips=Object.entries(s.meta||{}).map(([k,vv])=>`<span class="chip">${esc(k)}: ${esc(vv)}</span>`).join('');
   const items=ev.map(e=>{
     const kind=kindOf(e.action_type);
-    const cost = e.cost && e.cost.priced ? `<span class="tl-cost">${fmtCost(e.cost.cost_usd)}</span>` : '';
+    const cost = e.cost && e.cost.priced ? `<span class="tl-cost" title="Estimated from reported token usage and a public price table, not an invoice">${fmtCost(e.cost.cost_usd)} est.</span>` : '';
     const tk = e.cost ? `${fmtTokens(e.cost.tokens_in)} in / ${fmtTokens(e.cost.tokens_out)} out` : '';
     return `<div class="tl-item" data-kind="${kind}" data-i="${ev.indexOf(e)}"><span class="tl-dot"></span>
       <div class="tl-card"><button class="tl-head" onclick="this.parentElement.classList.toggle('open')">
@@ -593,7 +595,7 @@ function initScrubber(streamId,sid,ev){
     range.value=String(i);
     track.innerHTML=ev.map((_,n)=>`<span class="scrub-tick${n<=i?' on':''}${diffs.has(n)?' diff':''}"></span>`).join('');
     const e=ev[i];
-    const cost = e.cost && e.cost.priced ? ` · ${fmtCost(e.cost.cost_usd)}` : '';
+    const cost = e.cost && e.cost.priced ? ` · ${fmtCost(e.cost.cost_usd)} est.` : '';
     frame.innerHTML=`<div class="h">#${e.seq} ${esc(e.label)}${diffs.has(i)?' <span class="d">(differs)</span>':''}</div>
       <div>${esc(e.summary||'')}${cost}</div>
       <div>${esc(e.ts_utc||'')}</div>
@@ -610,10 +612,16 @@ function initScrubber(streamId,sid,ev){
   $('#sc-prev').onclick=()=>go(i-1);
   $('#sc-next').onclick=()=>go(i+1);
   range.oninput=()=>go(Number(range.value));
-  document.onkeydown=(e)=>{
-    if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
-    if(e.key==='ArrowLeft'){ go(i-1); } else if(e.key==='ArrowRight'){ go(i+1); }
+  // Bound with addEventListener and torn down on navigation. `document.onkeydown = ...`
+  // survives the route change, so arrow keys on the overview kept driving a scrubber that
+  // was no longer on screen, writing into detached nodes held alive by this closure.
+  if(state.scrubKeys){ document.removeEventListener('keydown', state.scrubKeys); }
+  state.scrubKeys=(e)=>{
+    if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT'||e.target.isContentEditable) return;
+    if(e.key==='ArrowLeft'){ e.preventDefault(); go(i-1); }
+    else if(e.key==='ArrowRight'){ e.preventDefault(); go(i+1); }
   };
+  document.addEventListener('keydown', state.scrubKeys);
   const cmp=$('#sc-cmp');
   if(cmp) cmp.onchange=async()=>{
     diffs=new Set(); firstDiff=-1; $('#sc-jump').disabled=true;
@@ -706,6 +714,9 @@ async function render(silent){
   const h=location.hash.replace(/^#/,'')||'/';
   const parts=h.split('/').filter(Boolean);
   state.route=h;
+  // Tear down the scrubber's key handler before rendering anything else, so arrow keys never
+  // drive a view that has left the screen.
+  if(state.scrubKeys){ document.removeEventListener('keydown', state.scrubKeys); state.scrubKeys=null; }
   try{
     if(!silent && !state.openMode){ /* show nothing extra */ }
     if(parts[0]==='alerts'){ await renderAlerts(); }

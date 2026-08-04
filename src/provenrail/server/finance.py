@@ -153,6 +153,29 @@ def rollup(streams: list[tuple[str, list[dict[str, Any]]]], group_by: str = "age
     }
 
 
+#: Characters that make a spreadsheet treat a cell as a formula rather than as text.
+_FORMULA_LEAD = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _sanitize(value: Any) -> Any:
+    """Neutralise spreadsheet formula injection in an exported cell.
+
+    The dimension column of this export is agent-supplied session metadata, and the agent is
+    this product's primary adversary. `csv.writer` quotes correctly, but quoting is undone by
+    the spreadsheet on open: a cell that begins `=`, `+`, `-` or `@` is then evaluated, so an
+    agent that names itself `=DDE("cmd","/c calc","x")` attacks the finance person who opens
+    the report about that agent. Prefixing with an apostrophe makes the cell literal text in
+    Excel, LibreOffice and Sheets, and is the standard mitigation.
+
+    Numbers are passed through untouched: they are computed here, never attacker-supplied, and
+    quoting them would break the arithmetic the file exists for.
+    """
+    if isinstance(value, (int, float)) or value is None:
+        return value
+    text = str(value)
+    return "'" + text if text[:1] in _FORMULA_LEAD else text
+
+
 def to_csv(result: dict[str, Any]) -> str:
     """The rollup as CSV, for the spreadsheet the conversation actually happens in.
 
@@ -172,7 +195,7 @@ def to_csv(result: dict[str, Any]) -> str:
                "tokens_cache_read", "sessions", "unpriced_calls"]
     writer.writerow(columns)
     for row in result["rows"]:
-        writer.writerow([row.get(c, "") for c in columns])
+        writer.writerow([_sanitize(row.get(c, "")) for c in columns])
     totals = result["totals"]
     writer.writerow(["TOTAL", totals["cost_usd"], totals["model_calls"], totals["tokens_in"],
                      totals["tokens_out"],

@@ -146,21 +146,47 @@ KNOWN_UNPRICED: tuple[str, ...] = (
     "claude-sonnet-5",
     "claude-fable-5",
     "gpt-5",
-    "grok-",
+    "grok",
 )
 
-_INPUT_KEYS = ("input", "in", "input_tokens", "prompt_tokens", "prompt", "tokens_in")
-_OUTPUT_KEYS = ("output", "out", "output_tokens", "completion_tokens", "completion", "tokens_out")
+# Google reports usage in camelCase over REST and snake_case through the Python SDK, and
+# neither spelling matched here before, so a real Gemini response priced at $0.00 while
+# reporting priced=True: an authoritative-looking zero, the worst possible failure. Field
+# names verified against the official REST reference (ai.google.dev/api/generate-content)
+# and the google-genai Python SDK reference.
+_INPUT_KEYS = ("input", "in", "input_tokens", "prompt_tokens", "prompt", "tokens_in",
+               "promptTokenCount", "prompt_token_count")
+_OUTPUT_KEYS = ("output", "out", "output_tokens", "completion_tokens", "completion", "tokens_out",
+                "candidatesTokenCount", "candidates_token_count")
 _CACHE_READ_KEYS = ("cache_read_input_tokens", "cached_tokens", "cache_read_tokens",
-                    "cache_read", "cached_input_tokens", "cached_content_token_count")
+                    "cache_read", "cached_input_tokens", "cached_content_token_count",
+                    "cachedContentTokenCount")
 _CACHE_WRITE_KEYS = ("cache_creation_input_tokens", "cache_write_tokens", "cache_write",
                      "cache_creation_tokens")
-_REASONING_KEYS = ("reasoning_tokens", "thinking_tokens", "reasoning")
+# Reported for visibility, never billed. For OpenAI and Anthropic that is provably right:
+# reasoning/thinking tokens are a subset of the output count and are already charged. For
+# Google, whether `thoughtsTokenCount` is additive to `candidatesTokenCount` is NOT stated in
+# the official token documentation, so it is surfaced and left unbilled rather than guessed at
+# in either direction. `cost_for` flags this via `reasoning_billing_unverified` so a caller can
+# say so instead of quietly under- or over-charging.
+_REASONING_KEYS = ("reasoning_tokens", "thinking_tokens", "reasoning",
+                   "thoughtsTokenCount", "thoughts_token_count")
+
+#: Model families whose reasoning-token billing relationship we have not been able to verify
+#: from official documentation.
+_UNVERIFIED_REASONING_BILLING = ("gemini",)
 
 
 def _to_int(value: Any) -> int:
+    """Token counts are non-negative by definition.
+
+    A negative count would produce a negative cost, and a negative cost SUBTRACTS from
+    projected spend, so one bad usage dict could carry a session back under a cap it had
+    already blown. No provider emits negative counts; a hand-built or mis-parsed usage dict
+    can. Clamping is the difference between a wrong number and a lifted budget.
+    """
     try:
-        return int(str(value).strip())
+        return max(0, int(str(value).strip()))
     except (TypeError, ValueError):
         return 0
 
@@ -348,4 +374,10 @@ def cost_for(model: str, usage: dict[str, Any] | None,
         "basis": price.source,
         "cache_basis": cache_basis,
         "as_of": price.as_of,
+        # True when this family's reasoning tokens might be additive to the output count and
+        # the provider has not documented it. The estimate then has a known blind spot, and
+        # saying so beats a confident number.
+        "reasoning_billing_unverified": bool(
+            t_reasoning and any(m in (model or "").lower()
+                                for m in _UNVERIFIED_REASONING_BILLING)),
     }

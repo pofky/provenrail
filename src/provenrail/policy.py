@@ -229,7 +229,7 @@ class Policy:
                 continue
             if rule.effect == DENY:
                 return Decision(DENY, rule.id, rule.reason or "denied by policy")
-            if rule.effect == REQUIRE_OVERSIGHT and not session.had_oversight:
+            if rule.effect == REQUIRE_OVERSIGHT and not session.satisfied(rule.id):
                 return Decision(DENY, rule.id,
                                 rule.reason or "action requires a recorded human_oversight first")
             if rule.effect == LIMIT:
@@ -260,9 +260,26 @@ class SessionState:
     spend_usd: float = 0.0
     had_oversight: bool = False
     counts: dict[str, int] = field(default_factory=dict)
+    #: Rule ids a human has explicitly signed off in this session. A single session-wide
+    #: "someone approved something" flag let one approval of a harmless action unlock every
+    #: other oversight-gated rule in the run, so approving a read query also released a
+    #: delete. Oversight is per rule; `had_oversight` remains as the coarse legacy signal for
+    #: hosts that record an approval without naming the rule it answered.
+    oversight_rules: set[str] = field(default_factory=set)
     prior_day_usd: float = 0.0
     prior_total_usd: float = 0.0
     prior_known: bool = False
+
+    def satisfied(self, rule_id: str) -> bool:
+        """True when a human has signed off THIS rule, or gave a rule-less blanket approval.
+
+        A host that records oversight without naming a rule (the Claude Code permission
+        prompt, an operator calling record_human_oversight by hand) sets `had_oversight` and
+        keeps the old blanket behaviour, because tightening that silently would start denying
+        work people had genuinely approved. An approval that DOES name its rule only unlocks
+        that rule, which is what the out-of-band approval flow always sends.
+        """
+        return rule_id in self.oversight_rules or self.had_oversight
 
     def scope_spend(self, scope: str) -> float:
         """Estimated spend so far against one budget scope, this session included."""

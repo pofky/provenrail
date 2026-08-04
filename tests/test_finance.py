@@ -7,6 +7,9 @@ mislead: losing unattributed spend, and letting an unpriced call read as a cheap
 
 from __future__ import annotations
 
+import csv
+import io
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -163,3 +166,32 @@ def test_spend_endpoint_rejects_a_malformed_window(tmp_path):
     client = _client_with_run(tmp_path)
     assert client.get("/v1/spend?since=last-tuesday").status_code == 400
     assert client.get("/v1/spend?group_by=colour").status_code == 400
+
+
+def test_csv_export_neutralises_spreadsheet_formula_injection():
+    """The dimension column is agent-supplied metadata, and the agent is this product's
+    primary adversary. An unescaped leading `=` turns the finance team's cost report into a
+    live formula the moment they open it in Excel."""
+    payloads = ['=DDE("cmd","/c calc","x")', "@SUM(1+1)", "+1+1", "-1+1",
+                "=HYPERLINK(\"http://evil\",\"click\")"]
+    records = [session("s1", {"agent": payloads[0], "project": payloads[1]}),
+               model_call("s1", 1000)]
+    for group_by in ("agent", "project"):
+        text = finance.to_csv(finance.rollup([("x", records)], group_by=group_by))
+        cells = [r[0] for r in csv.reader(io.StringIO(
+            "\n".join(ln for ln in text.splitlines() if not ln.startswith("#"))))]
+        for cell in cells[1:]:
+            assert cell[:1] not in ("=", "+", "-", "@"), f"formula-active cell exported: {cell!r}"
+
+    # the payload is still readable, just inert, so the report stays useful
+    text = finance.to_csv(finance.rollup([("x", records)], group_by="agent"))
+    assert "DDE" in text
+    # and numeric columns are untouched, or the arithmetic the file exists for would break
+    assert "'" not in text.split("\n")[4].split(",")[1]
+
+
+def test_csv_sanitiser_leaves_numbers_alone():
+    assert finance._sanitize(3.5) == 3.5
+    assert finance._sanitize(0) == 0
+    assert finance._sanitize("atlas") == "atlas"
+    assert finance._sanitize("=1+1") == "'=1+1"

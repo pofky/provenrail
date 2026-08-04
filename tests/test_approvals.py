@@ -105,19 +105,79 @@ def test_endpoint_returns_two_distinct_links_and_hides_the_tokens_afterwards():
     assert polled["status"] == "pending"
 
 
+def test_opening_the_approve_link_does_not_approve(tmp_path):
+    """THE regression test for a live vulnerability.
+
+    Mail gateways, Slack's unfurler and antivirus scanners GET every URL in a notification
+    before a human sees it, so a GET that approved was answered by a robot. A human tapping
+    the link to read what was being asked had also already granted it. GET must only read.
+    """
+    client, prov = _wired()
+    body = client.post("/v1/approvals",
+                       json={"stream_id": prov["stream_id"], "rule": "money.wire",
+                             "target": "wire_transfer", "reason": "Send $9,000 to ACME"},
+                       headers={"Authorization": f"Bearer {prov['write_token']}"}).json()
+    path = body["approve_url"].replace("http://testserver", "")
+
+    # simulate the unfurler / scanner: several plain GETs
+    for _ in range(3):
+        page = client.get(path)
+        assert page.status_code == 200
+    still = client.get(f"/v1/approvals/{body['request_id']}",
+                       headers={"Authorization": f"Bearer {prov['write_token']}"}).json()
+    assert still["status"] == "pending", "a GET decided the request; a robot can approve"
+
+    # and the human's actual submit does decide it
+    posted = client.post(path)
+    assert posted.status_code == 200
+    assert "Approved" in posted.text
+    after = client.get(f"/v1/approvals/{body['request_id']}",
+                       headers={"Authorization": f"Bearer {prov['write_token']}"}).json()
+    assert after["status"] == "approved"
+
+
+def test_the_review_page_leads_with_the_action_not_the_product(tmp_path):
+    """What is being asked must be readable before deciding, and the page must say plainly
+    that nothing has happened yet."""
+    client, prov = _wired()
+    body = client.post("/v1/approvals",
+                       json={"stream_id": prov["stream_id"], "rule": "money.wire",
+                             "target": "wire_transfer(amount=9000)",
+                             "reason": "Send $9,000 to ACME Corp"},
+                       headers={"Authorization": f"Bearer {prov['write_token']}"}).json()
+    page = client.get(body["approve_url"].replace("http://testserver", "")).text
+    assert "Send $9,000 to ACME Corp" in page
+    assert "wire_transfer(amount=9000)" in page
+    assert "Nothing has been decided yet" in page
+    assert "<form method=\"post\"" in page
+    # the deny link renders its own review page, and also decides nothing on GET
+    deny = client.get(body["deny_url"].replace("http://testserver", "")).text
+    assert "Block this action?" in deny
+
+
 def test_the_decision_page_renders_the_outcome():
     client, prov = _wired()
     body = client.post("/v1/approvals",
                        json={"stream_id": prov["stream_id"], "rule": "money.wire-transfer",
                              "target": "wire_transfer"},
                        headers={"Authorization": f"Bearer {prov['write_token']}"}).json()
-    page = client.get(body["approve_url"].replace("http://testserver", ""))
+    path = body["approve_url"].replace("http://testserver", "")
+    page = client.post(path)
     assert page.status_code == 200
     assert "Approved" in page.text
     assert "wire_transfer" in page.text
-    # reopening the same link states plainly that nothing changed
-    again = client.get(body["approve_url"].replace("http://testserver", ""))
+    # resubmitting the same link states plainly that nothing changed
+    again = client.post(path)
     assert "No change" in again.text
+    # and revisiting it with a GET reports the settled state without altering it
+    revisit = client.get(path)
+    assert "Already approved" in revisit.text
+
+
+def test_an_unknown_link_is_a_404_that_changes_nothing():
+    client, _ = _wired()
+    assert client.get("/approve/not-a-real-token").status_code == 404
+    assert client.post("/deny/not-a-real-token").status_code == 200  # renders "No change"
 
 
 def test_creating_a_request_needs_the_streams_own_write_token():
@@ -169,7 +229,9 @@ def test_an_approved_request_releases_the_agent_and_is_recorded_as_oversight():
     def approver():
         for _ in range(500):
             if created.get("approve_url"):
-                client.get(created["approve_url"].replace("http://testserver", ""))
+                link = created["approve_url"].replace("http://testserver", "")
+                client.get(link)     # the human opens and reads it
+                client.post(link)    # then presses the button
                 return
             threading.Event().wait(0.01)
 
@@ -213,3 +275,65 @@ def test_a_hard_deny_is_never_offered_to_a_human():
             fr.record_tool_call("wire_transfer", {"amount": 100}, {})
     # nothing was ever asked of a human
     assert client.get("/v1/approvals").json()["pending"] == []
+
+
+def test_approving_one_rule_does_not_unlock_every_other_oversight_rule():
+    """A single session-wide "someone approved something" flag meant approving a harmless
+    read also released a delete. Oversight is per rule."""
+    from provenrail.policy import SessionState
+
+    policy = Policy(rules=[Rule(id="oversee.query", effect="require_oversight", tool="db_query"),
+                           Rule(id="oversee.delete", effect="require_oversight", tool="db_delete")])
+    state = SessionState()
+    assert policy.decide("tool_call", {"tool": "db_query"}, state).effect == "deny"
+
+    state.oversight_rules.add("oversee.query")            # a human approves the query only
+    assert policy.decide("tool_call", {"tool": "db_query"}, state).effect == "allow"
+    assert policy.decide("tool_call", {"tool": "db_delete"}, state).effect == "deny", \
+        "approving a read unlocked a delete"
+
+    state.oversight_rules.add("oversee.delete")
+    assert policy.decide("tool_call", {"tool": "db_delete"}, state).effect == "allow"
+
+
+def test_an_unnamed_oversight_still_acts_as_a_blanket_approval():
+    """A host that cannot name the rule it answered (the Claude Code permission prompt, a
+    manual call) keeps the older behaviour, because silently tightening it would start denying
+    work people genuinely approved."""
+    from provenrail.policy import SessionState
+
+    policy = Policy(rules=[Rule(id="oversee.delete", effect="require_oversight", tool="db_*")])
+    state = SessionState(had_oversight=True)
+    assert policy.decide("tool_call", {"tool": "db_delete"}, state).effect == "allow"
+
+
+def test_the_out_of_band_approval_names_its_rule():
+    """The approval flow always sends the rule, so it gets the narrow scope by default."""
+    client, prov = _wired()
+    fr = _recorder(client, prov, OVERSIGHT, timeout=5)
+    created: dict = {}
+    original = fr.client.request_approval
+
+    def capture(body):
+        result = original(body)
+        created.update(result)
+        return result
+
+    fr.client.request_approval = capture
+
+    def approver():
+        for _ in range(500):
+            if created.get("approve_url"):
+                link = created["approve_url"].replace("http://testserver", "")
+                client.get(link)
+                client.post(link)
+                return
+            threading.Event().wait(0.01)
+
+    t = threading.Thread(target=approver, daemon=True)
+    t.start()
+    with fr.session({"agent": "a"}):
+        fr.record_tool_call("wire_transfer", {"amount": 1}, {})
+    t.join(timeout=5)
+    assert fr._session_state.oversight_rules == {"money.wire"}
+    assert fr._session_state.had_oversight is False

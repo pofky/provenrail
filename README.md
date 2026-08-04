@@ -157,6 +157,11 @@ stream, and one export verifies them all. The first run creates `.provenrail.key
 signing key reused by every later run; keep it out of version control (gitignore it next to
 `.provenrail.json`). Losing it only means future runs sign under a new identity.
 
+Budgets keep their running totals in `.provenrail-spend.json` in the project root, with a
+`.provenrail-spend.json.lock` beside it so concurrent agents cannot lose each other's writes.
+Both are local state, not records: gitignore them. `PROVENRAIL_SPEND_LEDGER` moves the pair
+somewhere else if you would rather share one budget across several checkouts.
+
 ### TypeScript / Node
 
 The same capture is available for TypeScript agents (Node 20+), in `sdk-js/`:
@@ -278,7 +283,9 @@ Trust and compliance surface
   conformance-tested to agree byte-for-byte with `pr verify`. The lockstep covers enforcement
   as well as integrity: the browser verifier replays the committed policy, including spend
   caps, and its cost arithmetic is parity-tested against `pricing.py` so a budget can never
-  replay differently in the browser than on the CLI.
+  replay differently in the browser than on the CLI. One check is deliberately CLI-only: RFC
+  3161 timestamp validation needs ASN.1/PKCS#7 parsing, so the browser reports such an anchor
+  as present but unvalidated rather than pretending to have checked it.
 - Embeddable live badge: `<img src=".../badge/<share_token>.svg">` re-verifies on every load
   and turns amber or red if the record ever stops verifying.
 - One-click evidence pack (`fr pack`, or `/v1/streams/{id}/evidence`): a self-contained,
@@ -368,8 +375,18 @@ call that would cross it, at one of three scopes:
 ]}}
 ```
 
+**Where a budget binds, and where it does not.** A budget is evaluated on the model call,
+which is the only place cost is created, so it fires on calls made through the SDK
+(`record_model_call`, or the drop-in instrumentation). `pr guard` alone is not enough: Claude
+Code hooks fire on tool calls such as Bash, Edit and Write, and a model call never passes
+through one, so a policy installed by `pr guard install` alone gives you tool guardrails and
+spend *reporting* but not spend *enforcement*. Instrument the model client as well to get
+both. `pr guard status` shows which of the two you have.
+
 `day` and `total` survive process exit via a local ledger, so they bind across runs where a
-session cap cannot. Crossing `warn_at` does not block; it writes a warning into the signed chain
+session cap cannot. The ledger is local and editable: it is a convenience that makes a cap
+work across processes, never evidence, and an operator who needs a cap the agent's own host
+cannot lift enforces it at the sink. Crossing `warn_at` does not block; it writes a warning into the signed chain
 and fires a `budget.warning` webhook while the run can still be stopped, with `budget.exceeded`
 when a cap actually bites. The budgets are part of the committed policy hash, so an auditor can
 prove which cap was in force. Check spend with `pr spend` (per run from a bundle, per agent from
@@ -405,10 +422,17 @@ webhook delivers a one-click approve and a separate deny link to whoever is on c
 approval is recorded as a `human_oversight` event in the agent's own signed chain, and the
 policy is then re-evaluated: the approval flows *through* the guardrail rather than around it.
 It fails closed in every other case, including an unanswered request, an expired link, and an
-unreachable sink. The two links are unrelated single-use secrets stored only as hashes, so a
-link prefetcher cannot approve anything and a leaked database cannot approve anything. Only
-`require_oversight` is ever offered to a human: a hard `deny` and a blown budget are decisions
-you already made.
+unreachable sink. Opening a link only ever *shows* the pending action; the decision happens
+when the button on that page is submitted, because mail gateways and chat unfurlers fetch
+every URL they see and a link that approved on open would be approved by a robot. The two
+links are unrelated single-use secrets stored only as hashes, so a leaked database cannot
+approve anything. An approval unlocks the one rule it answered, not every oversight-gated rule
+in the session. Only `require_oversight` is ever offered to a human: a hard `deny` and a blown
+budget are decisions you already made.
+
+Honest boundary: the sink cannot forge an approval, because it does not hold the agent's
+signing key. It can still deceive one, by telling the waiting agent a request was approved
+when nobody clicked. Approvals are as trustworthy as the sink you point the agent at.
 
 **Replay scrubber.** The session view steps through a run one action at a time (arrow keys, a
 scrub track, a detail pane) and will compare it against any other run of the same agent,

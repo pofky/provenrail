@@ -16,3 +16,20 @@ Provenrail is **evidence tooling, not legal advice and not a compliance guarante
   Admissibility and weight of any evidence are decided by the relevant court or authority, not by us.
 - **Legal advice.** Nothing in this repository or on the website is legal advice. Consult qualified
   counsel in your jurisdiction.
+
+## Approval links
+
+The out-of-band approval feature sends single-use, time-limited links to the notification
+endpoint you configure. Opening a link shows the pending action; the decision is only recorded
+when the button on that page is submitted.
+
+It authenticates the token, not the person. Provenrail cannot tell who clicked, only that a
+valid link was submitted before it expired, so the security of an approval is the security of
+the channel you deliver it over. Where a regulatory or contractual requirement calls for an
+identified or authenticated approver, add that control outside this product.
+
+The record of the approval is written and signed by the agent, not by the sink. The sink
+cannot forge one. It can, however, tell the waiting agent that a request was approved when
+nobody clicked, and the agent will then sign a genuine oversight record. Approvals are
+therefore only as trustworthy as the sink the agent is pointed at. Run your own if that
+matters to you.

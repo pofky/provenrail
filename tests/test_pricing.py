@@ -122,3 +122,53 @@ def test_table_staleness_is_reported():
 def test_builtin_table_carries_verification_dates():
     assert pricing.table_as_of()
     assert all(p.as_of for p in pricing.PRICES.values())
+
+
+def test_google_camelcase_usage_is_priced_not_silently_zero():
+    """A real Gemini REST response used to price at $0.00 while reporting priced=True: an
+    authoritative-looking zero, which is worse than an unpriced call. Field names verified
+    against ai.google.dev/api/generate-content."""
+    c = cost_for("gemini-2.5-flash", {
+        "promptTokenCount": 1_000_000,
+        "candidatesTokenCount": 200_000,
+        "cachedContentTokenCount": 400_000,
+    })
+    # Google reports the prompt count INCLUSIVE of cache, so 600k uncached at $0.30 +
+    # 400k cached at $0.075 + 200k out at $2.50
+    assert c["priced"] is True
+    assert c["cost_usd"] == pytest.approx(0.71)
+    assert c["tokens_billable_in"] == 600_000
+
+
+def test_google_python_sdk_snake_case_usage_is_priced():
+    c = cost_for("gemini-2.5-pro", {"prompt_token_count": 1_000_000,
+                                    "candidates_token_count": 0})
+    assert c["priced"] is True
+    assert c["cost_usd"] == pytest.approx(1.25)
+
+
+def test_gemini_thoughts_tokens_are_surfaced_and_flagged_as_unverified():
+    """Whether thoughtsTokenCount is additive to candidatesTokenCount is not stated in
+    Google's official token documentation, so it is reported and left unbilled rather than
+    guessed at, and the blind spot is flagged rather than hidden."""
+    c = cost_for("gemini-2.5-flash", {"promptTokenCount": 0, "candidatesTokenCount": 1000,
+                                      "thoughtsTokenCount": 5000})
+    assert c["tokens_reasoning"] == 5000
+    assert c["reasoning_billing_unverified"] is True
+    # a provider whose convention IS documented is not flagged
+    openai = cost_for("o3", {"prompt_tokens": 0, "completion_tokens": 1000,
+                             "output_tokens_details": {"reasoning_tokens": 900}})
+    assert openai["reasoning_billing_unverified"] is False
+
+
+def test_negative_token_counts_cannot_reduce_a_budget():
+    """A negative cost subtracts from projected spend and could carry a session back under a
+    cap it had already blown."""
+    c = cost_for("claude-sonnet-4-5", {"input_tokens": -1_000_000, "output_tokens": -50})
+    assert c["cost_usd"] == 0.0
+    assert c["tokens_in"] == 0 and c["tokens_out"] == 0
+
+
+def test_bare_grok_is_recognised_as_known_unpriced():
+    assert cost_for("grok", {"input": 10})["known_unpriced"] is True
+    assert cost_for("grok-4", {"input": 10})["known_unpriced"] is True

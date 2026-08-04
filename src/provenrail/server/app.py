@@ -566,16 +566,76 @@ def create_app(
         acct = _account(authorization)
         return {"pending": app.state.approvals.list_pending(acct)}
 
+    # GET reads, POST decides. A mail gateway, a Slack unfurler or an antivirus scanner will
+    # GET every URL in a notification before a human sees it, so a GET that approved would be
+    # answered by a robot. These two routes are deliberately side-effect free.
     @app.get("/approve/{token}", response_class=HTMLResponse)
-    def approve_link(token: str = Path(...)):
-        return _decision_page(token, approvals_mod.APPROVED)
+    def approve_review(token: str = Path(...)):
+        return _review_page(token, approvals_mod.APPROVED)
 
     @app.get("/deny/{token}", response_class=HTMLResponse)
-    def deny_link(token: str = Path(...)):
+    def deny_review(token: str = Path(...)):
+        return _review_page(token, approvals_mod.DENIED)
+
+    @app.post("/approve/{token}", response_class=HTMLResponse)
+    def approve_submit(token: str = Path(...)):
+        return _decision_page(token, approvals_mod.APPROVED)
+
+    @app.post("/deny/{token}", response_class=HTMLResponse)
+    def deny_submit(token: str = Path(...)):
         return _decision_page(token, approvals_mod.DENIED)
 
+    def _detail_rows(req: dict[str, Any], keys: tuple[str, ...]) -> str:
+        labels = {"rule": "Policy rule", "event_type": "Action type", "target": "Target",
+                  "status": "Status", "decided_at": "Decided", "expires_at": "Link expires",
+                  "session_id": "Session"}
+        return "".join(
+            f"<tr><th>{html.escape(labels.get(k, k))}</th>"
+            f"<td>{html.escape(str(req.get(k) or ''))}</td></tr>"
+            for k in keys if req.get(k))
+
+    def _review_page(token: str, decision: str) -> HTMLResponse:
+        """What the human actually reads before choosing. Nothing here changes state.
+
+        The action being requested is the headline, because on a phone at an awkward hour the
+        question is "what am I being asked to allow", not "what product is this".
+        """
+        req = app.state.approvals.peek_by_token(token, decision)
+        if req is None:
+            return HTMLResponse(app.state.approvals.decision_page("Link not recognised", """<main>
+  <h1 class="no">Link not recognised</h1>
+  <p>This approval link is not one this server issued, or the request behind it has been
+  rotated away. Nothing was changed.</p></main>"""), status_code=404)
+        if req.get("status") != approvals_mod.PENDING:
+            status = str(req.get("status"))
+            return HTMLResponse(app.state.approvals.decision_page(f"Already {status}", f"""<main>
+  <h1 class="{'ok' if status == approvals_mod.APPROVED else 'no'}">Already {html.escape(status)}</h1>
+  <p>This request was {html.escape(status)} and cannot be answered again. Nothing was changed
+  by opening this link.</p>
+  <table>{_detail_rows(req, ("target", "rule", "decided_at"))}</table></main>"""))
+        wants_approval = decision == approvals_mod.APPROVED
+        reason = str(req.get("reason") or "An agent is waiting for your decision.")
+        target = str(req.get("target") or "")
+        verb = "Allow this action?" if wants_approval else "Block this action?"
+        other = ("deny" if wants_approval else "approve")
+        body = f"""<main>
+  <h1>{html.escape(verb)}</h1>
+  <p class="lede">{html.escape(reason)}</p>
+  {f'<p class="target">{html.escape(target)}</p>' if target else ''}
+  <form method="post" class="decide">
+    <button type="submit" class="{'go' if wants_approval else 'stop'}">
+      {'Approve' if wants_approval else 'Deny'}</button>
+  </form>
+  <table>{_detail_rows(req, ("rule", "event_type", "session_id", "expires_at"))}</table>
+  <p class="fine">An agent is paused waiting for this. Nothing has been decided yet: opening
+  this link changed nothing, and only the button above does. The link works once. If you did
+  not expect this, close the page and the request expires on its own, which leaves the action
+  blocked. To {other} instead, use the other link from the same notification.</p>
+</main>"""
+        return HTMLResponse(app.state.approvals.decision_page(verb, body))
+
     def _decision_page(token: str, decision: str) -> HTMLResponse:
-        """The page a human lands on from the link. No login: the link IS the capability."""
+        """The outcome, rendered only after a POST from the review page's button."""
         result = app.state.approvals.decide_by_token(token, decision)
         req = result.get("request") or {}
         approved = (req.get("status") == approvals_mod.APPROVED)
@@ -587,18 +647,14 @@ def create_app(
         else:
             headline = "No change"
             note = f"This link did not decide anything: {result['reason']}."
-        rows = "".join(
-            f"<tr><th>{html.escape(k)}</th><td>{html.escape(str(req.get(k) or ''))}</td></tr>"
-            for k in ("rule", "event_type", "target", "reason", "status", "decided_at")
-            if req.get(k))
         body = f"""<main>
-  <p class="eyebrow">Provenrail human oversight</p>
   <h1 class="{'ok' if approved else 'no'}">{html.escape(headline)}</h1>
-  <p>{html.escape(note)}</p>
-  <table>{rows}</table>
-  <p class="fine">This decision was made by opening a single-use link. Reopening it will not
-  change the answer. The agent writes the outcome into its own hash-chained, signed record;
-  this server never holds the agent's signing key and so cannot manufacture an approval.</p>
+  <p class="lede">{html.escape(note)}</p>
+  <table>{_detail_rows(req, ("target", "rule", "event_type", "status", "decided_at"))}</table>
+  <p class="fine">This link works once, so reopening it will not change the answer. The agent
+  writes the outcome into its own hash-chained, signed record. This server never holds the
+  agent's signing key, so it cannot forge an approval, though an operator who does not trust
+  their sink should run one they control.</p>
 </main>"""
         return HTMLResponse(app.state.approvals.decision_page(headline, body))
 

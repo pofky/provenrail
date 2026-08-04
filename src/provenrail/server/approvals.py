@@ -15,19 +15,32 @@ Design decisions that matter, each one a way this could go wrong:
 timeout, an unreachable notifier, or a crashed sink can never turn a pending approval into an
 allow. The waiting agent gets `expired`, never `approved`.
 
-**The link is the capability, and it is single-use.** There is no login on the approve page:
-requiring one would mean provisioning accounts for the person who happens to be on call.
-Instead each request carries a high-entropy token, stored only as a SHA-256, that decides
-exactly one request exactly once. A replayed link shows the decision that was already made
-rather than making a second one.
+**Opening a link never decides anything.** The link renders a review page; the decision
+happens on a POST from a button on that page. This is not a style preference. Email security
+gateways, Slack's link unfurler and antivirus scanners all issue GET requests against every
+URL they find in a message, so a GET that approves is approved by a robot before any human
+reads it, and a human who taps the link merely to see what is being asked has already granted
+it. Two separate tokens for approve and deny do not help: the first fetch of the *approve*
+link is the accident. GET reads, POST decides.
 
-**Approve and deny are different tokens.** One token with an `?action=` parameter is one
-mangled link, one over-eager link prefetcher, or one email scanner away from an accidental
-approval. Two unrelated secrets mean a fetch of the deny URL can never approve.
+**The link is the capability, and it is single-use.** There is no login on the review page:
+requiring one would mean provisioning accounts for whoever happens to be on call. Instead each
+request carries a high-entropy token, stored only as a SHA-256, that decides exactly one
+request exactly once. A replayed link shows the decision that was already made rather than
+making a second one.
+
+**Approve and deny are different tokens**, so the deny link cannot be turned into an approval
+by editing a query parameter, and a leaked deny link grants nothing.
 
 **The decision is recorded by the agent, not by the sink.** The sink stores the answer; the
-agent's own recorder writes the `human_oversight` record into its chain and signs it. The
-sink never holds the signing key, so it can never manufacture an approval that verifies.
+agent's own recorder writes the `human_oversight` record into its chain and signs it.
+
+The honest boundary on that last point, because it was previously overstated here: the sink
+cannot FORGE an approval, since it does not hold the device signing key. It can still DECEIVE
+one, by answering the agent's status poll with "approved" when no human ever clicked. The
+agent then signs a genuine `human_oversight` record and an offline verifier cannot tell the
+difference. Approvals are therefore only as trustworthy as the sink you point the agent at,
+exactly like every other server-mediated control here. Self-host the sink if that matters.
 """
 
 from __future__ import annotations
@@ -146,41 +159,67 @@ class ApprovalStore:
         """The view callers get: never the token hashes."""
         return {k: v for k, v in row.items() if k not in ("approve_hash", "deny_hash")}
 
+    def peek_by_token(self, token: str, decision: str,
+                      now: datetime | None = None) -> dict[str, Any] | None:
+        """Look a request up by one of its links WITHOUT deciding it.
+
+        This is what a GET is allowed to do. It is the whole reason the review page can be
+        safely prefetched by a mail gateway or unfurled by Slack: reading is free, deciding
+        needs a POST.
+        """
+        column = "approve_hash" if decision == APPROVED else "deny_hash"
+        cur = self._db.execute(f"SELECT * FROM approvals WHERE {column}=?", (_hash(token),))
+        row = cur.fetchone()
+        if row is None:
+            return None
+        row = dict(row)
+        if row["status"] == PENDING and _stamp(now or _now()) > row["expires_at"]:
+            row["status"] = EXPIRED
+        return self._public(row)
+
     def decide_by_token(self, token: str, decision: str, decided_by: str = "",
                         note: str = "", now: datetime | None = None) -> dict[str, Any]:
-        """Answer a request using one of its links.
+        """Answer a request using one of its links. Only ever called from a POST.
 
         Returns `{"ok": bool, "reason": str, "request": {...}|None}`. A replayed link is not
-        an error: it returns the decision that was already made, so a human who clicks twice
+        an error: it returns the decision that was already made, so a human who submits twice
         sees a consistent answer instead of a scary failure.
         """
         column = "approve_hash" if decision == APPROVED else "deny_hash"
         stamp = now or _now()
+        token_hash = _hash(token)
         with self._lock:
-            cur = self._db.execute(f"SELECT * FROM approvals WHERE {column}=?", (_hash(token),))
-            row = cur.fetchone()
+            # One conditional UPDATE, not SELECT-then-UPDATE. The in-process lock only
+            # serialises threads inside a single worker; under gunicorn with several workers
+            # each has its own lock, and two simultaneous decisions could both observe PENDING
+            # and both write. Letting the database decide, and reading rowcount, is correct
+            # under any deployment and survives a later move to Postgres.
+            cur = self._db.execute(
+                f"UPDATE approvals SET status=?, decided_at=?, decided_by=?, note=? "  # noqa: S608
+                f"WHERE {column}=? AND status=? AND expires_at>?",
+                (decision, _stamp(stamp), decided_by or "link", note,
+                 token_hash, PENDING, _stamp(stamp)))
+            decided = cur.rowcount == 1
+            self._db.commit()
+            row = self._db.execute(
+                f"SELECT * FROM approvals WHERE {column}=?", (token_hash,)).fetchone()
             if row is None:
                 return {"ok": False, "reason": "unknown or already-rotated link",
                         "request": None}
             row = dict(row)
-            if row["status"] != PENDING:
-                return {"ok": False, "reason": f"already {row['status']}",
-                        "request": self._public(row)}
-            if _stamp(stamp) > row["expires_at"]:
-                self._db.execute("UPDATE approvals SET status=? WHERE request_id=?",
-                                 (EXPIRED, row["request_id"]))
+            if decided:
+                return {"ok": True, "reason": "", "request": self._public(row)}
+            # The update did not land. Say which of the two reasons applies, because "expired"
+            # and "someone already answered" mean different things to the person reading it.
+            if row["status"] == PENDING:
+                self._db.execute("UPDATE approvals SET status=? WHERE request_id=? AND status=?",
+                                 (EXPIRED, row["request_id"], PENDING))
                 self._db.commit()
                 row["status"] = EXPIRED
                 return {"ok": False, "reason": "this request expired before it was answered",
                         "request": self._public(row)}
-            self._db.execute(
-                "UPDATE approvals SET status=?, decided_at=?, decided_by=?, note=? "
-                "WHERE request_id=?",
-                (decision, _stamp(stamp), decided_by or "link", note, row["request_id"]))
-            self._db.commit()
-            row.update(status=decision, decided_at=_stamp(stamp),
-                       decided_by=decided_by or "link", note=note)
-        return {"ok": True, "reason": "", "request": self._public(row)}
+            return {"ok": False, "reason": f"already {row['status']}",
+                    "request": self._public(row)}
 
     def list_pending(self, account_id: str | None, now: datetime | None = None
                      ) -> list[dict[str, Any]]:
@@ -240,6 +279,18 @@ letter-spacing:-.02em;margin-bottom:.6rem}
 h1.ok{color:var(--accent)}
 h1.no{color:var(--red)}
 p{color:var(--text-mid);margin-bottom:1.1rem}
+/* The request itself is the headline. On a phone at an awkward hour the question is "what am
+   I being asked to allow", so the reason gets body-text size and the metadata gets a table. */
+.lede{color:var(--text-hi);font-size:1.02rem;margin-bottom:.9rem}
+.target{font-family:var(--font-mono);font-size:.85rem;color:var(--text-hi);background:var(--bg);
+border:1px solid var(--border);border-radius:8px;padding:.7rem .8rem;margin-bottom:1.2rem;
+word-break:break-word;white-space:pre-wrap}
+.decide{margin-bottom:1.4rem}
+.decide button{width:100%;min-height:52px;font-family:var(--font-mono);font-size:1rem;
+border:1px solid transparent;border-radius:10px;cursor:pointer;padding:.9rem 1rem}
+.decide .go{background:var(--accent);color:#04130d}
+.decide .stop{background:var(--red);color:#1a0705}
+.decide button:focus-visible{outline:2px solid var(--text-hi);outline-offset:3px}
 table{width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:1.1rem}
 th,td{text-align:left;padding:.5rem .25rem;border-bottom:1px solid var(--border);
 vertical-align:top}
