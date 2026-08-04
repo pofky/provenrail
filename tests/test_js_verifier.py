@@ -696,3 +696,33 @@ def test_a_float_in_a_record_is_a_verdict_not_a_traceback():
     rep = verify_bundle(bundle)          # must not raise
     assert not rep.ok
     assert "not_canonicalizable" in {f.code for f in rep.findings}
+
+
+def test_coherence_signals_appear_in_both_verifiers(tmp_path):
+    """Step 11 was missing from the browser verifier entirely, so someone auditing a bundle on
+    the web page saw a clean verdict and never learned the run recorded no human governance at
+    all, while the CLI told them. Both verifiers must surface the same seams."""
+    from provenrail.verifier.verify import verify_bundle
+
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=False)
+    c = TestClient(app)
+    prov = provision_stream("http://t", http=c)
+    fr = FlightRecorder("http://t", prov["write_token"], prov["stream_id"], http=c)
+    with fr.session({"agent": "unsupervised"}):
+        # a model call with no usage, and no decision or oversight anywhere in the run
+        fr.record_model_call("anthropic", "claude-sonnet-4-5", {"p": "x"}, {"t": "y"})
+    bundle = c.get(f"/v1/streams/{prov['stream_id']}/bundle").json()
+
+    rep = verify_bundle(bundle)
+    codes = {f.code for f in rep.findings}
+    assert {"no_governance", "usage_missing"} <= codes
+
+    path = tmp_path / "coherence.json"
+    path.write_text(json.dumps(bundle), encoding="utf-8")
+    mpath = tmp_path / "coherence_manifest.json"
+    mpath.write_text(json.dumps([{"name": "coherence", "bundle": "coherence.json",
+                                  "expect_ok": rep.ok,
+                                  "codes": ["no_governance", "usage_missing"]}]), encoding="utf-8")
+    result = subprocess.run(["node", str(CONFORMANCE), str(mpath)],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, f"JS missed the coherence signals:\n{result.stdout}"

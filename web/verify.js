@@ -15,6 +15,7 @@ const GENESIS_PREV_HASH = "0".repeat(64);
 const SEAL = "lifecycle.session_end";
 const GENESIS = "lifecycle.session_start";
 const HUMAN_OVERSIGHT = "human_oversight";
+const MODEL_CALL = "model_call";
 const JS_SAFE_INT_MAX = Number.MAX_SAFE_INTEGER; // 2^53 - 1
 
 // WebCrypto is a global in modern browsers and in Node 20+.
@@ -592,6 +593,60 @@ async function verifyOts(bundle, rep, opts) {
   }
 }
 
+// ---- coherence signals (step 11, mirrors coherence.py detect()) ----
+// Heuristics, never a verdict: the cryptographic checks decide whether a record is authentic,
+// and nothing here can promote or demote that. What these do is point at the seams. They were
+// missing from this verifier entirely, so someone auditing in the browser saw a clean result
+// and never learned that the run recorded no human governance at all, while the CLI told them.
+const GAP_SECONDS = 3600.0;
+const BACKWARDS_TOLERANCE_S = 1.0;
+
+function detectCoherence(ordered, rep) {
+  if (!ordered.length) return;
+  let prevTs = null, prevSeq = null;
+  for (const rec of ordered) {
+    const ts = parseTs(rec.ts_utc || "");
+    const seq = rec.seq;
+    if (ts !== null && prevTs !== null) {
+      const delta = ts - prevTs;
+      if (delta < -BACKWARDS_TOLERANCE_S) {
+        rep.add("warn", "nonmonotonic_ts",
+          `seq ${seq}: timestamp ${rec.ts_utc} is earlier than the previous record's (seq ${prevSeq}); clock skew or reordering (hashes still intact)`);
+      } else if (delta > GAP_SECONDS) {
+        rep.add("info", "time_gap",
+          `seq ${prevSeq} to ${seq}: ${Math.floor(delta)}s passed between consecutive records; a long quiet window worth confirming was not an un-instrumented period`);
+      }
+    }
+    prevTs = ts === null ? prevTs : ts;
+    prevSeq = seq;
+  }
+  const seen = new Map();
+  for (const rec of ordered) {
+    const rid = rec.record_id;
+    if (rid === undefined || rid === null) continue;
+    if (seen.has(rid)) rep.add("warn", "duplicate_record_id", `record_id ${rid} appears at seq ${seen.get(rid)} and ${rec.seq}`);
+    else seen.set(rid, rec.seq);
+  }
+  const missingUsage = ordered.filter(r => r.action_type === MODEL_CALL && !((r.payload || {}).usage)).length;
+  if (missingUsage) {
+    rep.add("info", "usage_missing",
+      `${missingUsage} model call(s) recorded no token usage; cost and spend-cap accounting cannot be reconstructed for them`);
+  }
+  const actions = new Set(ordered.map(r => r.action_type));
+  if (actions.has(MODEL_CALL) && !actions.has("decision") && !actions.has(HUMAN_OVERSIGHT)) {
+    rep.add("info", "no_governance",
+      "the session made model calls but recorded no decision or human-oversight event; fine for an autonomous job, notable for one expected to be supervised");
+  }
+  for (const rec of ordered) {
+    if (rec.action_type !== SEAL) continue;
+    const stated = parseInt(String((rec.payload || {}).count), 10);
+    if (Number.isNaN(stated)) continue;
+    if (stated !== rec.seq) {
+      rep.add("warn", "seal_count_mismatch", `seal claims ${stated} prior records but sits at seq ${rec.seq}`);
+    }
+  }
+}
+
 // ---- committed policy (step 10, matches policy.py + verifier/verify.py _verify_policy) ----
 // This is the enforcement half of the lockstep. Without it the browser verifier could prove
 // the record was untampered but not that the guardrails the operator committed to were
@@ -1060,6 +1115,9 @@ export async function verifyBundle(bundle, pin = null, opts = {}) {
 
   // 10. committed policy: prove the guardrails in force were actually applied
   await verifyPolicy(sessions, rep);
+
+  // 11. coherence signals (heuristics, never a verdict)
+  detectCoherence(client, rep);
 
   // 12. selective-disclosure redaction: validate any supplied openings against commitments
   await verifyRedactions(client, rep, opts.openings || null);

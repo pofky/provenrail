@@ -399,14 +399,14 @@ def render_text(result: dict[str, Any]) -> str:
     lines.append(f"  estimated   ${t['estimated_usd']:,.2f}")
     lines.append(f"  invoiced    ${t['actual_usd']:,.2f}")
     drift_pct = "" if t["drift_pct"] is None else f" ({t['drift_pct']:+.1f}%)"
-    lines.append(f"  drift       ${t['drift_usd']:+,.2f}{drift_pct}")
+    lines.append(f"  variance    ${t['drift_usd']:+,.2f}{drift_pct}")
     if result["warnings"]:
         lines.append("")
         for w in result["warnings"]:
             lines.append(f"  ! {w}")
     if result["rows"]:
         lines.append("")
-        lines.append(f"  {'model':<34}{'estimated':>13}{'invoiced':>13}{'drift':>13}")
+        lines.append(f"  {'model':<34}{'estimated':>13}{'invoiced':>13}{'variance':>13}")
         for row in result["rows"]:
             estimated = f"${row['estimated_usd']:,.2f}"
             actual = f"${row['actual_usd']:,.2f}"
