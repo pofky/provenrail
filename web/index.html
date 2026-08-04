@@ -111,7 +111,7 @@
           { "@type": "Question", "name": "Can the agent fake the logs?", "acceptedAnswer": { "@type": "Answer", "text": "A cooperative agent cannot silently alter records once they reach the sink: the hash chain makes any tampering detectable. However, a hostile agent that simply refuses to call the SDK will not be logged. Provenrail detects tampering and deletion of records that were written; it cannot force an uncooperative agent to write in the first place. That limitation is stated explicitly in the docs and on this page." } },
           { "@type": "Question", "name": "Do I have to trust Provenrail?", "acceptedAnswer": { "@type": "Answer", "text": "No. The verifier (pr-verify) is open-source and verifies the hash chain locally without contacting our servers. On Builder and higher plans it also checks RFC 3161 timestamps from an external time authority. You can run it yourself, or export a portable bundle and share it with any third party who can run the open-source verifier; on Builder and higher a hosted read-only proof link is also available. You do not need to trust us or the agent; you need to trust standard cryptography and, on paid plans, the third-party time authority." } },
           { "@type": "Question", "name": "What about PII and privacy?", "acceptedAnswer": { "@type": "Answer", "text": "The default mode is store-hash-not-content: we record a SHA-256 hash of each prompt and response, not the raw text. The hash proves the content existed and has not changed; the raw text stays on your infrastructure. Selective-disclosure redaction lets you commit sensitive fields as salted hashes and reveal or erase them later. Full-content storage is opt-in and requires explicit configuration." } },
-          { "@type": "Question", "name": "Does this satisfy the EU AI Act Article 12 logging requirement?", "acceptedAnswer": { "@type": "Answer", "text": "Provenrail provides the technical evidence layer: an append-only, timestamped, tamper-evident log of AI system operations of the kind EU AI Act Article 12 calls for. Article 12 applies from 2027-12-02 for standalone Annex III high-risk systems and 2028-08-02 for Annex I embedded systems, deferred from 2026-08-02 by Regulation (EU) 2026/1744. Article 50 transparency obligations were not deferred and apply from 2026-08-02. Your team is responsible for regulatory certification. We provide the evidence; you provide the attestation. The Team plan includes one-click attestation evidence packs and HIPAA 164.312(b) evidence mapping." } },
+          { "@type": "Question", "name": "Does this satisfy the EU AI Act Article 12 logging requirement?", "acceptedAnswer": { "@type": "Answer", "text": "Provenrail provides the technical evidence layer: an append-only, timestamped, tamper-evident log of AI system operations of the kind EU AI Act Article 12 calls for. Article 12 applies from 2027-12-02 for standalone Annex III high-risk systems and 2028-08-02 for Annex I embedded systems, deferred from 2026-08-02 by Regulation (EU) 2026/1744. Article 50 transparency obligations were not deferred and apply from 2026-08-02. Your team is responsible for regulatory certification. We provide the evidence; you provide the attestation. The Team plan includes one-click evidence packs and HIPAA 164.312(b) evidence mapping." } },
           { "@type": "Question", "name": "What does it cost?", "acceptedAnswer": { "@type": "Answer", "text": "Free: $0, 50k events/month, single project, hash-chain integrity. Builder: $29/month, 500k events, RFC 3161 trusted timestamps, shareable proof links. Team: $99/month, 2M events, unlimited projects, data exports, and evidence packs mapped to EU AI Act Article 12 and HIPAA audit-control requirements. Enterprise: custom pricing, private deployment, support terms by agreement. Limits apply to the licensed build you run; the integrity guarantee is open-source and identical on every plan." } },
           { "@type": "Question", "name": "How do I verify a proof?", "acceptedAnswer": { "@type": "Answer", "text": "Install the verifier with: uv tool install provenrail (or pip install provenrail inside a virtualenv). Export your stream as a bundle, then run: pr verify bundle.json --pin pin.json. The tool recomputes the client hash chain, every Ed25519 signature, the independent server receipt chain, and every anchor locally, trusting neither the agent nor the sink. On Builder and higher plans each anchor carries an RFC 3161 trusted timestamp, which the tool verifies against the external time authority. It exits 0 if intact and non-zero with a detailed error if any record is missing, reordered, altered, or back-dated." } }
         ]
@@ -231,8 +231,9 @@
               There is also an <a href="/claude-code-guardrails">installable Claude Code plugin</a>
               if you would rather not touch a settings file.
               For your own agents there is a Python <em>and</em> TypeScript SDK, with drop-in capture
-              for the OpenAI and Anthropic clients, LangChain and MCP; a run recorded in either
-              language verifies with the same open-source tools.
+              for the OpenAI and Anthropic clients, LangChain and MCP. A run recorded in either
+              language produces the same bytes and verifies with the same open-source tools, and a
+              cross-language test in CI fails the build if that ever stops being true.
             </p>
             <p class="lead" style="font-family:var(--font-mono);font-size:.82rem;color:var(--text-lo)">
               <span style="color:var(--accent)">uv tool install provenrail</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span style="color:var(--accent)">npm install provenrail</span>
@@ -529,7 +530,7 @@
               in regulatory contexts. Certification and any formal attestation remain your responsibility, and we issue neither.
             </p>
             <div class="audience-benefit">Append-only log; RFC 3161 trusted timestamps on Builder and higher.</div>
-            <div class="audience-benefit">Attestation report templates for auditors and regulators.</div>
+            <div class="audience-benefit">Evidence report templates mapped to EU AI Act Article 12 and HIPAA audit-control requirements.</div>
             <div class="audience-benefit">HIPAA 164.312(b) evidence mapping; you remain the covered entity and certify compliance.</div>
             <div style="margin-top:1.5rem"><a href="mailto:support@provenrail.com" class="btn-primary">Talk to us</a></div>
           </div>
@@ -542,7 +543,7 @@
               <div class="terminal-card">
                 <div class="terminal-bar">
                   <div class="code-dots" aria-hidden="true"><span class="code-dot code-dot-r"></span><span class="code-dot code-dot-y"></span><span class="code-dot code-dot-g"></span></div>
-                  <span class="terminal-title">Attestation report</span>
+                  <span class="terminal-title">Evidence report</span>
                 </div>
                 <div class="terminal-body">
                   <div class="t-line"><span class="t-key">regulation</span><span class="t-val">EU AI Act Art. 12</span></div>
@@ -603,6 +604,21 @@
             <div class="diff-icon" aria-hidden="true">HN</div>
             <h3 class="diff-title">Honest about the threat model</h3>
             <p class="diff-body">We document exactly what Provenrail does and does not catch. Technical buyers trust specificity. We tell you what we cannot guarantee before you commit to a plan.</p>
+          </div>
+          <div class="diff-card reveal" style="transition-delay:.48s">
+            <div class="diff-icon" aria-hidden="true">2C</div>
+            <h3 class="diff-title">Two chains, not one</h3>
+            <p class="diff-body">The agent signs and links each record; the sink independently re-chains them in arrival order. Rewrite the agent's chain and the sink's stored bytes catch it. Edit the sink's bytes and the agent's signatures catch it. Getting away with a change means breaking both at once.</p>
+          </div>
+          <div class="diff-card reveal" style="transition-delay:.56s">
+            <div class="diff-icon" aria-hidden="true">2V</div>
+            <h3 class="diff-title">Two verifiers that must agree</h3>
+            <p class="diff-body">A Python verifier and a JavaScript one are held to 12 frozen public test vectors in CI, and every release must satisfy both. Build a third from the spec and check it against the same vectors. That is what "independently verifiable" is made of, rather than asserted.</p>
+          </div>
+          <div class="diff-card reveal" style="transition-delay:.64s">
+            <div class="diff-icon" aria-hidden="true">FC</div>
+            <h3 class="diff-title">Approvals fail closed</h3>
+            <p class="diff-body">When a headless agent needs a human, an unanswered request, an expired link and an unreachable sink all leave the action blocked. Only a person pressing the button on the review page releases it, and that decision is signed into the same record.</p>
           </div>
         </div>
       </div>
@@ -716,7 +732,7 @@
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false" aria-controls="faq-a-4">Does this satisfy the EU AI Act Article 12 logging requirement?<span class="faq-q-icon" aria-hidden="true"></span></button>
-            <div class="faq-a" id="faq-a-4" role="region">Provenrail provides the technical evidence layer: an append-only, timestamped, tamper-evident log of AI system operations of the kind EU AI Act Article 12 calls for. Article 12 applies from 2027-12-02 for standalone Annex III high-risk systems and 2028-08-02 for Annex I embedded systems, deferred from 2026-08-02 by Regulation (EU) 2026/1744. Article 50 transparency obligations were not deferred and apply from 2026-08-02. Your team is responsible for regulatory certification. We provide the evidence; you provide the attestation. The Team plan includes one-click attestation evidence packs designed for use with auditors and regulators.</div>
+            <div class="faq-a" id="faq-a-4" role="region">Provenrail provides the technical evidence layer: an append-only, timestamped, tamper-evident log of AI system operations of the kind EU AI Act Article 12 calls for. Article 12 applies from 2027-12-02 for standalone Annex III high-risk systems and 2028-08-02 for Annex I embedded systems, deferred from 2026-08-02 by Regulation (EU) 2026/1744. Article 50 transparency obligations were not deferred and apply from 2026-08-02. Your team is responsible for regulatory certification. We provide the evidence; you provide the attestation. The Team plan includes one-click evidence packs designed for use with auditors and regulators.</div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false" aria-controls="faq-a-5">What does it cost?<span class="faq-q-icon" aria-hidden="true"></span></button>

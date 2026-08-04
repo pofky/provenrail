@@ -20,9 +20,11 @@ retained at least as long as the records and available for agency review.
 - **Provenrail control:** append-only hash chain + independent off-box server receipt chain (changes
   cannot obscure prior records; recording is independent of the agent) + RFC 3161 timestamps +
   standalone verifier for agency review.
-- **Truthful claim:** "Satisfies 21 CFR 11.10(e)'s independent, time-stamped, non-obscuring audit
-  trail requirement." High value for life-sciences (GxP, clinical, manufacturing); EMA Annex 22 is
-  extending Part 11 principles to AI.
+- **Truthful claim:** "Provides the independent, time-stamped, non-obscuring audit trail evidence
+  that 21 CFR 11.10(e) calls for. Whether it satisfies the provision in your validated system is a
+  determination for your quality staff and your auditor." Never write "satisfies" on its own: that
+  is a regulatory conclusion, and it is not ours to draw. High value for life-sciences (GxP,
+  clinical, manufacturing); EMA Annex 22 is extending Part 11 principles to AI.
 
 ### PCI DSS v4.0.1 Requirement 10 (cardholder data environments)
 Requires log integrity protection with "cryptographic protections" or WORM, file-integrity

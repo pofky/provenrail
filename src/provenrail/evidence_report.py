@@ -1,4 +1,4 @@
-"""Auditor-grade verification report (premium, printable HTML).
+"""Full verification report (printable HTML).
 
 The regime cover (pack.render_cover_html) maps a run to a compliance regime. This module
 produces the companion an auditor or lawyer actually reads end to end: the full verification

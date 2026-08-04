@@ -22,6 +22,7 @@ BANNED = {
     "take to court": "promises an outcome a court decides; say what the record proves instead",
     "court-grade": "there is no such grade, and it implies admissibility we cannot promise",
     "audit-grade": "implies conformance to an audit standard nobody has certified us against",
+    "auditor-grade": "the same claim with one more syllable; no auditor has graded anything here",
     "audit-ready": "readiness is the auditor's determination, not ours",
     "legally binding": "we make nothing legally binding",
     "guarantees compliance": "compliance is never guaranteed here",
@@ -63,7 +64,11 @@ def test_attestation_is_not_used_as_a_product_noun():
     under a standard such as ISAE 3000. We issue no opinion and hold no licence, so the word
     cannot name what `pr report` produces. It stays legal only where we say we do NOT provide
     one, and in its unrelated cryptographic sense (an OpenTimestamps Bitcoin attestation)."""
-    pattern = re.compile(r"(regulatory|regime|compliance)\s+attestation", re.IGNORECASE)
+    # Both orders: "regulatory attestation" and "attestation report/pack/evidence". The first
+    # version of this test only caught the adjective form, and three occurrences of the noun
+    # form sat in the homepage and its JSON-LD, which is what search engines and LLMs read.
+    pattern = re.compile(r"(regulatory|regime|compliance)\s+attestation"
+                         r"|attestation\s+(report|pack|evidence)", re.IGNORECASE)
     offences = []
     for path in _shipped_files():
         for n, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):

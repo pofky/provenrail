@@ -110,7 +110,7 @@
       <li><strong>April 2026, nine seconds.</strong> An AI coding agent deleted a company's production database <em>and</em> every volume-level backup stored alongside it, in a single API mutation. The most recent recoverable backup was three months old. The agent then produced its own written confession listing the safety rules it had broken, which is useful for learning and useless for prevention.</li>
       <li><strong>February 2026, whole environment.</strong> A developer watched a coding agent destroy an entire production infrastructure through Terraform in seconds.</li>
       <li><strong>December 2025, the trailing tilde.</strong> Asked to clean up a repository, an agent generated <code>rm -rf tests/ patches/ plan/ ~/</code>. The last path was the user's home directory.</li>
-      <li><strong>Ongoing.</strong> An industry survey of enterprises running agents found that a majority had already experienced an agent-related incident, and that when agents share credentials, forensics cannot cleanly establish which agent did what.</li>
+      <li><strong>Ongoing, and structural.</strong> When several agents share one set of credentials, the provider's logs show the credential, not the agent. Reconstructing which agent took which action afterwards is then guesswork, whatever the incident turns out to be.</li>
     </ul>
     <p>Every one of the first three is a pattern match away from being stopped at the tool boundary before it ran: a recursive force remove, a <code>terraform destroy</code>, a path outside the working tree. That is what <a href="/docs#guard"><code>pr guard install</code></a> does, and the block itself becomes a signed record.</p>
 
@@ -142,7 +142,7 @@
     <div class="note"><strong>Honest about the limit.</strong> Provenrail proves what your agent recorded; it cannot force an agent that never calls the SDK to write. Completeness is never claimed. What reaches the sink, though, is immutable and independently verifiable, and that is what turns a chaotic post-mortem into a defensible record.</div>
 
     <h2>This is not only for regulated teams</h2>
-    <p>The freelancer who built a client an AI workflow faces the same question in a smaller key: the client says the agent sent that email or made that change, the freelancer says it did not. A verifiable record settles it in seconds with proof neither side has to take on faith. The same record that satisfies an EU AI Act auditor settles a billing dispute.</p>
+    <p>The freelancer who built a client an AI workflow faces the same question in a smaller key: the client says the agent sent that email or made that change, the freelancer says it did not. A verifiable record settles it in seconds with proof neither side has to take on faith. The same record that serves as evidence for an EU AI Act auditor settles a billing dispute.</p>
 
     <div class="cta">
       <a href="/start" class="primary">Instrument your agent in minutes</a>

@@ -35,8 +35,9 @@ append-only sink where it cannot be silently altered, reordered, deleted, or bac
 Anyone can verify the record with the open-source `pr-verify` tool.
 
 This is the self-serve **Provenrail** SKU. It is a forensic black box, not a
-compliance certifier. The regulated **Audit Trail** SKU (cross-account WORM, witnessed
-anchors, TEE-backed keys, regime evidence reports) is a separate, sales-assisted tier.
+compliance certifier. Witnessed anchors and regime evidence reports ship today. Cross-account
+WORM storage and TEE-backed keys do not exist yet; they are on the roadmap and are not for
+sale, here or anywhere, until they do.
 
 ## What it guarantees, and what it does not
 
@@ -339,7 +340,7 @@ See SPEC section 17.
 
 Independently-verifiable credibility, auditor artifacts, and trust robustness are deeper too:
 frozen **conformance vectors** (`tests/vectors/`, with a documented manifest) let anyone validate
-their own verifier against the same golden bundles; an **auditor-grade verification report**
+their own verifier against the same golden bundles; a **full verification report**
 (`pr report --html`, also folded into the evidence pack as `report.html`) renders the full verdict,
 findings, trusted-time and witness status, committed-policy result, coherence signals, and a
 chronological timeline as a printable document; and TSA trust is now operator-extensible
