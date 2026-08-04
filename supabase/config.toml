@@ -11,3 +11,9 @@ project_id = "jzgamrptvsdxnwtuascx"
 # visible error. It has already happened (2026-08-04).
 [functions.polar-webhook]
 verify_jwt = false
+
+# The marketing site fetches live prices anonymously, before anyone has signed in, so this one
+# must be reachable without a JWT too. It is read-only and returns nothing but public list
+# prices. Broken the same way as polar-webhook on 2026-08-04 and caught by the same check.
+[functions.polar-prices]
+verify_jwt = false

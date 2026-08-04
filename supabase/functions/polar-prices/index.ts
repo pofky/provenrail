@@ -18,11 +18,13 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
   });
 
-// Builder is pinned to the real product id (owner-confirmed); the POLAR_PRODUCT_BUILDER secret
-// points at a $1 "live test" SKU and project secrets cannot be edited through the deploy tooling.
-const BUILDER_PRODUCT_ID = "59860ba7-f978-4301-b598-70f85e188a36";
+// Both plans resolve from secrets. Builder used to be hardcoded here, as a workaround from a
+// period when POLAR_PRODUCT_BUILDER pointed at a $1 live-test SKU and the secret was believed
+// to be uneditable. Secrets are editable, and the hardcoded id belonged to the old shared
+// organization, so after the move to Provenrail's own org it silently dropped Builder from the
+// pricing API while leaving Team correct. A pinned id in code always outlives the reason for it.
 const PLAN_PRODUCT: Record<string, string | undefined> = {
-  builder: BUILDER_PRODUCT_ID,
+  builder: Deno.env.get("POLAR_PRODUCT_BUILDER"),
   team: Deno.env.get("POLAR_PRODUCT_TEAM"),
 };
 
