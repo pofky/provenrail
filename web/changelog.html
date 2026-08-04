@@ -56,7 +56,7 @@
     .back:hover{color:var(--accent)}
   </style>
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"WebPage","name":"Changelog | Provenrail","url":"https://provenrail.com/changelog","description":"What changed in Provenrail and when. Releases of the SDK, the verifier, and the platform.","dateModified":"2026-06-11","isPartOf":{"@type":"WebSite","name":"Provenrail","url":"https://provenrail.com/"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
+  {"@context":"https://schema.org","@type":"WebPage","name":"Changelog | Provenrail","url":"https://provenrail.com/changelog","description":"What changed in Provenrail and when. Releases of the SDK, the verifier, and the platform.","dateModified":"2026-08-04","isPartOf":{"@type":"WebSite","name":"Provenrail","url":"https://provenrail.com/"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
   </script>
 </head>
 <body>
@@ -77,6 +77,7 @@
         <a href="/security">Security</a>
         <a href="/start">Start here</a>
         <a href="/docs">Docs</a>
+        <a href="https://github.com/pofky/provenrail" rel="noopener">GitHub</a>
         <a href="/account">Sign in</a>
         <a href="/#pricing" class="btn-nav">Start free</a>
       </div>
@@ -87,6 +88,46 @@
     <p class="eyebrow">Changelog</p>
     <h1>What changed, and when</h1>
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.13</span><span class="date">August 4, 2026</span><span class="tag">Guardrails</span></div>
+      <ul>
+        <li><b>Guard a coding agent in one command.</b> <code>pr guard install</code> arms the destructive, secrets and production rule packs and wires them into Claude Code's own tool hooks. No SDK, no code change. <code>rm -rf</code>, <code>terraform destroy</code>, <code>git push --force</code>, <code>DROP TABLE</code>, <code>chmod 777</code> and leaked API keys are blocked before they run, and the agent is told which rule fired.</li>
+        <li><b>A human decision stays a human decision.</b> A rule that requires oversight becomes a permission prompt rather than a hard block, and your approval is recorded as human oversight in the signed chain. Flattening that into a block is how guardrails get uninstalled on day one.</li>
+        <li><b>The verdict never depends on the network.</b> It is computed offline before anything is sent, so an unreachable sink can never turn a deny into an allow. A decision that cannot be recorded is journalled locally and reported as unsigned and pending, never as proof.</li>
+        <li><b>Receipts.</b> <code>pr guard status</code> shows what is armed and what it blocked; <code>pr guard receipt</code> exports the proof so you can <code>pr verify</code> it yourself. <code>pr risk</code> now counts escalations separately from denials.</li>
+      </ul>
+      <p style="color:var(--text-lo);font-size:.9rem;margin:-.4rem 0 0">Honest scope: this covers tool calls the host routes through its hooks. It cannot constrain a process that never calls them.</p>
+    </div>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.10 to 0.2.12</span><span class="date">July 30, 2026</span><span class="tag">Guardrails</span></div>
+      <ul>
+        <li><b>A catalogue of prebuilt guardrails.</b> Seven packs and 31 rules covering destructive actions, credentials, money movement, production infrastructure, access changes, data exfiltration and blast-radius caps. Enable by name in <code>.provenrail.json</code>. Nothing is on by default: an upgrade must never start blocking your agent on its own.</li>
+        <li><b>Rules you can check instead of hope about.</b> <code>pr rules</code> lists the catalogue with each rule's false-positive risk; <code>pr rules --check bundle.json</code> reports which rules would match the tool names in a real recorded run, and says plainly that content rules cannot be judged from names alone.</li>
+        <li><b>Denials as evidence.</b> A blocked action is written into the signed chain, shown in red on the public proof page, and can fire a signed webhook the moment it is ingested.</li>
+        <li><b>Re-running an agent works.</b> Multiple runs on one stream are now verified as independent sessions, each rooted in its own genesis record, in both the Python and browser verifiers. A persistent device key at <code>.provenrail.key</code> keeps runs on a pinned stream signing under one identity.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.7 to 0.2.9</span><span class="date">July 30, 2026</span><span class="tag">Integrations</span></div>
+      <ul>
+        <li><b>Agno, Hermes and the Claude Agent SDK.</b> Capture through each framework's own hook mechanism, with no core changes on their side. A policy denial is recorded as a denial, never folded into "tool failure", because the two are different facts.</li>
+        <li><b>LangChain compliance handler.</b> A <code>ComplianceCallbackHandler</code> that signs and hash-chains every model and tool call off-box.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.2 to 0.2.6</span><span class="date">June 12, 2026</span><span class="tag">Platform</span></div>
+      <ul>
+        <li><b>Bitcoin anchoring.</b> OpenTimestamps proofs verified as a step in <em>both</em> verifiers, held in agreement by frozen conformance vectors.</li>
+        <li><b>A second implementation, in your browser.</b> <code>verify.js</code> is an independent verifier (WebCrypto Ed25519, JCS canonicalization, RFC 6962 Merkle proofs) that runs client-side, so the hosted verifier trusts not even our server.</li>
+        <li><b>TypeScript recording SDK.</b> A run recorded in TypeScript is byte-for-byte compatible with one recorded in Python, proven by a cross-language test rather than asserted.</li>
+        <li><b>Transparency log and witnesses.</b> Per-account RFC 6962 log with inclusion and consistency proofs and independent witness cosignatures, so a sink cannot show two different histories.</li>
+        <li><b>Selective disclosure, evidence packs, replay and diff.</b> Redact a field without breaking the chain; <code>pr pack</code> builds a self-contained auditor ZIP; <code>pr diff</code> compares two integrity-checked runs so a difference is a real behavioural change.</li>
+      </ul>
+    </div>
 
     <div class="rel">
       <div class="rel-head"><span class="ver">0.2.1</span><span class="date">June 11, 2026</span><span class="tag">CLI</span></div>

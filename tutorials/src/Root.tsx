@@ -7,6 +7,7 @@ import * as GettingStarted from "./data/gettingStarted";
 import * as VerifyYourself from "./data/verifyYourself";
 import * as RecordEvidence from "./data/recordEvidence";
 import * as TeamSso from "./data/teamSso";
+import * as GuardAgent from "./data/guardAgent";
 
 const W = 1920;
 const H = 1080;
@@ -73,6 +74,19 @@ export const RemotionRoot: React.FC = () => {
           eyebrow: TeamSso.eyebrow,
           title: TeamSso.title,
           steps: TeamSso.steps,
+        }}
+      />
+      <Composition
+        id="GuardAgent"
+        component={TerminalTutorial}
+        durationInFrames={totalFrames(GuardAgent.steps)}
+        fps={FPS}
+        width={W}
+        height={H}
+        defaultProps={{
+          eyebrow: GuardAgent.eyebrow,
+          title: GuardAgent.title,
+          steps: GuardAgent.steps,
         }}
       />
     </>

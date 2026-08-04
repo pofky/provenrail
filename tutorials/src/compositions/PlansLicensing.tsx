@@ -127,7 +127,6 @@ const Plan: React.FC<{ name: string; price: string; desc: string }> = ({ name, p
   </div>
 );
 
-const FPS = 30;
 const D = { signin: 110, free: 95, subscribe: 110, checkout: 95, active: 120, activate: 200 };
 const starts = (() => {
   const o: Record<string, number> = {};

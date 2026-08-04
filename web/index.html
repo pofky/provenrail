@@ -103,7 +103,7 @@
           { "@type": "Offer", "name": "Team", "price": "99", "priceCurrency": "USD", "description": "2M events/month, unlimited projects, up to 10 team members with roles and SSO, data exports, attestation and HIPAA evidence packs" }
         ],
         "datePublished": "2026-01-01",
-        "dateModified": "2026-06-09"
+        "dateModified": "2026-08-04"
       },
       {
         "@type": "FAQPage",
@@ -145,6 +145,7 @@
         <a href="/compare">Compare</a>
         <a href="/start">Start here</a>
         <a href="/docs">Docs</a>
+        <a href="https://github.com/pofky/provenrail" rel="noopener">GitHub</a>
         <a href="/account">Sign in</a>
         <a href="/#pricing" class="btn-nav">Start free</a>
       </div>
@@ -341,10 +342,22 @@
         <div class="section-header reveal">
           <div class="section-eyebrow">See it in action</div>
           <h2 class="section-title" id="tour-heading">Watch it work, end to end.</h2>
-          <p class="section-desc">Real terminal sessions, no mockups. Every command and every output below is captured verbatim from <code>provenrail 0.2.0</code>.</p>
+          <p class="section-desc">Real terminal sessions, no mockups. Every command and every output below is captured verbatim from a live run.</p>
         </div>
 
         <div class="tour-grid">
+          <figure class="tour-card reveal" data-src="/media/guard-agent.mp4">
+            <button type="button" class="tour-play" aria-label="Play tutorial: Guard a coding agent">
+              <img src="/media/guard-agent.jpg" alt="Terminal: pr guard install arming guardrails, then a rm -rf command denied before it runs" width="1920" height="1080" loading="lazy" decoding="async">
+              <span class="tour-badge" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
+            </button>
+            <figcaption class="tour-cap">
+              <span class="tour-num">Start here &middot; 25s</span>
+              <span class="tour-title">Guard a coding agent</span>
+              <span class="tour-desc">Two commands, then <code>rm -rf</code> and <code>terraform destroy</code> are blocked and the block is signed evidence.</span>
+            </figcaption>
+          </figure>
+
           <figure class="tour-card reveal" data-src="/media/getting-started.mp4">
             <button type="button" class="tour-play" aria-label="Play tutorial: Install, record, verify">
               <img src="/media/getting-started.jpg" alt="Terminal: pr quickstart, pr demo and pr verify confirming an intact record chain" width="1920" height="1080" loading="lazy" decoding="async">
@@ -729,6 +742,7 @@
           <a href="/#pricing">Pricing</a>
           <a href="/#faq">FAQ</a>
           <a href="/verify">Verify a record</a>
+          <a href="https://github.com/pofky/provenrail" rel="noopener">Source (GitHub)</a>
           <a href="https://pypi.org/project/provenrail/" rel="noopener">Package (PyPI)</a>
           <a href="mailto:support@provenrail.com">support@provenrail.com</a>
         </nav>
