@@ -163,7 +163,19 @@ def decide(policy: Any, tool: str, tool_input: Any,
 
 
 def _journal_path() -> Path:
-    return Path(os.environ.get("PROVENRAIL_GUARD_JOURNAL") or JOURNAL_FILENAME)
+    """Where the journal and the sibling state files live.
+
+    Anchored to the directory holding `.provenrail.json`, not to the current directory, so an
+    agent launched from a subdirectory keeps writing to the same place the policy came from.
+    Otherwise a session run from `apps/web` would start a second, invisible journal and its
+    blast-radius counters would restart from zero.
+    """
+    override = os.environ.get("PROVENRAIL_GUARD_JOURNAL")
+    if override:
+        return Path(override)
+    from .easy import find_config_file
+    config = find_config_file()
+    return (config.parent / JOURNAL_FILENAME) if config else Path(JOURNAL_FILENAME)
 
 
 def journal(entry: dict[str, Any]) -> None:
@@ -376,6 +388,32 @@ def _looks_failed(response: Any) -> bool:
     return False
 
 
+NOTICE_FILENAME = ".provenrail-guard-notice"
+_NOTICE_INTERVAL_S = 24 * 3600
+
+
+def _no_policy_notice() -> str:
+    """Warn, at most once a day, that hooks are installed but no guardrails are armed.
+
+    Once a day rather than every tool call: a warning on every call is noise, and noise gets
+    the plugin uninstalled. Silence, though, is worse than noise here, because the failure is
+    invisible by construction.
+    """
+    import time
+
+    try:
+        path = _journal_path().with_name(NOTICE_FILENAME)
+        now = time.time()
+        if path.is_file() and now - path.stat().st_mtime < _NOTICE_INTERVAL_S:
+            return ""
+        path.write_text(str(int(now)), encoding="utf-8")
+    except OSError:
+        return ""  # cannot track it, so do not risk warning on every single call
+    return ("provenrail: hooks are installed but NO guardrails are armed, so nothing is being "
+            "blocked or recorded. Run `pr guard install` in this project, or `pr guard status` "
+            "to see what is (and is not) in force.\n")
+
+
 # ---------------------------------------------------------------- the hook itself
 
 
@@ -399,6 +437,12 @@ def run_hook(raw: str, default_event: str = "pre") -> tuple[int, str, str]:
         policy = load_policy((_load_config_file() or {}).get("policy"))
     except Exception as exc:  # a broken policy config must be loud, not silently permissive
         return 0, "", f"provenrail: could not load the policy ({exc}); NOT enforcing\n"
+
+    if policy is None or not getattr(policy, "rules", []):
+        # Hooks are wired but nothing is armed. Staying silent here is how a user ends up
+        # believing they are guarded for weeks while nothing is being checked, so say it,
+        # rarely enough not to become noise the user tunes out.
+        return 0, "", _no_policy_notice()
 
     decision = (decide(policy, hook["tool"], hook["input"], hook.get("session_id") or None)
                 if hook["event"] == "pre" else None)

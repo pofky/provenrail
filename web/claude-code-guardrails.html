@@ -193,6 +193,7 @@ pr verify guard-receipt.json</code></pre>
     <h2 id="limits">Limits, stated plainly</h2>
     <ul>
       <li>A hook can only see calls that go through Claude Code's tool boundary. A process that never calls the hooks is not constrained and not recorded. Provenrail never claims completeness, here or anywhere.</li>
+      <li>The policy is read from the nearest <code>.provenrail.json</code> at or above your working directory, so a monorepo package inherits the repo root's rules. <code>pr guard status</code> prints the exact file it used. If the hooks are wired but nothing is armed, the hook says so once a day rather than allowing in silence.</li>
       <li>If Provenrail is not installed, the plugin's hook exits silently and nothing is blocked or recorded. It warns once a day rather than failing on every tool call. <code>pr guard status</code> always tells you the truth about what is armed.</li>
       <li>Per-session blast-radius caps carry their counts in a local state file, so a cap holds across hook processes. That file is local and editable, which makes it a convenience rather than evidence. <code>deny</code> and <code>require_oversight</code> never read it, so editing it cannot unblock anything.</li>
     </ul>

@@ -362,3 +362,74 @@ def test_hook_end_to_end_enforces_the_cap_across_invocations(workdir):
     assert first[1] == ""  # allowed, nothing added to the agent's path
     second = guard.run_hook(json.dumps(_hook(command="echo two", session="live")))
     assert json.loads(second[1])["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+# ------------------------------------------------- finding the policy from a subdirectory
+
+
+def test_policy_is_found_from_a_subdirectory(tmp_path, monkeypatch):
+    """`pr guard install` writes the policy at the repo root, but agents are routinely launched
+    from a subdirectory (a package in a monorepo, apps/web, a nested worktree). Searching only
+    the current directory meant the hook found no policy and allowed everything, silently. That
+    is the worst failure mode available: the user installed it, so they believe they are covered.
+    """
+    (tmp_path / ".provenrail.json").write_text(
+        json.dumps({"policy": {"use": ["destructive"]}}), encoding="utf-8")
+    nested = tmp_path / "apps" / "web" / "src"
+    nested.mkdir(parents=True)
+    monkeypatch.chdir(nested)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "nowhere"))
+    monkeypatch.setenv("PROVENRAIL_GUARD_JOURNAL", str(tmp_path / "journal.jsonl"))
+
+    payload = json.loads(guard.run_hook(json.dumps(_hook(command="rm -rf /var/data")))[1])
+    assert payload["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_journal_stays_with_the_policy_not_the_cwd(tmp_path, monkeypatch):
+    """Otherwise a session started in a subdirectory opens a second, invisible journal and its
+    blast-radius counters restart from zero."""
+    from provenrail.easy import find_config_file
+
+    (tmp_path / ".provenrail.json").write_text(
+        json.dumps({"policy": {"use": ["destructive"]}}), encoding="utf-8")
+    nested = tmp_path / "packages" / "api"
+    nested.mkdir(parents=True)
+    monkeypatch.chdir(nested)
+    monkeypatch.delenv("PROVENRAIL_GUARD_JOURNAL", raising=False)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "nowhere"))
+
+    assert find_config_file() == tmp_path / ".provenrail.json"
+    assert guard._journal_path().parent == tmp_path
+    assert guard._counts_path().parent == tmp_path
+
+
+def test_an_explicit_journal_override_still_wins(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PROVENRAIL_GUARD_JOURNAL", str(tmp_path / "custom.jsonl"))
+    assert guard._journal_path() == tmp_path / "custom.jsonl"
+
+
+# ------------------------------------------------- hooks installed but nothing armed
+
+
+def test_hooks_without_a_policy_say_so_instead_of_going_quiet(tmp_path, monkeypatch):
+    """A silent allow is indistinguishable from a working guardrail. If the hooks are wired but
+    no rules are armed, the user has to be told, or they run unguarded believing otherwise."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "nowhere"))
+    monkeypatch.setenv("PROVENRAIL_GUARD_JOURNAL", str(tmp_path / "journal.jsonl"))
+
+    code, out, err = guard.run_hook(json.dumps(_hook(command="rm -rf /")))
+    assert code == 0 and out == ""          # never block on a configuration problem
+    assert "NO guardrails are armed" in err
+
+
+def test_the_no_policy_warning_is_at_most_daily(tmp_path, monkeypatch):
+    """Warning on every tool call is noise, and noise gets the plugin uninstalled."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "nowhere"))
+    monkeypatch.setenv("PROVENRAIL_GUARD_JOURNAL", str(tmp_path / "journal.jsonl"))
+
+    first = guard.run_hook(json.dumps(_hook(command="ls")))[2]
+    second = guard.run_hook(json.dumps(_hook(command="ls")))[2]
+    assert first and second == ""

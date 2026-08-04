@@ -694,12 +694,18 @@ def _cmd_guard(args) -> int:
         return _cmd_risk(argparse.Namespace(bundle=args.out, json=False))
 
     # status
+    from .easy import find_config_file
     cfg = _load_config_file() or {}
     policy = load_policy(cfg.get("policy"))
     installed = guard.hooks_installed()
     pending = guard.read_journal()
+    source = find_config_file()
     print(f"Claude Code hooks : {'installed' if installed else 'NOT installed'} "
           f"({guard.CLAUDE_SETTINGS})")
+    # Which file the rules came from matters: it is routinely a parent directory (a repo root
+    # above the package you are working in), and a user debugging "why was this not blocked"
+    # needs to know which file to edit.
+    print(f"Policy file       : {source if source else 'none found'}")
     print(f"Sink              : {cfg.get('endpoint') or 'not configured'}")
     if policy is None or not policy.rules:
         print("Guardrails        : NONE ARMED. Nothing is being blocked.")

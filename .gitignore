@@ -55,4 +55,5 @@ tutorials/out/
 .provenrail-guard-pending.json
 .provenrail-guard-counts.json
 .provenrail-guard-counts.json.tmp
+.provenrail-guard-notice
 guard-receipt.json

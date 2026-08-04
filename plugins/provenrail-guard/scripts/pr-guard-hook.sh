@@ -42,6 +42,13 @@ if [ -z "${PR_BIN:-}" ]; then
   exit 0
 fi
 
-OUT="$("$PR_BIN" guard hook --event "$EVENT" <<<"$PAYLOAD" 2>/dev/null)" || exit 0
+# stdout is the decision Claude Code parses, so it is passed through untouched. stderr is
+# forwarded rather than discarded: `pr guard hook` uses it to say things the user genuinely
+# needs, above all "hooks are installed but nothing is armed", which is invisible otherwise.
+# It rate-limits itself to once a day, so forwarding it does not make the session noisy.
+ERR="$(mktemp -t provenrail-guard.XXXXXX 2>/dev/null || echo "${TMPDIR:-/tmp}/provenrail-guard.$$")"
+OUT="$("$PR_BIN" guard hook --event "$EVENT" <<<"$PAYLOAD" 2>"$ERR")" || { rm -f "$ERR"; exit 0; }
+[ -s "$ERR" ] && cat "$ERR" >&2
+rm -f "$ERR"
 [ -n "$OUT" ] && printf '%s\n' "$OUT"
 exit 0

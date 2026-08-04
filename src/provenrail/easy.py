@@ -57,14 +57,35 @@ def configure(*, endpoint: str | None = None, write_token: str | None = None,
             _GLOBAL[k] = v
 
 
+def find_config_file(start: Path | None = None) -> Path | None:
+    """Locate `.provenrail.json`, searching upward from `start` and then the home directory.
+
+    Upward search is not a convenience here, it is a safety property. `pr guard install` writes
+    the policy at the repo root, but an agent is routinely launched from a subdirectory (a
+    package inside a monorepo, `apps/web`, a nested worktree). Looking only at the current
+    directory means the guardrail silently finds no policy and allows everything, which is the
+    worst possible failure mode: the user believes they are covered because they installed it.
+
+    The walk stops at the filesystem root. Home stays the last resort so a machine-wide default
+    still works when a project has no file of its own.
+    """
+    here = (start or Path.cwd()).resolve()
+    for directory in (here, *here.parents):
+        candidate = directory / CONFIG_FILENAME
+        if candidate.is_file():
+            return candidate
+    home = Path.home() / CONFIG_FILENAME
+    return home if home.is_file() else None
+
+
 def _load_config_file() -> dict[str, Any]:
-    for path in (Path.cwd() / CONFIG_FILENAME, Path.home() / CONFIG_FILENAME):
-        try:
-            if path.is_file():
-                return json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-    return {}
+    path = find_config_file()
+    if path is None:
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
 def _resolve(**overrides: Any) -> dict[str, Any]:

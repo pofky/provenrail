@@ -32,6 +32,10 @@ pr guard install              # arms destructive + secrets + production
 
 - It cannot constrain a process that never calls Claude Code's hooks. Completeness is never
   claimed anywhere in Provenrail, and this is no exception.
+- The policy is read from the nearest `.provenrail.json` at or above your working directory, so a
+  package inside a monorepo inherits the repo root's rules. `pr guard status` prints the exact
+  file it used. If the hooks are wired but nothing is armed, you are told once a day rather than
+  being allowed in silence.
 - Per-session `limit` rules (blast-radius caps) carry their counts in a local state file so a cap
   actually caps across hook processes. That file is local and editable, so it is a convenience,
   not evidence. `deny` and `require_oversight` never read it and cannot be bypassed by editing it.

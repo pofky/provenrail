@@ -90,6 +90,16 @@
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.16</span><span class="date">August 4, 2026</span><span class="tag">Guardrails</span></div>
+      <ul>
+        <li><b>The policy is found from a subdirectory.</b> <code>pr guard install</code> writes the policy at the repo root, but agents are routinely launched from a package inside a monorepo. The lookup only checked the current directory, so a session started in <code>apps/web</code> found no policy and allowed everything, silently. It now searches upward to the repo root. This was the worst failure available: you installed it, so you believed you were covered.</li>
+        <li><b>Silence is no longer a valid state.</b> If the hooks are wired but no rules are armed, the hook now says so, once a day rather than on every call. A silent allow is indistinguishable from a working guardrail.</li>
+        <li><b>The journal stays with the policy.</b> It is anchored to the directory holding <code>.provenrail.json</code>, so a session started in a subdirectory no longer opens a second, invisible journal with its blast-radius counters reset to zero.</li>
+        <li><b>The plugin shim forwards those warnings</b> instead of discarding them, which had been hiding exactly the message a user needs.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.2.15</span><span class="date">August 4, 2026</span><span class="tag">Guardrails</span></div>
       <ul>
         <li><b>Blast-radius caps now actually cap.</b> Every hook invocation is a separate process, so a <code>limit</code> rule counting in memory reset on every call and capped nothing, while <code>pr guard status</code> still reported it as armed. A cap that never fires is worse than no cap. Counts are now carried across hook processes, per session, and pruned after seven days.</li>

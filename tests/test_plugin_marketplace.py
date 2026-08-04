@@ -108,3 +108,14 @@ def test_marketplace_is_not_gitignored() -> None:
     for pattern in (".claude-plugin", "plugins/"):
         assert pattern not in gitignore.split(), f"{pattern} is gitignored"
     assert os.path.relpath(MARKETPLACE, ROOT) == ".claude-plugin/marketplace.json"
+
+
+def test_hook_script_forwards_stderr_rather_than_discarding_it() -> None:
+    """`pr guard hook` uses stderr to report the one failure the user cannot otherwise see:
+    hooks wired but no guardrails armed. Swallowing stderr turns that into silence, which is
+    exactly the state the warning exists to prevent. It rate-limits itself, so forwarding it
+    does not make sessions noisy."""
+    script = (PLUGIN_DIR / "scripts" / "pr-guard-hook.sh").read_text(encoding="utf-8")
+    assert "guard hook" in script
+    assert "2>/dev/null)" not in script, "the hook's stderr must reach the user"
+    assert ">&2" in script

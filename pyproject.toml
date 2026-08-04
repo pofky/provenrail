@@ -1,6 +1,6 @@
 [project]
 name = "provenrail"
-version = "0.2.15"
+version = "0.2.16"
 description = "Guardrails for AI agents, with a receipt. Blocks destructive tool calls (rm -rf, terraform destroy, force push, DROP TABLE, leaked keys) before they run, and signs every decision into an off-box, hash-chained record anyone can verify."
 readme = "README.md"
 license = { text = "MIT for client/SDK/verifier/spec; AGPL-3.0-or-later for server. See LICENSING.md" }
