@@ -1,0 +1,14 @@
+{
+  "name": "provenrail-guard",
+  "version": "0.2.13",
+  "description": "Block destructive tool calls before they run (rm -rf, terraform destroy, force push, DROP TABLE, leaked keys) and sign every decision into a hash-chained record anyone can verify.",
+  "author": {
+    "name": "Provenrail",
+    "email": "support@provenrail.com",
+    "url": "https://provenrail.com"
+  },
+  "homepage": "https://provenrail.com/docs#guard",
+  "repository": "https://github.com/pofky/provenrail",
+  "license": "MIT",
+  "keywords": ["guardrails", "safety", "audit-log", "tamper-evident", "security", "agent-safety"]
+}

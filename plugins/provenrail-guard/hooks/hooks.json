@@ -1,0 +1,26 @@
+{
+  "PreToolUse": [
+    {
+      "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|WebFetch|Task",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/scripts/pr-guard-hook.sh pre",
+          "timeout": 15
+        }
+      ]
+    }
+  ],
+  "PostToolUse": [
+    {
+      "matcher": "*",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/scripts/pr-guard-hook.sh post",
+          "timeout": 15
+        }
+      ]
+    }
+  ]
+}

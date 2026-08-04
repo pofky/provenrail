@@ -1,0 +1,20 @@
+{
+  "name": "provenrail",
+  "description": "Guardrails for coding agents, with a receipt anyone can verify.",
+  "owner": {
+    "name": "Provenrail",
+    "email": "support@provenrail.com",
+    "url": "https://provenrail.com"
+  },
+  "plugins": [
+    {
+      "name": "provenrail-guard",
+      "source": "./plugins/provenrail-guard",
+      "description": "Block destructive tool calls before they run (rm -rf, terraform destroy, force push, DROP TABLE, chmod 777, leaked API keys) and sign every decision into a hash-chained record anyone can verify with an open-source tool.",
+      "category": "security",
+      "tags": ["guardrails", "safety", "audit-log", "tamper-evident", "agent-security"],
+      "homepage": "https://provenrail.com/docs#guard",
+      "license": "MIT"
+    }
+  ]
+}
