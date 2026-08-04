@@ -102,24 +102,46 @@ Deno.serve(async (req) => {
 
     if (userId) {
       const productId = pick(sub, "productId", "product_id") ?? sub?.product?.id;
-      // Defense-in-depth: a Polar organization fans every webhook event out to ALL of its
-      // registered endpoints, so when projects share one org we also receive their
-      // subscription events. Act ONLY on our own products; ignore anything else with no DB
-      // write and no license. This also removes the old `?? "builder"` fallback, which would
-      // otherwise have granted Builder for an unrecognized product (a free-plan leak).
-      if (!PRODUCT_PLAN[productId]) return new Response("", { status: 202 });
+      const recognized = Boolean(PRODUCT_PLAN[productId]);
 
       const admin = createClient(
         Deno.env.get("SUPABASE_URL")!,
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       );
+
+      // Defense-in-depth: a Polar organization fans every webhook event out to ALL of its
+      // registered endpoints, so when projects share one org we also receive their
+      // subscription events. Act ONLY on our own products; ignore anything else with no DB
+      // write and no license. This also removes the old `?? "builder"` fallback, which would
+      // otherwise have granted Builder for an unrecognized product (a free-plan leak).
+      //
+      // The exception that matters: an unrecognized product can also be OUR OWN retired one.
+      // Ignoring those events strands the row forever, because no future event can ever
+      // downgrade it, so a cancelled subscription keeps a valid license indefinitely (this
+      // actually happened, see the 2026-08-04 cleanup). Ownership of the subscription id is
+      // the sound discriminator: another project's subscription id never lands on our row.
+      // An owned-but-unrecognized subscription is allowed to take the DOWNGRADE path only,
+      // never to grant a plan, so the isolation guarantee is unchanged.
       const status = String(sub.status ?? "");
       // During Polar's dunning retry window a subscription is `past_due` but still alive, so we
       // keep the paid plan: a transient card decline must not instantly revoke a paying customer.
       // Only an explicit revoke, or a status outside {active, trialing, past_due}, downgrades to
       // free. When the retry succeeds Polar sends a fresh active event that refreshes the key.
-      const entitled = (ACTIVE.has(status) || status === "past_due")
+      const alive = (ACTIVE.has(status) || status === "past_due")
         && type !== "subscription.revoked";
+
+      if (!recognized) {
+        // A live subscription to a product we cannot price is left completely alone: we have no
+        // idea which plan it should grant, and revoking a customer who is still paying would be
+        // far worse than a stale row. Only an ENDING subscription is acted on, and only after
+        // confirming it is ours.
+        if (alive) return new Response("", { status: 202 });
+        const { data: owner } = await admin.from("profiles")
+          .select("id").eq("id", userId).eq("polar_subscription_id", sub.id ?? "").maybeSingle();
+        if (!owner) return new Response("", { status: 202 });
+      }
+
+      const entitled = recognized && alive;
       const periodEnd = pick(sub, "currentPeriodEnd", "current_period_end");
       const plan = entitled ? PRODUCT_PLAN[productId] : "free";
       // deno-lint-ignore no-explicit-any
