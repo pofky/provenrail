@@ -51,13 +51,16 @@ function licenseExpiry(periodEndIso: unknown): number {
   return Math.floor(ms / 1000) + LICENSE_GRACE_SECONDS;
 }
 
-// Polar product id -> our plan name. Reverse of the checkout map. Builder is pinned to the real
-// product id (owner-confirmed); the POLAR_PRODUCT_BUILDER secret points at a $1 "live test" SKU and
-// project secrets cannot be edited through the deploy tooling. The old $1 test id is intentionally
-// no longer recognized, so a stray test purchase is ignored by the shared-org guard below.
+// Polar product id -> our plan name. Reverse of the checkout map. BOTH plans resolve from
+// secrets. Builder used to be pinned to a literal id here, from a period when
+// POLAR_PRODUCT_BUILDER pointed at a $1 live-test SKU and the secret was believed uneditable.
+// That id belonged to the OLD shared organization, so after the move to Provenrail's own org it
+// silently stopped recognizing Builder purchases: the webhook would ack with 202 and never
+// provision the plan or mint a licence, with no error anywhere. Team was unaffected because it
+// already read the secret. Never hardcode a product id here again.
 const PRODUCT_PLAN: Record<string, string> = {};
 const PLAN_IDS: Record<string, string | undefined> = {
-  builder: "59860ba7-f978-4301-b598-70f85e188a36",
+  builder: Deno.env.get("POLAR_PRODUCT_BUILDER"),
   team: Deno.env.get("POLAR_PRODUCT_TEAM"),
 };
 for (const [plan, id] of Object.entries(PLAN_IDS)) {

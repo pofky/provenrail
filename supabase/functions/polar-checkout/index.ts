@@ -13,12 +13,13 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-// plan -> Polar product id. Team reads its function secret; Builder is pinned to the real product
-// id (owner-confirmed) because the POLAR_PRODUCT_BUILDER secret points at a $1 "live test" SKU and
-// project secrets cannot be edited through the deploy tooling. See SUPABASE_SETUP.md.
-const BUILDER_PRODUCT_ID = "59860ba7-f978-4301-b598-70f85e188a36";
+// plan -> Polar product id. BOTH plans resolve from secrets. Builder used to be pinned to a
+// literal id here, from a period when POLAR_PRODUCT_BUILDER pointed at a $1 live-test SKU and the
+// secret was believed uneditable. That id belonged to the OLD shared organization, so after the
+// move to Provenrail's own org "Start Builder" would have created a checkout for a product that
+// does not exist. Never hardcode a product id here again.
 const PLAN_PRODUCT: Record<string, string | undefined> = {
-  builder: BUILDER_PRODUCT_ID,
+  builder: Deno.env.get("POLAR_PRODUCT_BUILDER"),
   team: Deno.env.get("POLAR_PRODUCT_TEAM"),
 };
 
