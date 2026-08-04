@@ -19,10 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Scope note (not part of the MIT license text above): this MIT license covers the
-Provenrail client, SDK, verifier and specification. The server/sink under
-src/provenrail/server/ is licensed separately under the GNU AGPL v3 (LICENSE-AGPL),
-with a commercial license available. See LICENSING.md for the exact path mapping.
