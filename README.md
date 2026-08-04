@@ -1,10 +1,38 @@
 # Provenrail
 
-An off-box, hash-chained, independently verifiable record of what an AI agent did.
+**Guardrails for AI agents, with a receipt.** Destructive tool calls are blocked before
+they run, and every decision is signed into an off-box, hash-chained record that anyone
+can verify, trusting neither the agent nor the sink.
+
+### 30 seconds, no code: guard Claude Code
+
+Inside Claude Code:
+
+```
+/plugin marketplace add pofky/provenrail
+/plugin install provenrail-guard@provenrail
+```
+
+Then once per project:
+
+```bash
+uv tool install provenrail   # or: pip install provenrail
+pr quickstart                # local sink, no account, nothing leaves your machine
+pr guard install             # arms destructive + secrets + production
+```
+
+`rm -rf`, `terraform destroy`, `git push --force`, `DROP TABLE`, `chmod 777` and leaked
+API keys are now denied at the tool boundary, and the agent is told which rule fired.
+Actions that need a human (touching `.env`, deploying, migrating) become a permission
+prompt instead of a hard block, and the approval is recorded as human oversight. Run
+`pr guard receipt` and `pr verify guard-receipt.json` to check the record yourself.
+Full guide: <https://provenrail.com/claude-code-guardrails>
+
+### The record underneath
+
 Install the SDK, capture model calls and tool calls, and every record is pushed to an
 append-only sink where it cannot be silently altered, reordered, deleted, or back-dated.
-Anyone can verify the record with the open-source `pr-verify` tool, trusting neither the
-agent nor the sink.
+Anyone can verify the record with the open-source `pr-verify` tool.
 
 This is the self-serve **Provenrail** SKU. It is a forensic black box, not a
 compliance certifier. The regulated **Audit Trail** SKU (cross-account WORM, witnessed
@@ -71,7 +99,9 @@ bytes. Anchoring binds the whole thing to a trusted external time.
 
 ## Quick start: guard your coding agent (30 seconds, no code)
 
-If you run Claude Code, this is the fastest way to see what Provenrail does:
+Repeated from the top for readers who arrived here from the table of contents. Either install
+the [Claude Code plugin](plugins/provenrail-guard/) (`/plugin marketplace add pofky/provenrail`,
+then `/plugin install provenrail-guard@provenrail`), or wire the hooks directly:
 
 ```bash
 uv tool install provenrail

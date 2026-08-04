@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code guardrails: stop the agent running rm -rf | Provenrail</title>
+  <meta name="description" content="Claude Code's permission prompt is easy to click through and leaves no record. Install a hook that denies rm -rf, terraform destroy, force push, DROP TABLE and leaked keys before they run, and signs every decision into a hash-chained receipt anyone can verify.">
+  <link rel="canonical" href="https://provenrail.com/claude-code-guardrails">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Claude Code guardrails: stop the agent running rm -rf">
+  <meta name="twitter:description" content="Claude Code's permission prompt is easy to click through and leaves no record. Install a hook that denies rm -rf, terraform destroy, force push, DROP TABLE and leaked keys before they run, and signs every decision into a hash-chained receipt anyone can verify.">
+  <meta name="twitter:image" content="https://provenrail.com/og.png">
+  <meta name="robots" content="index,follow">
+  <meta property="og:title" content="Claude Code guardrails: stop the agent running rm -rf">
+  <meta property="og:description" content="Claude Code's permission prompt is easy to click through and leaves no record. Install a hook that denies rm -rf, terraform destroy, force push, DROP TABLE and leaked keys before they run, and signs every decision into a hash-chained receipt anyone can verify.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://provenrail.com/claude-code-guardrails">
+  <meta property="og:image" content="https://provenrail.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Provenrail: the verifiable audit trail for AI agents.">
+  <meta property="og:site_name" content="Provenrail">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0b0a08">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#7c8490;
+      --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;--yes:#6fcf86;--no:#c2502f}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#7e6428;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#5f6974;--yes:#2f8f4e;--no:#b1442a}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+    body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
+    .wrap{max-width:820px;margin:0 auto;padding:clamp(1.5rem,5vw,3.5rem) clamp(1.1rem,5vw,2rem) 5rem}
+    .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:.7rem}
+    h1{font-family:var(--font-mono);font-size:clamp(1.7rem,4.4vw,2.4rem);font-weight:500;letter-spacing:-.02em;margin-bottom:.6rem;line-height:1.22}
+    .lede{color:var(--text-mid);font-size:1.06rem;margin-bottom:1.6rem;max-width:66ch}
+    h2{font-size:1.3rem;font-weight:600;margin:2.8rem 0 .6rem;letter-spacing:-.01em;scroll-margin-top:1.5rem}
+    h3{font-size:1.02rem;font-weight:600;margin:1.5rem 0 .4rem;color:var(--text-hi)}
+    p,li{color:var(--text-mid);margin-bottom:.7rem}
+    li{margin-bottom:.45rem}
+    ul,ol{padding-left:1.2rem}
+    a{color:var(--accent)}
+    strong{color:var(--text-hi);font-weight:600}
+    code{font-family:var(--font-mono);font-size:.85em;background:var(--bg-3);padding:.12em .42em;border-radius:5px;color:var(--text-hi)}
+    blockquote{margin:1rem 0;padding:.6rem 0 .6rem 1.1rem;border-left:3px solid var(--border);color:var(--text-mid);font-style:italic}
+    table{width:100%;border-collapse:collapse;margin:1rem 0 1.4rem;font-size:.92rem;display:block;overflow-x:auto}
+    th,td{text-align:left;padding:.65rem .75rem;border-bottom:1px solid var(--border);vertical-align:top}
+    thead th{color:var(--text-hi);font-weight:600;font-size:.82rem}
+    th:nth-child(2),td:nth-child(2){color:var(--text-hi)}
+    .note{background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:.85rem 1rem;margin:1.2rem 0;font-size:.93rem}
+    .note strong{color:var(--accent)}
+    .toc{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.4rem 0 2rem}
+    .toc a{font-family:var(--font-mono);font-size:.78rem;background:var(--bg-2);border:1px solid var(--border);border-radius:999px;padding:.35rem .8rem;text-decoration:none;color:var(--text-mid)}
+    .toc a:hover{border-color:var(--accent);color:var(--accent)}
+    .cta{display:flex;flex-wrap:wrap;gap:.7rem;margin:1.6rem 0}
+    .cta a{font-family:var(--font-mono);font-size:.85rem;text-decoration:none;border-radius:10px;padding:.7rem 1.1rem}
+    .cta a.primary{background:var(--accent);color:#0b0a08;font-weight:600}
+    .cta a.ghost{border:1px solid var(--border);color:var(--text-hi)}
+    .cta a.ghost:hover{border-color:var(--accent)}
+    .faq dt{color:var(--text-hi);font-weight:600;margin-top:1.1rem}
+    .faq dd{color:var(--text-mid);margin:.25rem 0 0;padding:0}
+    .back{display:inline-block;margin-top:2.5rem;font-family:var(--font-mono);font-size:.82rem;color:var(--text-lo);text-decoration:none}
+    .back:hover{color:var(--accent)}
+    .src{font-size:.82rem;color:var(--text-mid)}
+    .src a{color:var(--text-mid);text-decoration:underline}
+    .countdown{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:12px;padding:.9rem 1.1rem;margin:0 0 1.8rem}
+    .countdown .cd-label{font-family:var(--font-mono);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+    .countdown .cd-clock{font-family:var(--font-mono);font-size:1.05rem;color:var(--text-hi);font-weight:500}
+    .countdown .cd-clock b{color:var(--accent);font-weight:500}
+    .countdown .cd-note{font-size:.86rem;color:var(--text-mid)}
+    .selfcheck{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:1.1rem 1.2rem;margin:1.2rem 0 1.6rem}
+    .selfcheck fieldset{border:0;margin:0;padding:0}
+    .selfcheck legend{font-weight:600;color:var(--text-hi);font-size:.98rem;margin-bottom:.6rem;padding:0}
+    .selfcheck label{display:flex;gap:.6rem;align-items:center;min-height:1.6rem;color:var(--text-mid);font-size:.93rem;margin:.5rem 0;cursor:pointer}
+    .selfcheck input[type=checkbox]{width:1.15rem;height:1.15rem;accent-color:var(--accent);flex:0 0 auto}
+    .selfcheck .sc-result{margin-top:.9rem;padding:.75rem .9rem;border-radius:9px;font-size:.92rem;border:1px solid var(--border);background:var(--bg-3);color:var(--text-mid)}
+    .selfcheck .sc-result.hit{border-color:var(--accent);color:var(--text-hi)}
+    .selfcheck .sc-result b{color:var(--accent)}
+  </style>
+  <style>
+    pre{font-family:var(--font-mono);font-size:.86rem;line-height:1.6;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:.9rem 1rem;margin:.9rem 0 1.2rem;overflow-x:auto;color:var(--text-hi)}
+    pre code{background:none;padding:0;font-size:inherit}
+  </style>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+    {"@type":"ListItem","position":1,"name":"Home","item":"https://provenrail.com/"},
+    {"@type":"ListItem","position":2,"name":"Claude Code guardrails","item":"https://provenrail.com/claude-code-guardrails"}]}
+  </script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <header>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="/" class="nav-logo" aria-label="Provenrail home">
+        <img class="seal" src="/assets/logo-mark.png" alt="" width="30" height="30">
+        <span>proven<span class="rail-accent">rail</span></span>
+      </a>
+      <button id="nav-toggle" class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M2 5h16M2 10h16M2 15h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div id="nav-links" class="nav-links">
+        <a href="/#how-it-works">How it works</a>
+        <a href="/#see-it">Watch</a>
+        <a href="/compare">Compare</a>
+        <a href="/#differentiators">Why Provenrail</a>
+        <a href="/#pricing">Pricing</a>
+        <a href="/start">Start here</a>
+        <a href="/docs">Docs</a>
+        <a href="https://github.com/pofky/provenrail" rel="noopener">GitHub</a>
+        <a href="/account">Sign in</a>
+        <a href="/#pricing" class="btn-nav">Start free</a>
+      </div>
+    </nav>
+  </header>
+  <main id="main-content">
+  <div class="wrap">
+    <p class="eyebrow">Claude Code guardrails</p>
+    <h1>Stop Claude Code from running <code>rm -rf</code></h1>
+    <p class="lede">Claude Code asks before most dangerous commands. It does not ask for all of them, the prompt is easy to click through at speed, and nothing keeps a record of what you approved. This page shows the hook that blocks the command outright, and the receipt it leaves behind.</p>
+
+    <div class="cta">
+      <a class="primary" href="#install">Install the plugin</a>
+      <a class="ghost" href="/verify?demo">See a receipt verify</a>
+      <a class="ghost" href="https://github.com/pofky/provenrail" rel="noopener">Source on GitHub</a>
+    </div>
+
+    <div class="toc">
+      <a href="#why-permissions-are-not-enough">Why permissions are not enough</a>
+      <a href="#install">Install</a>
+      <a href="#what-is-blocked">What is blocked</a>
+      <a href="#ask-vs-deny">Ask vs deny</a>
+      <a href="#receipt">The receipt</a>
+      <a href="#limits">Limits</a>
+      <a href="#faq">FAQ</a>
+    </div>
+
+    <h2 id="why-permissions-are-not-enough">Why the permission prompt is not enough</h2>
+    <p>Claude Code's permission system is a good default and it is not a control. Three things break it in practice:</p>
+    <ul>
+      <li><strong>Approval fatigue.</strong> A long agent session produces dozens of prompts. The twentieth one gets the same reflex "yes" as the first, and that is the one that matters.</li>
+      <li><strong>Permission modes.</strong> The moment anyone runs an agent in a mode that skips prompts, for a long refactor or in CI, the prompt is not there at all.</li>
+      <li><strong>No record.</strong> When something does go wrong, the transcript is a chat log on one machine. It is editable, deletable, and it proves nothing to anyone who was not in the room.</li>
+    </ul>
+    <p>A guardrail that works has to decide before the tool runs, be independent of the model's cooperation, and leave evidence that survives the person who caused the incident.</p>
+
+    <h2 id="install">Install</h2>
+    <p>Two commands inside Claude Code:</p>
+    <pre><code>/plugin marketplace add pofky/provenrail
+/plugin install provenrail-guard@provenrail</code></pre>
+    <p>Then once per project you want guarded:</p>
+    <pre><code>uv tool install provenrail     # or: pip install provenrail
+pr quickstart                  # local sink, no account, nothing leaves your machine
+pr guard install               # arms destructive + secrets + production</code></pre>
+    <p>No signup, no API key, no network call in the decision path. The verdict is computed locally before anything is sent anywhere, so a guardrail never waits on a server and never fails because one is down.</p>
+    <p>Prefer not to install a plugin? <code>pr guard install</code> writes the same hooks into the project's <code>.claude/settings.json</code> directly, preserving any hooks already there.</p>
+
+    <h2 id="what-is-blocked">What is blocked</h2>
+    <p>Three rule packs are armed by default, 31 rules across seven packs are available. A representative sample:</p>
+    <table>
+      <thead><tr><th>Pack</th><th>Blocks</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td>destructive</td><td>Recursive and forced deletion, disk overwrites, history rewrites</td><td><code>rm -rf ./src</code>, <code>git push --force</code>, <code>dd of=/dev/</code></td></tr>
+        <tr><td>destructive</td><td>Irreversible infrastructure teardown</td><td><code>terraform destroy</code>, <code>kubectl delete namespace</code></td></tr>
+        <tr><td>destructive</td><td>Schema and data loss in SQL</td><td><code>DROP TABLE</code>, <code>TRUNCATE</code>, <code>DELETE</code> with no <code>WHERE</code></td></tr>
+        <tr><td>secrets</td><td>API keys and tokens appearing in a tool call</td><td>an <code>sk-</code> key pasted into a command, a private key written to disk</td></tr>
+        <tr><td>secrets</td><td>Permission changes that expose files</td><td><code>chmod 777</code></td></tr>
+        <tr><td>production</td><td>Anything pointed at a production host or database</td><td>a connection string containing <code>prod</code>, a deploy command</td></tr>
+      </tbody>
+    </table>
+    <p>Rules are declared in a <code>.provenrail.json</code> file in the repo, so the policy is reviewable in a pull request like any other code. Nothing is "suspicious by default": if a rule did not declare it, it is not flagged.</p>
+
+    <h2 id="ask-vs-deny">Why some things ask instead of deny</h2>
+    <p>This is the part most guardrail tools get wrong. A tool that hard-blocks everything risky gets uninstalled by lunchtime, because half of what it blocks is the work.</p>
+    <p>Provenrail rules carry an effect. <code>deny</code> stops the call and tells the agent which rule fired. <code>require_oversight</code> turns the call into a Claude Code permission prompt instead, and records your answer as human oversight in the log. Reading <code>.env</code>, running a migration, deploying: these should involve a human, not be impossible.</p>
+    <p>The distinction matters after the fact too. "The agent was blocked" and "a human approved this" are different facts, and a log that flattens them into one is not evidence of anything.</p>
+
+    <h2 id="receipt">The receipt</h2>
+    <p>Every decision, allowed, denied, or escalated, is Ed25519 signed and hash-chained to the one before it. Export it:</p>
+    <pre><code>pr guard receipt
+pr verify guard-receipt.json</code></pre>
+    <p>Change one byte of that file and the verifier exits non-zero and names the broken link. Two independent implementations, a Python CLI and a browser verifier, are held in lockstep by frozen conformance vectors, so verification does not depend on running our code or trusting our servers. You can watch it happen in your own browser on a <a href="/verify?demo">real record</a> and on a <a href="/verify?tamper">tampered one</a>.</p>
+
+    <h2 id="limits">Limits, stated plainly</h2>
+    <ul>
+      <li>A hook can only see calls that go through Claude Code's tool boundary. A process that never calls the hooks is not constrained and not recorded. Provenrail never claims completeness, here or anywhere.</li>
+      <li>If Provenrail is not installed, the plugin's hook exits silently and nothing is blocked or recorded. It warns once a day rather than failing on every tool call. <code>pr guard status</code> always tells you the truth about what is armed.</li>
+      <li>Per-session blast-radius limits count within a single hook process, so they do not accumulate across a whole session yet. Deny and oversight rules are unaffected.</li>
+    </ul>
+    <p>Guardrails reduce the blast radius of a mistake. They are not a security boundary against an adversary with shell access, and nobody should sell them as one.</p>
+
+    <h2 id="faq">Questions</h2>
+    <dl class="faq">
+      <dt>Does this slow the agent down?</dt>
+      <dd>The decision is a local pattern match with no network call, so it costs milliseconds. Recording is written to a local journal and shipped asynchronously.</dd>
+      <dt>Does it work outside Claude Code?</dt>
+      <dd>The same policy engine runs as a Python SDK, so it can wrap tool calls in any agent framework. The plugin is the Claude Code front end for it.</dd>
+      <dt>Is it free?</dt>
+      <dd>The SDK, the CLI, the verifier and this plugin are MIT licensed and free, including for commercial use. Paid plans cover the hosted append-only sink, which is what makes a log evidence rather than a file the accused controls.</dd>
+      <dt>Does anything leave my machine?</dt>
+      <dd>Not with <code>pr quickstart</code>. That configures a local sink and no account. Sending records off-box is a separate, explicit step, and it is the step that makes them tamper-evident to a third party.</dd>
+      <dt>Can the agent turn the guardrail off?</dt>
+      <dd>The hook runs outside the model's context and the model does not get a vote on the verdict. It can, like any process with write access, edit the settings file, and that edit is itself a tool call the guardrail sees.</dd>
+    </dl>
+
+    <div class="cta">
+      <a class="primary" href="#install">Install the plugin</a>
+      <a class="ghost" href="/docs#guard">Full guard documentation</a>
+    </div>
+
+    <a href="/" class="back">&larr; Back to Provenrail</a>
+  </div>
+  </main>
+  <footer class="footer" aria-label="Site footer">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block" loading="lazy" decoding="async">
+        </div>
+        <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Observability you can take to court.</p>
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="/docs">Documentation</a>
+          <a href="/#pricing">Pricing</a>
+          <a href="/#faq">FAQ</a>
+          <a href="/verify">Verify a record</a>
+          <a href="https://github.com/pofky/provenrail" rel="noopener">Source (GitHub)</a>
+          <a href="https://pypi.org/project/provenrail/" rel="noopener">Package (PyPI)</a>
+          <a href="mailto:support@provenrail.com">support@provenrail.com</a>
+        </nav>
+      </div>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Product</div>
+          <div class="footer-nav-links">
+            <a href="/start">Start here (beginners)</a>
+            <a href="/compare">Compare</a>
+            <a href="/claude-code-guardrails">Claude Code guardrails</a>
+            <a href="/eu-ai-act">EU AI Act</a>
+            <a href="/#how-it-works">How it works</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/docs">Quickstart</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Legal</div>
+          <div class="footer-nav-links">
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+            <a href="/disclaimer">Disclaimer</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+    <div class="footer-copy container">
+      <p>Copyright 2026 Provenrail. All rights reserved.</p>
+      <p><span style="color:var(--accent)">pr-verify</span>, the SDK and the spec are open-source under MIT; the server under AGPL-3.0</p>
+    </div>
+    <div class="footer-copy container" style="margin-top:0;border-top:0;padding-top:0">
+      <p style="max-width:64ch;color:var(--text-lo);font-family:var(--font-body)">Provenrail is evidence tooling, not legal advice or a compliance guarantee. It makes recorded events tamper-evident and independently verifiable; it never claims completeness. Compliance references describe technical evidence mapping, not certification. Regulatory summaries are for engineering audiences and are not legal advice. Software provided as-is, without warranty.</p>
+    </div>
+  </footer>
+  <script src="/main.js" defer></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Claude Code guardrails: stop the agent running rm -rf",
+    "description": "Install a Claude Code hook that denies destructive tool calls before they run and signs every decision into a hash-chained receipt anyone can verify.",
+    "datePublished": "2026-08-04",
+    "dateModified": "2026-08-04",
+    "author": { "@type": "Organization", "name": "Provenrail" },
+    "publisher": { "@type": "Organization", "name": "Provenrail", "url": "https://provenrail.com" },
+    "mainEntityOfPage": "https://provenrail.com/claude-code-guardrails",
+    "image": "https://provenrail.com/og.png",
+    "proficiencyLevel": "Beginner"
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      { "@type": "Question", "name": "How do I stop Claude Code from running rm -rf?", "acceptedAnswer": { "@type": "Answer", "text": "Install a PreToolUse hook that inspects the command before it runs and returns a deny decision. The provenrail-guard plugin does this: run /plugin marketplace add pofky/provenrail then /plugin install provenrail-guard@provenrail inside Claude Code, then pr guard install in the project. Recursive and forced deletion, terraform destroy, git push --force, DROP TABLE, chmod 777 and leaked API keys are denied at the tool boundary." } },
+      { "@type": "Question", "name": "Is Claude Code's permission prompt enough to prevent destructive commands?", "acceptedAnswer": { "@type": "Answer", "text": "It is a good default but not a control. Long sessions produce approval fatigue, permission modes that skip prompts remove it entirely, and the transcript that records your approval is an editable local file that proves nothing to a third party. A hook decides before the tool runs, independently of the model, and can leave tamper-evident evidence." } },
+      { "@type": "Question", "name": "Does a Claude Code guardrail hook slow the agent down?", "acceptedAnswer": { "@type": "Answer", "text": "No meaningful amount. The verdict is a local pattern match computed before any network call, costing milliseconds, and records are written to a local journal and shipped asynchronously." } },
+      { "@type": "Question", "name": "What happens if the guardrail is not installed?", "acceptedAnswer": { "@type": "Answer", "text": "The plugin hook fails open: it exits zero silently and nothing is blocked or recorded, printing a hint once a day rather than failing on every tool call. A guardrail that bricks the agent gets uninstalled before it guards anything. Run pr guard status to see what is actually armed." } },
+      { "@type": "Question", "name": "Can the agent disable the guardrail?", "acceptedAnswer": { "@type": "Answer", "text": "The hook runs outside the model's context and the model does not get a vote on the verdict. Any process with write access can edit the settings file, and that edit is itself a tool call the guardrail sees. Guardrails reduce the blast radius of a mistake; they are not a security boundary against an adversary who already has shell access." } },
+      { "@type": "Question", "name": "Is the Claude Code guardrail plugin free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The SDK, CLI, browser verifier and plugin are MIT licensed and free including for commercial use. Paid plans cover the hosted append-only sink, which is what makes a log evidence rather than a file the accused controls." } }
+    ]
+  }
+  </script>
+</body>
+</html>

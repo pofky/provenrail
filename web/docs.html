@@ -150,6 +150,11 @@
     <h2 id="guard">Guard a coding agent (no code)</h2>
     <p>If you run Claude Code, this is the shortest path to something useful. Two commands arm the
       prebuilt guardrail packs and wire them into Claude Code's own tool hooks:</p>
+    <p>Prefer to install it as a plugin? Inside Claude Code run
+      <code>/plugin marketplace add pofky/provenrail</code> then
+      <code>/plugin install provenrail-guard@provenrail</code>. The
+      <a href="/claude-code-guardrails">full guide</a> covers what each rule pack blocks and why some
+      rules ask instead of deny.</p>
     <pre><code><span class="g">pr quickstart</span>       <span class="c"># local sink, no account, nothing leaves your machine</span>
 <span class="g">pr guard install</span>    <span class="c"># arms destructive + secrets + production, installs the hooks</span></code></pre>
     <p>From your next Claude Code session in that folder:</p>

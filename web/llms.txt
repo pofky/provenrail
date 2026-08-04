@@ -26,12 +26,14 @@ This limitation is documented prominently, not hidden in fine print. Technical b
 
 ## Guard a coding agent (no code)
 
+Claude Code users can install it as a plugin, with no terminal setup for the hooks: `/plugin marketplace add pofky/provenrail` then `/plugin install provenrail-guard@provenrail`. Full guide: https://provenrail.com/claude-code-guardrails
+
 If you use Claude Code, `pr quickstart && pr guard install` arms the destructive, secrets and production guardrail packs and wires them into Claude Code's own PreToolUse/PostToolUse hooks. Destructive commands are blocked before they run; an action needing a human becomes a permission prompt and the approval is recorded as human oversight; every decision is Ed25519-signed and hash-chained. The verdict is computed offline, so an unreachable sink can never turn a deny into an allow. Scope is limited to tool calls the host routes through its hooks, and completeness is never claimed.
 
 ## Key features
 
 - Guardrail packs that block destructive tool calls at the dispatch boundary
-- One-command Claude Code hook install (`pr guard install`)
+- One-command Claude Code hook install (`pr guard install`), or an installable Claude Code plugin (`provenrail-guard`)
 - Hash-chained append-only event log
 - RFC 3161 trusted timestamps (back-dating is impossible)
 - Open-source verifier (pr-verify, MIT license)
@@ -130,6 +132,7 @@ All paid plans include a 14-day refund window.
 - Comparison (verifiable proof vs observability): https://provenrail.com/compare
 - EU AI Act Article 12 logging requirements and how to prove them: https://provenrail.com/eu-ai-act
 - EU AI Act deadline moved to December 2027, the Digital Omnibus date-by-date diff (published 2026-07-30): https://provenrail.com/eu-ai-act-deadline-moved
+- Claude Code guardrails, how to stop the agent running rm -rf (plugin install, rule packs, deny vs ask): https://provenrail.com/claude-code-guardrails
 - AI agent incidents and forensic reconstruction (prove what an agent did): https://provenrail.com/ai-agent-incidents
 - Conformance vectors: https://provenrail.com/conformance
 - In-browser verifier: https://provenrail.com/verify
@@ -138,6 +141,12 @@ All paid plans include a 14-day refund window.
 - FAQ: https://provenrail.com/#faq
 
 ## Citation-friendly Q&A
+
+Q: How do I stop Claude Code from running rm -rf?
+A: Install a PreToolUse hook that decides before the command runs. With Provenrail: `/plugin marketplace add pofky/provenrail` and `/plugin install provenrail-guard@provenrail` inside Claude Code, then `pr quickstart && pr guard install` in the project. Recursive or forced deletion, `terraform destroy`, `git push --force`, `DROP TABLE`, `chmod 777` and leaked API keys are denied at the tool boundary, and the agent is told which rule fired. Actions that need a human (touching `.env`, deploying, migrating) become a permission prompt instead of a hard block, and the approval is recorded as human oversight. Guide: https://provenrail.com/claude-code-guardrails
+
+Q: Is Claude Code's permission prompt enough to prevent destructive commands?
+A: It is a good default, not a control. Long sessions cause approval fatigue, permission modes that skip prompts remove it entirely, and the transcript recording the approval is an editable local file that proves nothing to a third party. A hook decides before the tool runs, independently of the model, and can sign the decision into a hash-chained record.
 
 Q: What is Provenrail?
 A: Provenrail is a Python and TypeScript SDK (plus a CLI and cloud sink) that creates a tamper-evident, hash-chained log of every model call and tool call an AI agent makes. Records are verified with RFC 3161 trusted timestamps and can be independently checked with the open-source pr-verify tool. A run recorded in either language verifies with the same tools.

@@ -1,9 +1,30 @@
 [project]
 name = "provenrail"
-version = "0.2.13"
-description = "The verifiable audit trail for AI agents. Off-box, hash-chained, tamper-evident record of what an agent did, independently verifiable. Observability you can take to court."
+version = "0.2.14"
+description = "Guardrails for AI agents, with a receipt. Blocks destructive tool calls (rm -rf, terraform destroy, force push, DROP TABLE, leaked keys) before they run, and signs every decision into an off-box, hash-chained record anyone can verify."
+readme = "README.md"
 license = { text = "MIT for client/SDK/verifier/spec; AGPL-3.0-or-later for server. See LICENSING.md" }
 requires-python = ">=3.11"
+keywords = [
+    "ai-agents", "guardrails", "agent-security", "claude-code", "audit-log",
+    "tamper-evident", "hash-chain", "ed25519", "rfc3161", "observability",
+    "llm", "provenance", "eu-ai-act", "compliance", "mcp",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Legal Industry",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Logging",
+    "Topic :: System :: Monitoring",
+    "Typing :: Typed",
+]
 dependencies = [
     "cryptography>=42",
     "fastapi>=0.110",
@@ -16,6 +37,14 @@ dependencies = [
     # made default installs report a valid trusted-time proof as a decode failure.)
     "rfc3161-client>=1.0",
 ]
+
+[project.urls]
+Homepage = "https://provenrail.com"
+Documentation = "https://provenrail.com/docs"
+Source = "https://github.com/pofky/provenrail"
+Changelog = "https://provenrail.com/changelog"
+"Claude Code guardrails" = "https://provenrail.com/claude-code-guardrails"
+"Bug Tracker" = "https://github.com/pofky/provenrail/issues"
 
 [project.optional-dependencies]
 # Retained as a no-op alias so existing `provenrail[anchor]` installs keep resolving.
