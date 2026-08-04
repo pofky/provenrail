@@ -1,6 +1,6 @@
 [project]
 name = "provenrail"
-version = "0.2.12"
+version = "0.2.13"
 description = "The verifiable audit trail for AI agents. Off-box, hash-chained, tamper-evident record of what an agent did, independently verifiable. Observability you can take to court."
 license = { text = "MIT for client/SDK/verifier/spec; AGPL-3.0-or-later for server. See LICENSING.md" }
 requires-python = ">=3.11"
