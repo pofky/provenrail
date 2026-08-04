@@ -47,3 +47,12 @@ tutorials/out/
 /docs/langchain-issue-replies.md
 /docs/research-2026-06-29-market-synthesis.md
 /docs/design-research.md
+
+# Local guard runtime state. The journal and the pending-ask/blast-radius state files are
+# per-machine working state, not source; committing them would leak session ids and let a
+# stale counter arrive with a fresh clone.
+.provenrail-guard.jsonl
+.provenrail-guard-pending.json
+.provenrail-guard-counts.json
+.provenrail-guard-counts.json.tmp
+guard-receipt.json

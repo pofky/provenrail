@@ -90,6 +90,14 @@
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.15</span><span class="date">August 4, 2026</span><span class="tag">Guardrails</span></div>
+      <ul>
+        <li><b>Blast-radius caps now actually cap.</b> Every hook invocation is a separate process, so a <code>limit</code> rule counting in memory reset on every call and capped nothing, while <code>pr guard status</code> still reported it as armed. A cap that never fires is worse than no cap. Counts are now carried across hook processes, per session, and pruned after seven days.</li>
+        <li><b>Stated honestly.</b> The counter file is local and editable, so it is a convenience and not evidence. <code>deny</code> and <code>require_oversight</code> never read it, which means editing or deleting it cannot unblock anything. <code>pr guard reset</code> clears it.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.2.14</span><span class="date">August 4, 2026</span><span class="tag">Distribution</span></div>
       <ul>
         <li><b>Installable as a Claude Code plugin.</b> <code>/plugin marketplace add pofky/provenrail</code> then <code>/plugin install provenrail-guard@provenrail</code>. No settings file to edit. The hook shim fails open: if Provenrail is not installed it exits silently rather than blocking every tool call, and warns once a day instead. A guardrail that bricks your agent gets uninstalled before it guards anything.</li>

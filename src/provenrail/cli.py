@@ -679,6 +679,13 @@ def _cmd_guard(args) -> int:
         print(f"The policy in {CONFIG_FILENAME} is untouched; delete its \"policy\" block to disarm.")
         return 0
 
+    if action == "reset":
+        guard.reset_counts()
+        print("Cleared the per-session blast-radius counters "
+              f"({guard.COUNTS_FILENAME}). Deny and oversight rules are unaffected;")
+        print("they never depended on those counters.")
+        return 0
+
     if action == "receipt":
         rc = _cmd_export(argparse.Namespace(out=args.out, stream=None))
         if rc != 0:
@@ -707,9 +714,13 @@ def _cmd_guard(args) -> int:
         print(f"\n{len(pending)} decision(s) in the local journal: the sink was unreachable when")
         print(f"they were made, so they are UNSIGNED and are not evidence ({guard.JOURNAL_FILENAME}).")
         print("Start the sink (`pr quickstart`) so later decisions are recorded properly.")
-    print("\nPer-session `limit` rules count within one hook process, so blast-radius caps")
-    print("do not accumulate across a whole Claude Code session. Deny and oversight rules")
-    print("are unaffected.")
+    counts = guard._read_counts_file()
+    if counts:
+        print(f"\nBlast-radius counters: {len(counts)} session(s) tracked in "
+              f"{guard.COUNTS_FILENAME}.")
+        print("That file carries `limit` counts across hook processes so a cap actually caps.")
+        print("It is local and editable, so it is a convenience, not evidence; deny and")
+        print("oversight rules never read it. Clear it with `pr guard reset`.")
     print("\n  pr guard receipt    export the signed record and check what was blocked")
     return 0
 
@@ -786,8 +797,9 @@ def build_parser() -> argparse.ArgumentParser:
     g = sub.add_parser("guard",
                        help="block destructive coding-agent actions and record the decision")
     g.add_argument("action", nargs="?",
-                   choices=["install", "uninstall", "status", "receipt", "hook"],
-                   help="install/uninstall Claude Code hooks, show status, or export a receipt")
+                   choices=["install", "uninstall", "status", "receipt", "reset", "hook"],
+                   help="install/uninstall Claude Code hooks, show status, export a receipt, "
+                        "or reset the blast-radius counters")
     g.add_argument("--use", help="comma-separated guardrail packs to arm (default: "
                                  "destructive,secrets,production)")
     g.add_argument("--event", choices=["pre", "post"], default="pre",

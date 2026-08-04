@@ -174,9 +174,11 @@
       and reported as unsigned and pending, never as proof.</p>
     <p><strong>Honest scope.</strong> This covers the tool calls Claude Code routes through its
       hooks. It cannot constrain a process that never calls them. Per-session <code>limit</code>
-      rules count within one hook process, so blast-radius caps do not accumulate across a whole
-      Claude Code session; deny and oversight rules are unaffected. Other agent hosts are not
-      claimed until their hook contract has been read and tested.</p>
+      rules carry their counts in a local state file so a blast-radius cap holds across hook
+      processes; that file is editable, so it is a convenience rather than evidence, and
+      <code>deny</code> and <code>require_oversight</code> never read it. Clear it with
+      <code>pr guard reset</code>. Other agent hosts are not claimed until their hook contract has
+      been read and tested.</p>
 
     <h2 id="python">Python quickstart</h2>
     <p>One command sets up a local sink and writes <code>.provenrail.json</code>, so your code carries no URLs or tokens:</p>

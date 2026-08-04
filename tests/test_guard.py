@@ -270,3 +270,95 @@ def test_journal_path_is_env_overridable(tmp_path, monkeypatch):
 def test_default_journal_name_when_env_unset(monkeypatch):
     monkeypatch.delenv("PROVENRAIL_GUARD_JOURNAL", raising=False)
     assert os.path.basename(str(guard._journal_path())) == guard.JOURNAL_FILENAME
+
+
+# ------------------------------------------------- blast-radius caps across hook processes
+
+
+def _capped(cap: int):
+    """A one-rule policy whose `limit` effect is the thing under test."""
+    return load_policy({"rules": [
+        {"id": "cap.tool-calls", "effect": "limit", "event_type": "tool_call",
+         "tool": "Bash", "max_per_session": cap, "reason": "session tool-call cap reached"},
+    ]})
+
+
+def test_limit_rules_accumulate_across_separate_hook_processes(workdir):
+    """The bug this closes: each hook invocation is a new process, so a per-session cap that
+    lived only in memory reset on every call and capped nothing. A cap that never caps is
+    worse than no cap, because `pr guard status` reports it as armed."""
+    policy = _capped(2)
+    verdicts = [guard.decide(policy, "Bash", {"command": f"echo {i}"}, session_id="s-cap")
+                for i in range(4)]
+    assert [v["verdict"] for v in verdicts] == ["allow", "allow", "deny", "deny"]
+    assert "cap" in (verdicts[2]["reason"] or "").lower()
+
+
+def test_counters_are_scoped_per_session(workdir):
+    policy = _capped(1)
+    assert guard.decide(policy, "Bash", {"command": "a"}, session_id="s-A")["verdict"] == "allow"
+    assert guard.decide(policy, "Bash", {"command": "b"}, session_id="s-A")["verdict"] == "deny"
+    # A different Claude Code session must start from zero, not inherit the neighbour's count.
+    assert guard.decide(policy, "Bash", {"command": "c"}, session_id="s-B")["verdict"] == "allow"
+
+
+def test_no_session_id_falls_back_to_in_process_counting(workdir):
+    """Callers that have no session id (a bare SDK call) must still work, just without
+    cross-process accumulation, rather than raising or writing a junk state key."""
+    policy = _capped(1)
+    assert guard.decide(policy, "Bash", {"command": "a"})["verdict"] == "allow"
+    assert guard.decide(policy, "Bash", {"command": "b"})["verdict"] == "allow"
+    assert not guard._counts_path().exists()
+
+
+def test_reset_clears_the_counters(workdir):
+    policy = _capped(1)
+    guard.decide(policy, "Bash", {"command": "a"}, session_id="s-r")
+    assert guard.decide(policy, "Bash", {"command": "b"}, session_id="s-r")["verdict"] == "deny"
+    guard.reset_counts()
+    assert guard.decide(policy, "Bash", {"command": "c"}, session_id="s-r")["verdict"] == "allow"
+
+
+def test_stale_sessions_are_pruned(workdir):
+    """Counters must not be immortal: a cap set weeks ago must not deny the first matching
+    call of a session that happens to reuse the id."""
+    import time
+    guard.save_counts("old", {"cap.tool-calls": 99})
+    data = guard._read_counts_file()
+    data["old"]["updated"] = int(time.time()) - guard.COUNTS_TTL_S - 1
+    guard._write_json_atomic(guard._counts_path(), data)
+    guard.save_counts("new", {"cap.tool-calls": 1})
+    assert "old" not in guard._read_counts_file()
+    assert guard.load_counts("old") == {}
+
+
+def test_a_corrupt_counter_file_never_breaks_the_verdict(workdir):
+    """The counters file is local and editable. Corrupting it must degrade to "count from
+    zero", never to an exception that takes down the user's tool call."""
+    guard._counts_path().write_text("{not json", encoding="utf-8")
+    assert guard.load_counts("s1") == {}
+    out = guard.decide(_policy("destructive"), "Bash", {"command": "rm -rf /x"},
+                       session_id="s1")
+    assert out["verdict"] == "deny"
+
+
+def test_deny_rules_never_consult_the_counter_file(workdir):
+    """Deny and oversight are the rules that actually protect. They must not become
+    bypassable by deleting or editing a local JSON file."""
+    guard._counts_path().write_text(json.dumps({"s1": {"counts": {}, "updated": 0}}),
+                                    encoding="utf-8")
+    for _ in range(3):
+        out = guard.decide(_policy("destructive"), "Bash", {"command": "rm -rf /x"},
+                           session_id="s1")
+        assert out["verdict"] == "deny"
+
+
+def test_hook_end_to_end_enforces_the_cap_across_invocations(workdir):
+    (workdir / ".provenrail.json").write_text(json.dumps({"policy": {
+        "rules": [{"id": "cap.tool-calls", "effect": "limit", "event_type": "tool_call",
+                   "tool": "Bash", "max_per_session": 1, "reason": "cap reached"}]}}),
+        encoding="utf-8")
+    first = guard.run_hook(json.dumps(_hook(command="echo one", session="live")))
+    assert first[1] == ""  # allowed, nothing added to the agent's path
+    second = guard.run_hook(json.dumps(_hook(command="echo two", session="live")))
+    assert json.loads(second[1])["hookSpecificOutput"]["permissionDecision"] == "deny"

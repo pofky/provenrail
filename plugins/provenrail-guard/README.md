@@ -32,8 +32,9 @@ pr guard install              # arms destructive + secrets + production
 
 - It cannot constrain a process that never calls Claude Code's hooks. Completeness is never
   claimed anywhere in Provenrail, and this is no exception.
-- Per-session `limit` rules count within a single hook process, so blast-radius caps do not
-  accumulate across a whole session. Deny and oversight rules are unaffected.
+- Per-session `limit` rules (blast-radius caps) carry their counts in a local state file so a cap
+  actually caps across hook processes. That file is local and editable, so it is a convenience,
+  not evidence. `deny` and `require_oversight` never read it and cannot be bypassed by editing it.
 - If Provenrail is not installed, the hook exits silently and **nothing is blocked or recorded**.
   It tells you once a day rather than failing on every tool call, because a guardrail that bricks
   your agent is worse than no guardrail. `pr guard status` always tells you the truth about what

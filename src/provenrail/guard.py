@@ -31,6 +31,13 @@ map onto Claude Code's three permission decisions rather than being flattened in
 `require_oversight` becoming `ask` matters: the human's approval in the Claude Code prompt IS
 the oversight the rule wanted, so the rule stays useful instead of blocking legitimate work
 and being switched off within a day.
+
+`limit` rules need one more thing. Every hook invocation is a separate process, so a count held
+only in memory resets on every call and a "3 deletions per session" cap caps nothing, while
+`pr guard status` still reports it as armed. The counts are therefore carried across processes
+in `.provenrail-guard-counts.json`. That file is local and editable, so it is a convenience,
+not evidence, and the rules that do the real protecting (`deny`, `require_oversight`) never
+read it: editing or deleting it cannot unblock anything.
 """
 
 from __future__ import annotations
@@ -114,13 +121,18 @@ def _rule_effect(policy: Any, rule_id: str | None) -> str:
     return ""
 
 
-def decide(policy: Any, tool: str, tool_input: Any) -> dict[str, Any]:
-    """Evaluate the policy for one attempted tool call. Pure, offline, no I/O.
+def decide(policy: Any, tool: str, tool_input: Any,
+           session_id: str | None = None) -> dict[str, Any]:
+    """Evaluate the policy for one attempted tool call. Offline, no network.
 
     Returns a dict with `verdict` ("allow" | "deny" | "ask"), the firing rule and reason.
-    A fresh SessionState is used per hook process because each hook invocation is its own
-    process: per-session counters (`limit` rules) therefore cannot be enforced across a whole
-    Claude Code session, and `pr guard status` says so rather than implying coverage.
+
+    Each hook invocation is its own process, so `limit` rules (blast-radius caps such as "at
+    most 3 file deletions per session") would reset on every call and cap nothing. When a
+    `session_id` is supplied the running counts are carried across processes in a small local
+    state file, so a cap actually caps. That file is a convenience, not evidence: anything that
+    can write the working directory can reset it, exactly like the journal. `deny` and
+    `require_oversight` rules never consult it and are unaffected.
     """
     from .policy import ALLOW, DENY, REQUIRE_OVERSIGHT, SessionState
 
@@ -128,7 +140,11 @@ def decide(policy: Any, tool: str, tool_input: Any) -> dict[str, Any]:
         return {"verdict": "allow", "rule": None, "reason": "no policy configured",
                 "effect": ALLOW}
     ctx = {"tool": tool, "match_text": match_text(tool_input)}
-    decision = policy.decide("tool_call", ctx, SessionState())
+    state = SessionState(counts=load_counts(session_id) if session_id else {})
+    before = dict(state.counts)
+    decision = policy.decide("tool_call", ctx, state)
+    if session_id and state.counts != before:
+        save_counts(session_id, state.counts)
     effect = _rule_effect(policy, decision.rule_id)
     if decision.effect == ALLOW:
         verdict = "allow"
@@ -221,6 +237,81 @@ def take_ask(session_id: str, tool: str) -> str | None:
         return None
 
 
+COUNTS_FILENAME = ".provenrail-guard-counts.json"
+# How long a session's counters survive. Claude Code reuses a session id across a working
+# day, so this has to outlive a lunch break; it must not outlive the machine, or a cap set
+# weeks ago would deny the first matching call of a fresh session.
+COUNTS_TTL_S = 7 * 24 * 3600
+_COUNTS_MAX_SESSIONS = 200
+
+
+def _counts_path() -> Path:
+    return _journal_path().with_name(COUNTS_FILENAME)
+
+
+def _write_json_atomic(path: Path, data: Any) -> None:
+    """Replace the file in one step so a concurrent reader never sees a half-written file."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(data), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _read_counts_file() -> dict[str, Any]:
+    try:
+        path = _counts_path()
+        if not path.is_file():
+            return {}
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def load_counts(session_id: str) -> dict[str, int]:
+    """Per-rule match counts carried over from earlier hook processes in this session."""
+    entry = _read_counts_file().get(session_id)
+    if not isinstance(entry, dict):
+        return {}
+    counts = entry.get("counts")
+    if not isinstance(counts, dict):
+        return {}
+    return {str(k): int(v) for k, v in counts.items() if isinstance(v, (int, float))}
+
+
+def save_counts(session_id: str, counts: dict[str, int]) -> None:
+    """Persist this session's counters, pruning stale ones. Best effort by design: failing to
+    write a counter must never fail the user's tool call, and the deny/oversight rules that do
+    the real protecting never read this file."""
+    import time
+
+    now = int(time.time())
+    try:
+        data = _read_counts_file()
+        data[session_id] = {"counts": dict(counts), "updated": now}
+        fresh = {k: v for k, v in data.items()
+                 if isinstance(v, dict) and now - int(v.get("updated", 0) or 0) < COUNTS_TTL_S}
+        if len(fresh) > _COUNTS_MAX_SESSIONS:
+            keep = sorted(fresh.items(), key=lambda kv: -int(kv[1].get("updated", 0) or 0))
+            fresh = dict(keep[:_COUNTS_MAX_SESSIONS])
+            fresh.setdefault(session_id, data[session_id])
+        _write_json_atomic(_counts_path(), fresh)
+    except (OSError, ValueError):
+        pass
+
+
+def reset_counts(session_id: str | None = None) -> None:
+    """Clear blast-radius counters, for one session or all of them."""
+    try:
+        if session_id is None:
+            _counts_path().unlink(missing_ok=True)
+            return
+        data = _read_counts_file()
+        if data.pop(session_id, None) is not None:
+            _write_json_atomic(_counts_path(), data)
+    except OSError:
+        pass
+
+
 def record_hook(hook: dict[str, Any], decision: dict[str, Any] | None) -> bool:
     """Best-effort: write this hook's evidence into the signed chain. Returns success.
 
@@ -309,7 +400,8 @@ def run_hook(raw: str, default_event: str = "pre") -> tuple[int, str, str]:
     except Exception as exc:  # a broken policy config must be loud, not silently permissive
         return 0, "", f"provenrail: could not load the policy ({exc}); NOT enforcing\n"
 
-    decision = decide(policy, hook["tool"], hook["input"]) if hook["event"] == "pre" else None
+    decision = (decide(policy, hook["tool"], hook["input"], hook.get("session_id") or None)
+                if hook["event"] == "pre" else None)
     if decision is not None and decision["verdict"] == "ask":
         mark_ask(hook.get("session_id", ""), hook.get("tool", ""), decision["rule"] or "")
 

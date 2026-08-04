@@ -194,7 +194,7 @@ pr verify guard-receipt.json</code></pre>
     <ul>
       <li>A hook can only see calls that go through Claude Code's tool boundary. A process that never calls the hooks is not constrained and not recorded. Provenrail never claims completeness, here or anywhere.</li>
       <li>If Provenrail is not installed, the plugin's hook exits silently and nothing is blocked or recorded. It warns once a day rather than failing on every tool call. <code>pr guard status</code> always tells you the truth about what is armed.</li>
-      <li>Per-session blast-radius limits count within a single hook process, so they do not accumulate across a whole session yet. Deny and oversight rules are unaffected.</li>
+      <li>Per-session blast-radius caps carry their counts in a local state file, so a cap holds across hook processes. That file is local and editable, which makes it a convenience rather than evidence. <code>deny</code> and <code>require_oversight</code> never read it, so editing it cannot unblock anything.</li>
     </ul>
     <p>Guardrails reduce the blast radius of a mistake. They are not a security boundary against an adversary with shell access, and nobody should sell them as one.</p>
 
