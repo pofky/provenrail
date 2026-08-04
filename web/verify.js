@@ -14,6 +14,7 @@
 const GENESIS_PREV_HASH = "0".repeat(64);
 const SEAL = "lifecycle.session_end";
 const GENESIS = "lifecycle.session_start";
+const HUMAN_OVERSIGHT = "human_oversight";
 const JS_SAFE_INT_MAX = Number.MAX_SAFE_INTEGER; // 2^53 - 1
 
 // WebCrypto is a global in modern browsers and in Node 20+.
@@ -591,6 +592,183 @@ async function verifyOts(bundle, rep, opts) {
   }
 }
 
+// ---- committed policy (step 10, matches policy.py + verifier/verify.py _verify_policy) ----
+// This is the enforcement half of the lockstep. Without it the browser verifier could prove
+// the record was untampered but not that the guardrails the operator committed to were
+// actually applied, which is the claim the guardrail packs are sold on.
+const POLICY_MEANINGFUL = { model_call: "model_call", tool_call: "tool_call", mcp_call: "mcp_call", data_access: "data_access" };
+
+function globMatch(pattern, value) {
+  // fnmatch subset used by policy.Rule: *, ?, and [seq]. Case-insensitive, like _glob().
+  const p = String(pattern == null ? "*" : pattern).toLowerCase();
+  const v = String(value == null ? "" : value).toLowerCase();
+  let re = "";
+  for (let i = 0; i < p.length; i++) {
+    const c = p[i];
+    if (c === "*") re += "[\\s\\S]*";
+    else if (c === "?") re += "[\\s\\S]";
+    else if (c === "[") {
+      const close = p.indexOf("]", i + 1);
+      if (close < 0) { re += "\\["; }
+      else { let set = p.slice(i + 1, close); if (set.startsWith("!")) set = "^" + set.slice(1); re += "[" + set + "]"; i = close; }
+    } else re += c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  try { return new RegExp("^" + re + "$").test(v); } catch { return false; }
+}
+
+// Price table mirror of pricing.py, restricted to what a cost estimate needs. It is used
+// ONLY to replay a spend cap; it never touches a hash or a signature, exactly as in Python.
+const JS_PRICES = {
+  "gpt-4o-mini": [0.15, 0.60, 0.075, null, true], "gpt-4o": [2.50, 10.00, 1.25, null, true],
+  "gpt-4.1-nano": [0.10, 0.40, 0.025, null, true], "gpt-4.1-mini": [0.40, 1.60, 0.10, null, true],
+  "gpt-4.1": [2.00, 8.00, 0.50, null, true], "gpt-4-turbo": [10.00, 30.00, 10.00, null, true],
+  "gpt-3.5-turbo": [0.50, 1.50, 0.50, null, true], "o4-mini": [1.10, 4.40, 0.275, null, true],
+  "o3-mini": [1.10, 4.40, 0.275, null, true], "o3": [2.00, 8.00, 0.50, null, true],
+  "o1-mini": [1.10, 4.40, 0.275, null, true], "o1": [15.00, 60.00, 3.75, null, true],
+  "claude-3-5-haiku": [0.80, 4.00, 0.08, 1.0, false], "claude-3-5-sonnet": [3.00, 15.00, 0.30, 3.75, false],
+  "claude-3-haiku": [0.25, 1.25, 0.025, 0.3125, false], "claude-3-opus": [15.00, 75.00, 1.50, 18.75, false],
+  "claude-haiku-4-5": [1.00, 5.00, 0.10, 1.25, false], "claude-haiku-4": [1.00, 5.00, 0.10, 1.25, false],
+  "claude-sonnet-4-5": [3.00, 15.00, 0.30, 3.75, false], "claude-sonnet-4": [3.00, 15.00, 0.30, 3.75, false],
+  "claude-opus-4-5": [5.00, 25.00, 0.50, 6.25, false], "claude-opus-4": [15.00, 75.00, 1.50, 18.75, false],
+  "gemini-2.5-flash-lite": [0.10, 0.40, 0.025, null, true], "gemini-2.5-flash": [0.30, 2.50, 0.075, null, true],
+  "gemini-2.5-pro": [1.25, 10.00, 0.3125, null, true], "gemini-1.5-flash": [0.075, 0.30, 0.01875, null, true],
+  "gemini-1.5-pro": [1.25, 5.00, 0.3125, null, true],
+  "llama-3.1-405b": [3.50, 3.50, null, null, false], "llama-3.1-70b": [0.90, 0.90, null, null, false],
+  "mistral-large": [2.00, 6.00, null, null, false],
+  "deepseek-chat": [0.27, 1.10, null, null, false], "deepseek-reasoner": [0.55, 2.19, null, null, false],
+};
+const IN_KEYS = ["input", "in", "input_tokens", "prompt_tokens", "prompt", "tokens_in"];
+const OUT_KEYS = ["output", "out", "output_tokens", "completion_tokens", "completion", "tokens_out"];
+const CACHE_READ_KEYS = ["cache_read_input_tokens", "cached_tokens", "cache_read_tokens", "cache_read", "cached_input_tokens", "cached_content_token_count"];
+const CACHE_WRITE_KEYS = ["cache_creation_input_tokens", "cache_write_tokens", "cache_write", "cache_creation_tokens"];
+
+function flatUsage(usage) {
+  const flat = {};
+  for (const [k, v] of Object.entries(usage || {})) {
+    if (v && typeof v === "object" && !Array.isArray(v)) { for (const [ik, iv] of Object.entries(v)) if (!(ik in flat)) flat[ik] = iv; }
+    else if (!(k in flat)) flat[k] = v;
+  }
+  return flat;
+}
+function pickTokens(usage, keys) {
+  for (const k of keys) if (usage[k] !== undefined && usage[k] !== null) { const n = parseInt(String(usage[k]).trim(), 10); return Number.isNaN(n) ? 0 : n; }
+  return 0;
+}
+function estimateCost(model, usage) {
+  const name = String(model || "").toLowerCase();
+  let price = null, bestLen = -1;
+  for (const [key, p] of Object.entries(JS_PRICES)) if (name.includes(key) && key.length > bestLen) { price = p; bestLen = key.length; }
+  if (!price) return 0;
+  const u = flatUsage(usage);
+  const tin = pickTokens(u, IN_KEYS), tout = pickTokens(u, OUT_KEYS);
+  const cr = pickTokens(u, CACHE_READ_KEYS), cw = pickTokens(u, CACHE_WRITE_KEYS);
+  const [pin, pout, pcr, pcw, inclusive] = price;
+  const uncached = inclusive ? Math.max(0, tin - cr) : tin;
+  const billableWrite = inclusive ? 0 : cw;
+  const crRate = pcr === null ? pin : pcr;
+  const cwRate = pcw === null ? pin : pcw;
+  const cost = (uncached * pin + tout * pout + cr * crRate + billableWrite * cwRate) / 1e6;
+  return Math.round(cost * 1e6) / 1e6;
+}
+
+function policyDecide(policy, eventType, ctx, state) {
+  // Budgets first, mirroring Policy.decide. Only session-scoped budgets reach here: a day or
+  // total cap was evaluated against spend in OTHER sessions, which this bundle does not
+  // contain, so replaying it would manufacture findings out of missing history.
+  if (eventType === "model_call") {
+    const cost = estimateCost(ctx.model, ctx.usage);
+    for (const b of policy.budgets) {
+      const projected = state.spend + cost;
+      if (projected > b.limit + 1e-9) return { effect: "deny", ruleId: b.id, reason: `${b.scope} spend cap exceeded` };
+    }
+  }
+  for (const rule of policy.rules) {
+    if (rule.event_type !== "*" && rule.event_type !== eventType) continue;
+    if (!globMatch(rule.tool, ctx.tool)) continue;
+    if (!globMatch(rule.resource, ctx.resource)) continue;
+    if (!globMatch(rule.provider, ctx.provider)) continue;
+    if (rule.effect === "deny") return { effect: "deny", ruleId: rule.id, reason: rule.reason || "denied by policy" };
+    if (rule.effect === "require_oversight" && !state.oversight)
+      return { effect: "deny", ruleId: rule.id, reason: rule.reason || "requires recorded human oversight" };
+    if (rule.effect === "limit") {
+      state.counts[rule.id] = (state.counts[rule.id] || 0) + 1;
+      if (rule.max_per_session !== null && rule.max_per_session !== undefined && state.counts[rule.id] > rule.max_per_session)
+        return { effect: "deny", ruleId: rule.id, reason: rule.reason || "per-session limit exceeded" };
+      return { effect: "allow", ruleId: rule.id, reason: "within the per-session limit" };
+    }
+    if (rule.effect === "require_oversight") return { effect: "allow", ruleId: rule.id, reason: "oversight present" };
+  }
+  return { effect: "allow", ruleId: null, reason: "no rule matched" };
+}
+
+function normalizePolicy(dict) {
+  const rules = (dict.rules || []).map(r => ({
+    id: r.id, effect: r.effect, event_type: r.event_type ?? "*", tool: r.tool ?? "*",
+    resource: r.resource ?? "*", provider: r.provider ?? "*", arg_contains: r.arg_contains ?? "",
+    max_per_session: r.max_per_session ?? null, reason: r.reason ?? "",
+  }));
+  const budgets = (dict.budgets || []).map(b => ({
+    id: b.id || `budget.${b.scope || "session"}`, scope: (b.scope || "session").toLowerCase(),
+    limit: parseFloat(b.limit_usd), warn_at: parseFloat(b.warn_at ?? "0.8"),
+  }));
+  const cap = dict.session_spend_cap_usd;
+  if (cap !== null && cap !== undefined && !budgets.some(b => b.scope === "session"))
+    budgets.push({ id: "session_spend_cap", scope: "session", limit: parseFloat(cap), warn_at: 0.8 });
+  return { rules, budgets };
+}
+
+async function verifyPolicy(sessions, rep) {
+  for (const sess of sessions) {
+    if (!sess.length || sess[0].action_type !== GENESIS) continue;
+    const meta = ((sess[0].payload || {}).meta) || {};
+    const policyDict = meta.policy;
+    if (policyDict === undefined || policyDict === null) continue;
+    const committed = meta.policy_sha256;
+    const recomputed = await hashValue(policyDict);
+    if (committed !== undefined && committed !== null && recomputed !== committed) {
+      rep.add("fail", "policy_commit_mismatch",
+        "the committed policy hash does not match the embedded policy (the recorded guardrails were altered after the session started)");
+      continue;
+    }
+    const full = normalizePolicy(policyDict);
+    const contentRules = full.rules.filter(r => r.arg_contains).length;
+    const crossSession = full.budgets.filter(b => b.scope !== "session").length;
+    // A content gate matches on argument text, which is hashed out of the bundle, and a
+    // cross-session budget needs history this bundle does not hold. Both are reported as
+    // enforced-but-not-re-checkable rather than silently trusted or silently dropped.
+    const reverifiable = {
+      rules: full.rules.filter(r => !r.arg_contains),
+      budgets: full.budgets.filter(b => b.scope === "session"),
+    };
+    const state = { spend: 0, oversight: false, counts: {} };
+    let checked = 0, violations = 0, recordedDenies = 0;
+    for (const rec of sess) {
+      if (rec.action_type === "policy.decision" && String((rec.payload || {}).effect).toLowerCase() === "deny") recordedDenies++;
+    }
+    for (const rec of sess) {
+      if (rec.action_type === HUMAN_OVERSIGHT) { state.oversight = true; continue; }
+      const ev = POLICY_MEANINGFUL[rec.action_type];
+      if (!ev) continue;
+      const payload = rec.payload || {};
+      const ctx = { provider: payload.provider || "", model: payload.model || "", usage: payload.usage, tool: payload.tool || "", resource: payload.resource || "" };
+      const decision = policyDecide(reverifiable, ev, ctx, state);
+      checked++;
+      if (decision.effect !== "allow") {
+        violations++;
+        rep.add("warn", "policy_not_enforced",
+          `seq ${rec.seq}: an executed ${rec.action_type} matches policy rule ${JSON.stringify(decision.ruleId)} which would deny it (${decision.reason}); the committed policy was not enforced for this call`);
+      }
+      if (rec.action_type === "model_call") state.spend += estimateCost(ctx.model, ctx.usage);
+    }
+    if (violations === 0) {
+      let detail = `committed policy ${committed ? String(committed).slice(0, 12) : "present"} verified: ${checked} re-verifiable events consistent with the guardrails, ${recordedDenies} recorded enforcement denials`;
+      if (contentRules) detail += `; ${contentRules} content-gate rule(s) were enforced but cannot be re-checked offline because arguments are hashed`;
+      if (crossSession) detail += `; ${crossSession} cross-session budget(s) were enforced but cannot be re-checked from this bundle alone, which covers one session`;
+      rep.add("info", "policy_verified", detail);
+    }
+  }
+}
+
 // ---- report ----
 // Failures that mean "a trust anchor the verifier supplied does not match this bundle" (a
 // key-identity mismatch: wrong/stale key, or a proof from a different log/witness) rather than
@@ -756,6 +934,9 @@ export async function verifyBundle(bundle, pin = null, opts = {}) {
 
   // 7 + 8. transparency log (inclusion + consistency), if present
   await verifyTlog(bundle, rep, opts);
+
+  // 10. committed policy: prove the guardrails in force were actually applied
+  await verifyPolicy(sessions, rep);
 
   // 12. selective-disclosure redaction: validate any supplied openings against commitments
   await verifyRedactions(client, rep, opts.openings || null);

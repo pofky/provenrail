@@ -275,7 +275,10 @@ Trust and compliance surface
 - Hosted verifier at `/verify`: anyone can drop a bundle and re-run verification with no
   install and no account. It verifies FULLY CLIENT-SIDE using a second, independent
   JavaScript verifier (`web/verify.js`, WebCrypto), so you trust not even our server; it is
-  conformance-tested to agree byte-for-byte with `pr verify`.
+  conformance-tested to agree byte-for-byte with `pr verify`. The lockstep covers enforcement
+  as well as integrity: the browser verifier replays the committed policy, including spend
+  caps, and its cost arithmetic is parity-tested against `pricing.py` so a budget can never
+  replay differently in the browser than on the CLI.
 - Embeddable live badge: `<img src=".../badge/<share_token>.svg">` re-verifies on every load
   and turns amber or red if the record ever stops verifying.
 - One-click evidence pack (`fr pack`, or `/v1/streams/{id}/evidence`): a self-contained,
@@ -372,6 +375,20 @@ when a cap actually bites. The budgets are part of the committed policy hash, so
 prove which cap was in force. Check spend with `pr spend` (per run from a bundle, per agent from
 the ledger) and headroom with `pr guard status`.
 
+**Finance rollups** answer the question a budget owner actually asks. `GET /v1/spend?group_by=`
+groups estimated spend by `agent`, `project`, `team`, `model`, `day`, `stream`, or `session`
+over any date window, with `&format=csv` for the spreadsheet the conversation happens in. The
+grouping keys are your own session metadata, which lives inside the signed record, so a finance
+report is derived from the same evidence as everything else instead of a side table someone
+could edit. Spend with no `project` set rolls up as `(unattributed)` rather than vanishing: a
+report whose rows do not sum to the total makes an underspend look real.
+
+**Reconcile the estimate against the bill.** `pr reconcile run.json --invoice usage.csv` aligns
+recorded spend with a provider usage export and reports the drift per model, plus the finding
+that matters most: spend on the invoice that no recorded run explains, which means calls
+happened outside the recorder. It exits non-zero when it finds any, so a finance cron can gate
+on it. The invoice is an untrusted input used to interpret the record, never to amend it.
+
 Costs are **estimates** from reported token usage and a dated public price table, never a
 substitute for your provider's invoice, and they are labelled that way everywhere. The estimator
 handles what naive ones get wrong: cached tokens priced at the cache rate and not double-counted
@@ -379,6 +396,25 @@ handles what naive ones get wrong: cached tokens priced at the cache rate and no
 reported but never billed twice. Negotiated or committed-use rates go in
 `.provenrail-prices.json` and override the list price. A model with no verified rate is reported
 as unpriced rather than silently counted as free.
+
+**Approvals for agents with no human at the keyboard.** Inside Claude Code a
+`require_oversight` rule becomes the permission prompt, and the person answering it is the
+oversight. A headless agent has no prompt, so the same rule could only deny. Set
+`approval_timeout` and the agent instead pauses, opens a request, and an `approval.requested`
+webhook delivers a one-click approve and a separate deny link to whoever is on call. An
+approval is recorded as a `human_oversight` event in the agent's own signed chain, and the
+policy is then re-evaluated: the approval flows *through* the guardrail rather than around it.
+It fails closed in every other case, including an unanswered request, an expired link, and an
+unreachable sink. The two links are unrelated single-use secrets stored only as hashes, so a
+link prefetcher cannot approve anything and a leaked database cannot approve anything. Only
+`require_oversight` is ever offered to a human: a hard `deny` and a blown budget are decisions
+you already made.
+
+**Replay scrubber.** The session view steps through a run one action at a time (arrow keys, a
+scrub track, a detail pane) and will compare it against any other run of the same agent,
+marking the steps that diverge and jumping to the first one. That is where debugging actually
+starts: the run that broke only means something next to the run that worked. The in-browser
+alignment is a display aid; `pr diff` is the version that runs over verified bundles.
 
 The active policy / guardrail layer is deeper now: the policy is committed into the signed
 session-start record (so a verifier proves which guardrails were in force and that no executed

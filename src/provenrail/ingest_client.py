@@ -37,6 +37,23 @@ class IngestClient:
             raise RuntimeError(f"ingest failed {resp.status_code}: {resp.text}")
         return resp.json()
 
+    def request_approval(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Open an out-of-band approval request for one pending action."""
+        resp = self._http.post(
+            self._url("/v1/approvals"), json=body,
+            headers={"Authorization": f"Bearer {self.write_token}"})
+        if resp.status_code >= 400:
+            raise RuntimeError(f"approval request failed {resp.status_code}: {resp.text}")
+        return resp.json()
+
+    def get_approval(self, request_id: str) -> dict[str, Any]:
+        resp = self._http.get(
+            self._url(f"/v1/approvals/{request_id}"),
+            headers={"Authorization": f"Bearer {self.write_token}"})
+        if resp.status_code >= 400:
+            raise RuntimeError(f"approval poll failed {resp.status_code}: {resp.text}")
+        return resp.json()
+
     def close(self) -> None:
         if self._owns_http:
             self._http.close()

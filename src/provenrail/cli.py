@@ -684,6 +684,29 @@ def _cmd_spend(args) -> int:
     return 0
 
 
+def _cmd_reconcile(args) -> int:
+    """Compare recorded estimates against a provider invoice or usage export.
+
+    The question that turns a cost estimate into something finance can use is "does this
+    match the bill?". Spend on the invoice that no recorded run accounts for is the finding
+    worth the whole feature: it means calls happened outside the recorder.
+    """
+    from .reconcile import reconcile, render_text
+
+    bundle = json.loads(open(args.bundle, encoding="utf-8").read())
+    invoice_csv = open(args.invoice, encoding="utf-8").read()
+    records = bundle.get("records", [])
+    result = reconcile([(bundle.get("stream_id", "bundle"), records)], invoice_csv,
+                       since=args.since, until=args.until)
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print(render_text(result))
+    # Non-zero when the invoice contains spend no recorded run explains, so CI or a finance
+    # cron can gate on "something is billing us that we are not recording".
+    return 1 if result["totals"]["unaccounted_on_invoice_usd"] > 0 else 0
+
+
 def _cmd_report(args) -> int:
     from .reports import generate_attestation, render_markdown
     bundle = json.loads(open(args.bundle, encoding="utf-8").read())
@@ -919,6 +942,16 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--agent", help="limit the ledger view to one agent id")
     sp.add_argument("--json", action="store_true", help="machine-readable output")
     sp.set_defaults(func=_cmd_spend)
+
+    rc = sub.add_parser("reconcile",
+                        help="compare recorded estimated spend against a provider invoice CSV")
+    rc.add_argument("bundle")
+    rc.add_argument("--invoice", required=True, metavar="CSV",
+                    help="provider usage or billing export")
+    rc.add_argument("--since", metavar="YYYY-MM-DD")
+    rc.add_argument("--until", metavar="YYYY-MM-DD")
+    rc.add_argument("--json", action="store_true", help="machine-readable output")
+    rc.set_defaults(func=_cmd_reconcile)
 
     r = sub.add_parser("report", help="generate a regulatory attestation from a bundle")
     r.add_argument("bundle")

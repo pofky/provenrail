@@ -11,20 +11,26 @@ from __future__ import annotations
 
 import html
 import json
+import re
 import threading
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Path, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
 from .. import redaction
 from ..anchor import Anchor, LocalAnchor
+from . import approvals as approvals_mod
 from . import plans
 from . import security as sec
 from . import storage as storage_mod
 from . import tokens as tok
 from .scheduler import AnchorScheduler
+
+#: A finance query window is a plain UTC date. Rejecting anything else keeps a malformed
+#: range from silently matching nothing and reporting $0.00 as if it were a real total.
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 class CreateStreamIn(BaseModel):
@@ -37,6 +43,17 @@ class CreateAccountIn(BaseModel):
 
 class IngestIn(BaseModel):
     records: list[dict[str, Any]]
+
+
+class ApprovalIn(BaseModel):
+    """An agent asking a human to approve one action it is about to take."""
+    stream_id: str
+    session_id: str | None = None
+    rule: str | None = None
+    event_type: str | None = None
+    target: str | None = None
+    reason: str = ""
+    ttl_seconds: int = 3600
 
 
 class VerifyIn(BaseModel):
@@ -155,6 +172,27 @@ def create_app(
 
         threading.Thread(target=_run, name="pr-policy-alert", daemon=True).start()
 
+    def _alert_approval_requested(stream_id: str, request: dict[str, Any]) -> None:
+        """Deliver the approve/deny links to whoever is on call, off the request path.
+
+        This alert is the only one that carries a capability, so it goes to the operator's own
+        subscribed endpoints and nowhere else. The agent is blocked waiting for an answer, so
+        the delivery must not also block the request that opened the request.
+        """
+        from ..chain import _utc_now_iso
+        from . import notifier
+        from .alerts import APPROVAL_REQUESTED, AlertEngine
+        engine = AlertEngine(store, notifier.deliver, _utc_now_iso)
+        owner = store.stream_owner(stream_id)
+
+        def _run() -> None:
+            try:
+                engine.emit_payload(owner, APPROVAL_REQUESTED, stream_id, {"approval": request})
+            except Exception:
+                pass  # a missed notification must never break the approval flow itself
+
+        threading.Thread(target=_run, name="pr-approval-alert", daemon=True).start()
+
     def _alert_after_anchor(stream_id: str) -> None:
         from ..chain import _utc_now_iso
         from . import notifier
@@ -205,6 +243,7 @@ def create_app(
     }
     app.state.store = store
     app.state.tokens = tokens
+    app.state.approvals = approvals_mod.ApprovalStore(store._db)
     app.state.anchor = anchor_backend
     app.state.scheduler = scheduler
     app.state.require_account = require_account
@@ -483,6 +522,113 @@ def create_app(
         return {"open_mode": not app.state.require_account, "account": acct,
                 "streams": out, "totals": grand}
 
+    @app.post("/v1/approvals")
+    def create_approval(body: ApprovalIn, request: Request,
+                        authorization: str | None = Header(default=None)):
+        """A headless agent asks a human to approve one action, and waits.
+
+        Authenticated with the agent's own WRITE token, because the agent already holds it and
+        because a request can only ever be opened against its own stream. Opening a request
+        grants nothing: the decision needs one of the two link tokens, which are returned here
+        and never stored in the clear.
+        """
+        _auth(authorization, tok.WRITE, body.stream_id)
+        if not app.state.ingest_limiter.allow(body.stream_id):
+            raise HTTPException(429, "approval rate limit exceeded for this stream")
+        if not store.stream_exists(body.stream_id):
+            raise HTTPException(404, "unknown stream")
+        req = app.state.approvals.create(
+            body.stream_id, session_id=body.session_id,
+            account_id=store.stream_owner(body.stream_id), rule=body.rule,
+            event_type=body.event_type, target=body.target, reason=body.reason,
+            ttl_seconds=body.ttl_seconds)
+        base = str(request.base_url).rstrip("/")
+        out = {k: v for k, v in req.items() if k not in ("approve_token", "deny_token")}
+        out["approve_url"] = f"{base}/approve/{req['approve_token']}"
+        out["deny_url"] = f"{base}/deny/{req['deny_token']}"
+        # The notification carries the two links, so whoever is on call can answer from the
+        # channel they already watch without an account here.
+        _alert_approval_requested(body.stream_id, out)
+        return out
+
+    @app.get("/v1/approvals/{request_id}")
+    def get_approval(request_id: str = Path(...),
+                     authorization: str | None = Header(default=None)):
+        """The waiting agent polls this. Fails closed: past its deadline it reads `expired`."""
+        req = app.state.approvals.get(request_id)
+        if req is None:
+            raise HTTPException(404, "unknown approval request")
+        _auth(authorization, tok.WRITE, req["stream_id"])
+        return req
+
+    @app.get("/v1/approvals")
+    def list_approvals(authorization: str | None = Header(default=None)):
+        acct = _account(authorization)
+        return {"pending": app.state.approvals.list_pending(acct)}
+
+    @app.get("/approve/{token}", response_class=HTMLResponse)
+    def approve_link(token: str = Path(...)):
+        return _decision_page(token, approvals_mod.APPROVED)
+
+    @app.get("/deny/{token}", response_class=HTMLResponse)
+    def deny_link(token: str = Path(...)):
+        return _decision_page(token, approvals_mod.DENIED)
+
+    def _decision_page(token: str, decision: str) -> HTMLResponse:
+        """The page a human lands on from the link. No login: the link IS the capability."""
+        result = app.state.approvals.decide_by_token(token, decision)
+        req = result.get("request") or {}
+        approved = (req.get("status") == approvals_mod.APPROVED)
+        if result["ok"]:
+            headline = "Approved" if approved else "Denied"
+            note = ("The agent has been released to take this action. The decision is now part "
+                    "of its signed record." if approved else
+                    "The agent has been told no. The refusal is part of its signed record.")
+        else:
+            headline = "No change"
+            note = f"This link did not decide anything: {result['reason']}."
+        rows = "".join(
+            f"<tr><th>{html.escape(k)}</th><td>{html.escape(str(req.get(k) or ''))}</td></tr>"
+            for k in ("rule", "event_type", "target", "reason", "status", "decided_at")
+            if req.get(k))
+        body = f"""<main>
+  <p class="eyebrow">Provenrail human oversight</p>
+  <h1 class="{'ok' if approved else 'no'}">{html.escape(headline)}</h1>
+  <p>{html.escape(note)}</p>
+  <table>{rows}</table>
+  <p class="fine">This decision was made by opening a single-use link. Reopening it will not
+  change the answer. The agent writes the outcome into its own hash-chained, signed record;
+  this server never holds the agent's signing key and so cannot manufacture an approval.</p>
+</main>"""
+        return HTMLResponse(app.state.approvals.decision_page(headline, body))
+
+    @app.get("/v1/spend")
+    def spend(group_by: str = "agent", since: str | None = None, until: str | None = None,
+              format: str = "json", authorization: str | None = Header(default=None)):
+        """Estimated spend across the account, grouped by agent / project / team / model / day.
+
+        The grouping dimensions come from the operator's own session metadata, which is inside
+        the signed record, so a finance rollup is derived from the same evidence as everything
+        else rather than from a side table someone could edit independently.
+        """
+        from . import finance
+
+        acct = _account(authorization)
+        if group_by not in finance.DIMENSIONS:
+            raise HTTPException(400, f"group_by must be one of {list(finance.DIMENSIONS)}")
+        for label, value in (("since", since), ("until", until)):
+            if value and not _DATE_RE.match(value):
+                raise HTTPException(400, f"{label} must be a UTC date as YYYY-MM-DD")
+        streams = [(s["stream_id"], store.get_records(s["stream_id"]))
+                   for s in store.list_streams(acct)]
+        result = finance.rollup(streams, group_by=group_by, since=since, until=until)
+        if format == "csv":
+            return PlainTextResponse(
+                finance.to_csv(result), media_type="text/csv",
+                headers={"Content-Disposition":
+                         f'attachment; filename="provenrail-spend-by-{group_by}.csv"'})
+        return result
+
     @app.get("/v1/streams/{stream_id}/summary")
     def stream_summary(stream_id: str = Path(...), authorization: str | None = Header(default=None)):
         from . import analytics
@@ -504,6 +650,12 @@ def create_app(
         tl = analytics.session_timeline(records, session_id)
         if tl["summary"] is None:
             raise HTTPException(404, "unknown session")
+        # The sibling sessions, so the replay scrubber can offer "compare with the run that
+        # worked" without a second round trip. Ids and start times only: the full timeline of
+        # a comparison run is fetched on demand, and only if the reviewer asks for it.
+        tl["sessions"] = [{"session_id": s["session_id"], "started_at": s["started_at"],
+                           "outcome": s.get("outcome"), "events": s.get("events")}
+                          for s in analytics.summarize(records)["sessions"]]
         return tl
 
     @app.get("/v1/streams/{stream_id}/bundle")

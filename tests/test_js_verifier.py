@@ -378,3 +378,167 @@ def test_js_verifier_ots_conformance(tmp_path):
     assert result.returncode == 0, f"JS OTS conformance failed:\n{result.stdout}\n{result.stderr}"
     assert "PASS ots_confirmed " in result.stdout
     assert "PASS ots_mismatch " in result.stdout
+
+
+def _policy_bundle(tmp_path, policy, actions, enforce=True):
+    """Record one session under a committed policy and return its bundle."""
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=False)
+    c = TestClient(app)
+    prov = provision_stream("http://t", http=c)
+    fr = FlightRecorder("http://t", prov["write_token"], prov["stream_id"], http=c,
+                        policy=policy, enforce=enforce)
+    with fr.session({"agent": "pol"}):
+        actions(fr)
+    return c.get(f"/v1/streams/{prov['stream_id']}/export",
+                 headers={"Authorization": f"Bearer {prov['read_token']}"}).json()
+
+
+def test_js_verifier_replays_the_committed_policy(tmp_path):
+    """Lockstep on ENFORCEMENT, not just integrity.
+
+    The guardrail packs are sold on "you can prove the rules were in force". Until the browser
+    verifier replayed the committed policy too, that claim was only provable by the Python
+    verifier, so the in-browser proof was strictly weaker than the CLI on the one property the
+    product leads with.
+    """
+    from provenrail.policy import Budget, Policy, Rule
+    from provenrail.verifier.verify import verify_bundle
+
+    policy = Policy(
+        rules=[Rule(id="no-danger", effect="deny", tool="danger_*"),
+               Rule(id="cap-search", effect="limit", tool="search", max_per_session=2),
+               Rule(id="no-secret", effect="deny", event_type="tool_call",
+                    arg_contains="password")],
+        budgets=[Budget(scope="session", limit_usd=100.0),
+                 Budget(scope="day", limit_usd=500.0)])
+
+    def acts(fr):
+        fr.record_model_call("anthropic", "claude-sonnet-4-5", {"p": "hi"}, {"t": "yo"},
+                             usage={"input_tokens": 1000, "output_tokens": 100})
+        fr.record_tool_call("search", {"q": 1}, {})
+        fr.record_tool_call("search", {"q": 2}, {})
+
+    bundle = _policy_bundle(tmp_path, policy, acts)
+    rep = verify_bundle(bundle)
+    assert rep.ok
+    detail = next(f.detail for f in rep.findings if f.code == "policy_verified")
+    assert "content-gate" in detail and "cross-session budget" in detail
+
+    (tmp_path / "pol.json").write_text(json.dumps(bundle), encoding="utf-8")
+    manifest = [{"name": "policy_ok", "bundle": "pol.json", "expect_ok": True,
+                 "codes": ["policy_verified"]}]
+    mpath = tmp_path / "policy_manifest.json"
+    mpath.write_text(json.dumps(manifest), encoding="utf-8")
+    result = subprocess.run(["node", str(CONFORMANCE), str(mpath)], capture_output=True, text=True)
+    assert result.returncode == 0, f"JS policy conformance failed:\n{result.stdout}\n{result.stderr}"
+    assert "PASS policy_ok " in result.stdout
+
+
+def test_js_verifier_catches_an_edited_policy(tmp_path):
+    """Loosening the committed guardrails after the fact must fail in BOTH implementations."""
+    from provenrail.policy import Policy, Rule
+    from provenrail.verifier.verify import verify_bundle
+
+    policy = Policy(rules=[Rule(id="no-danger", effect="deny", tool="danger_*")])
+    bundle = _policy_bundle(tmp_path, policy, lambda fr: fr.record_decision("fine"))
+    tampered = copy.deepcopy(bundle)
+    meta = tampered["records"][0]["record"]["payload"]["meta"]
+    meta["policy"]["rules"][0]["tool"] = "nothing_*"   # quietly disarm the rule
+
+    rep = verify_bundle(tampered)
+    assert any(f.code in ("policy_commit_mismatch", "client_hash_mismatch") for f in rep.findings)
+
+    (tmp_path / "pol_edit.json").write_text(json.dumps(tampered), encoding="utf-8")
+    manifest = [{"name": "policy_edited", "bundle": "pol_edit.json", "expect_ok": False}]
+    mpath = tmp_path / "policy_edit_manifest.json"
+    mpath.write_text(json.dumps(manifest), encoding="utf-8")
+    result = subprocess.run(["node", str(CONFORMANCE), str(mpath)], capture_output=True, text=True)
+    assert result.returncode == 0, f"JS policy-edit conformance failed:\n{result.stdout}\n{result.stderr}"
+    assert "PASS policy_edited " in result.stdout
+
+
+def test_js_verifier_flags_an_unenforced_policy_like_python(tmp_path):
+    """A run that executed an action its own committed policy would deny: both verifiers must
+    warn `policy_not_enforced`. This is the finding that catches a policy configured but not
+    actually applied, which is indistinguishable from no policy at all if nobody checks."""
+    from provenrail.policy import Policy, Rule
+    from provenrail.verifier.verify import verify_bundle
+
+    # enforce=False records the decision but lets the call through, which is exactly the
+    # "policy present, not enforcing" shape the verifier must catch.
+    policy = Policy(rules=[Rule(id="no-danger", effect="deny", tool="danger_*")])
+    bundle = _policy_bundle(tmp_path, policy,
+                            lambda fr: fr.record_tool_call("danger_delete", {"x": 1}, {}),
+                            enforce=False)
+    rep = verify_bundle(bundle)
+    assert any(f.code == "policy_not_enforced" for f in rep.findings)
+
+    (tmp_path / "pol_un.json").write_text(json.dumps(bundle), encoding="utf-8")
+    manifest = [{"name": "policy_unenforced", "bundle": "pol_un.json", "expect_ok": True,
+                 "codes": ["policy_not_enforced"]}]
+    mpath = tmp_path / "policy_unenforced_manifest.json"
+    mpath.write_text(json.dumps(manifest), encoding="utf-8")
+    result = subprocess.run(["node", str(CONFORMANCE), str(mpath)], capture_output=True, text=True)
+    assert result.returncode == 0, f"JS unenforced conformance failed:\n{result.stdout}\n{result.stderr}"
+    assert "PASS policy_unenforced " in result.stdout
+
+
+def test_js_and_python_agree_on_a_blown_spend_cap(tmp_path):
+    """The JS price table and cost arithmetic must match pricing.py closely enough that a
+    session spend cap replays identically. A verifier that priced a call differently would
+    accuse a clean run of not enforcing its own budget."""
+    from provenrail.policy import Budget, Policy
+    from provenrail.verifier.verify import verify_bundle
+
+    # cap of $0.01 with a call that costs $3.00: enforce=False lets it through, so both
+    # verifiers should independently notice the budget was not applied.
+    policy = Policy(budgets=[Budget(scope="session", limit_usd=0.01, warn_at=0)])
+    bundle = _policy_bundle(
+        tmp_path, policy,
+        lambda fr: fr.record_model_call("anthropic", "claude-sonnet-4-5", {"p": "x"}, {"t": "y"},
+                                        usage={"input_tokens": 1_000_000, "output_tokens": 0}),
+        enforce=False)
+    rep = verify_bundle(bundle)
+    assert any(f.code == "policy_not_enforced" for f in rep.findings)
+
+    (tmp_path / "pol_budget.json").write_text(json.dumps(bundle), encoding="utf-8")
+    manifest = [{"name": "policy_budget", "bundle": "pol_budget.json", "expect_ok": True,
+                 "codes": ["policy_not_enforced"]}]
+    mpath = tmp_path / "policy_budget_manifest.json"
+    mpath.write_text(json.dumps(manifest), encoding="utf-8")
+    result = subprocess.run(["node", str(CONFORMANCE), str(mpath)], capture_output=True, text=True)
+    assert result.returncode == 0, f"JS budget conformance failed:\n{result.stdout}\n{result.stderr}"
+    assert "PASS policy_budget " in result.stdout
+
+
+def test_js_and_python_cost_estimation_agree(tmp_path):
+    """Every model and usage shape must price identically in both implementations.
+
+    Cached-token handling is where these drift: the two conventions (input inclusive of cache
+    for OpenAI and Google, exclusive for Anthropic) are easy to implement one way in one
+    language and the other way in the other, and the failure is silent until a budget replays
+    differently in the browser than on the CLI.
+    """
+    import itertools
+
+    from provenrail.pricing import cost_for
+
+    models = ["claude-sonnet-4-5", "gpt-4.1", "gemini-2.5-pro", "claude-3-opus", "gpt-4o",
+              "gpt-4o-mini", "deepseek-chat", "o3", "llama-3.1-70b", "unknown-model-xyz"]
+    usages = [
+        {"input_tokens": 1_000_000, "output_tokens": 250_000},
+        {"prompt_tokens": 800_000, "completion_tokens": 10,
+         "prompt_tokens_details": {"cached_tokens": 300_000}},
+        {"input_tokens": 1000, "output_tokens": 0, "cache_read_input_tokens": 50_000,
+         "cache_creation_input_tokens": 20_000},
+        {"output_tokens_details": {"reasoning_tokens": 5000}, "completion_tokens": 9000},
+        {},
+    ]
+    cases = [{"model": m, "usage": u, "py": cost_for(m, u)["cost_usd"]}
+             for m, u in itertools.product(models, usages)]
+    path = tmp_path / "cost_cases.json"
+    path.write_text(json.dumps(cases), encoding="utf-8")
+    result = subprocess.run(["node", str(HERE / "js" / "cost_parity.mjs"), str(path)],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, f"cost parity failed:\n{result.stdout}\n{result.stderr}"
+    assert "PASS all" in result.stdout

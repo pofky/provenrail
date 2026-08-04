@@ -202,6 +202,30 @@ button{cursor:pointer;font-family:inherit;color:inherit;background:none;border:n
 .tl-card.open .tl-body{display:block}
 .tl-kv{display:flex;gap:.6rem}.tl-kv .k{color:var(--text-lo);min-width:5.5rem}.tl-kv .v{color:var(--text-mono);word-break:break-all}
 @media(max-width:640px){.tl-sum{display:none}.tl-body{padding-left:1rem}}
+/* Replay scrubber: step through a run one action at a time. The reason this exists rather
+   than a scrolling list alone is that "what did the agent do at step 14, and how does that
+   differ from the run that worked" is the question a debugger actually has. */
+.scrub{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--r-md);padding:.85rem .9rem;margin-bottom:.9rem}
+.scrub-top{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.65rem}
+.scrub-btn{font-family:var(--font-mono);font-size:.78rem;padding:.35rem .6rem;border:1px solid var(--border-hi);
+  border-radius:var(--r-sm);color:var(--text-hi);background:var(--bg-3);cursor:pointer}
+.scrub-btn:hover{border-color:var(--accent);color:var(--accent)}
+.scrub-btn[disabled]{opacity:.4;cursor:not-allowed;border-color:var(--border)}
+.scrub-pos{font-family:var(--font-mono);font-size:.76rem;color:var(--text-lo);min-width:6.5rem}
+.scrub-sel{font-family:var(--font-mono);font-size:.74rem;background:var(--bg-3);color:var(--text-hi);
+  border:1px solid var(--border-hi);border-radius:var(--r-sm);padding:.3rem .4rem;max-width:14rem}
+.scrub input[type=range]{width:100%;accent-color:var(--accent)}
+.scrub-track{display:flex;gap:2px;margin-top:.45rem}
+.scrub-tick{flex:1;height:4px;border-radius:2px;background:var(--border-hi)}
+.scrub-tick.on{background:var(--accent)}
+.scrub-tick.diff{background:var(--red)}
+.scrub-frame{margin-top:.7rem;border-top:1px solid var(--border);padding-top:.7rem;
+  font-family:var(--font-mono);font-size:.76rem;color:var(--text-mid);line-height:1.7}
+.scrub-frame .h{color:var(--text-hi);font-size:.85rem;margin-bottom:.3rem}
+.scrub-frame .d{color:var(--red)}
+.tl-item.cursor .tl-card{border-color:var(--accent)}
+.tl-item.diff .tl-dot{border-color:var(--red)}
+@media(max-width:640px){.scrub-pos{min-width:0}}
 
 /* ---- chips ---- */
 .chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.9rem}
@@ -493,7 +517,7 @@ async function renderSession(id,sid){
     const kind=kindOf(e.action_type);
     const cost = e.cost && e.cost.priced ? `<span class="tl-cost">${fmtCost(e.cost.cost_usd)}</span>` : '';
     const tk = e.cost ? `${fmtTokens(e.cost.tokens_in)} in / ${fmtTokens(e.cost.tokens_out)} out` : '';
-    return `<div class="tl-item" data-kind="${kind}"><span class="tl-dot"></span>
+    return `<div class="tl-item" data-kind="${kind}" data-i="${ev.indexOf(e)}"><span class="tl-dot"></span>
       <div class="tl-card"><button class="tl-head" onclick="this.parentElement.classList.toggle('open')">
         <span class="tl-seq">#${e.seq}</span><span class="tl-type">${esc(e.label)}</span>
         <span class="tl-sum">${esc(e.summary||'')}</span>${cost}<span class="tl-time">${clock(e.ts_utc)}</span>
@@ -527,9 +551,88 @@ async function renderSession(id,sid){
       <div class="tile"><div class="k">Tokens</div><div class="v">${fmtTokens((s.tokens_in||0)+(s.tokens_out||0))}</div><div class="x">${fmtTokens(s.tokens_in)} in / ${fmtTokens(s.tokens_out)} out</div></div>
       <div class="tile accent"><div class="k">Est. cost</div><div class="v">${fmtCost(s.cost_usd)}</div>${s.unpriced_calls?`<div class="x">${s.unpriced_calls} unpriced</div>`:''}</div>
     </div>
+    ${ev.length?scrubberHTML(ev,d.sessions||[],sid):''}
     <div class="panel fade" style="background:transparent;border:none">
       <div class="timeline">${items||'<div class="empty-state"><div class="t">No events</div></div>'}</div>
     </div>`;
+  if(ev.length) initScrubber(id,sid,ev);
+}
+
+/* ---------- replay scrubber ----------
+   Step through a run frame by frame, and compare it against another run of the same agent.
+   The comparison is the point: a run that broke is only meaningful next to one that worked,
+   and the first step where the two diverge is where the debugging actually starts. The
+   alignment here is a display aid computed in the browser; `pr diff` remains the version that
+   runs over verified bundles and can be trusted as evidence. */
+function stepSig(e){
+  const t=(e.summary||'').split(' ->')[0].split(':')[0];
+  return (e.action_type||'')+'|'+t.trim();
+}
+function scrubberHTML(ev,sessions,sid){
+  const others=(sessions||[]).filter(s=>s.session_id!==sid);
+  const opts=others.map(s=>`<option value="${esc(s.session_id)}">${esc(shortId(s.session_id))} · ${esc((s.started_at||'').slice(0,16).replace('T',' '))}</option>`).join('');
+  return `<div class="scrub fade">
+    <div class="scrub-top">
+      <button class="scrub-btn" id="sc-prev" aria-label="previous step">&#9664;</button>
+      <button class="scrub-btn" id="sc-next" aria-label="next step">&#9654;</button>
+      <span class="scrub-pos" id="sc-pos">step 1 / ${ev.length}</span>
+      ${others.length?`<select class="scrub-sel" id="sc-cmp" aria-label="compare with another session">
+        <option value="">compare with...</option>${opts}</select>
+      <button class="scrub-btn" id="sc-jump" disabled>first deviation</button>`:''}
+    </div>
+    <input type="range" id="sc-range" min="0" max="${ev.length-1}" value="0" aria-label="replay position">
+    <div class="scrub-track" id="sc-track"></div>
+    <div class="scrub-frame" id="sc-frame"></div>
+  </div>`;
+}
+function initScrubber(streamId,sid,ev){
+  let i=0, diffs=new Set(), firstDiff=-1;
+  const pos=$('#sc-pos'), range=$('#sc-range'), track=$('#sc-track'), frame=$('#sc-frame');
+  function paint(){
+    pos.textContent=`step ${i+1} / ${ev.length}`;
+    range.value=String(i);
+    track.innerHTML=ev.map((_,n)=>`<span class="scrub-tick${n<=i?' on':''}${diffs.has(n)?' diff':''}"></span>`).join('');
+    const e=ev[i];
+    const cost = e.cost && e.cost.priced ? ` · ${fmtCost(e.cost.cost_usd)}` : '';
+    frame.innerHTML=`<div class="h">#${e.seq} ${esc(e.label)}${diffs.has(i)?' <span class="d">(differs)</span>':''}</div>
+      <div>${esc(e.summary||'')}${cost}</div>
+      <div>${esc(e.ts_utc||'')}</div>
+      <div>${esc((e.record_hash||'').slice(0,32))}...</div>`;
+    document.querySelectorAll('.tl-item').forEach(el=>{
+      const n=Number(el.dataset.i);
+      el.classList.toggle('cursor',n===i);
+      el.classList.toggle('diff',diffs.has(n));
+    });
+    const cur=document.querySelector('.tl-item.cursor');
+    if(cur) cur.scrollIntoView({block:'nearest'});
+  }
+  function go(n){ i=Math.max(0,Math.min(ev.length-1,n)); paint(); }
+  $('#sc-prev').onclick=()=>go(i-1);
+  $('#sc-next').onclick=()=>go(i+1);
+  range.oninput=()=>go(Number(range.value));
+  document.onkeydown=(e)=>{
+    if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+    if(e.key==='ArrowLeft'){ go(i-1); } else if(e.key==='ArrowRight'){ go(i+1); }
+  };
+  const cmp=$('#sc-cmp');
+  if(cmp) cmp.onchange=async()=>{
+    diffs=new Set(); firstDiff=-1; $('#sc-jump').disabled=true;
+    if(!cmp.value){ paint(); return; }
+    try{
+      const other=await api('/v1/streams/'+encodeURIComponent(streamId)+'/sessions/'+encodeURIComponent(cmp.value));
+      const a=ev.map(stepSig), b=(other.events||[]).map(stepSig);
+      for(let n=0;n<a.length;n++){
+        if(a[n]!==b[n]){ diffs.add(n); if(firstDiff<0) firstDiff=n; }
+      }
+      if(b.length<a.length) for(let n=b.length;n<a.length;n++) diffs.add(n);
+      $('#sc-jump').disabled=firstDiff<0;
+      toast(firstDiff<0?'These two runs took the same path':`First deviation at step ${firstDiff+1}`);
+      if(firstDiff>=0) go(firstDiff); else paint();
+    }catch(err){ toast('Could not load the comparison run'); }
+  };
+  const jump=$('#sc-jump');
+  if(jump) jump.onclick=()=>{ if(firstDiff>=0) go(firstDiff); };
+  paint();
 }
 
 /* ---------- alerts ---------- */

@@ -37,8 +37,9 @@ from . import analytics
 POLICY_DENIED = "policy.denied"
 BUDGET_WARNING = "budget.warning"
 BUDGET_EXCEEDED = "budget.exceeded"
+APPROVAL_REQUESTED = "approval.requested"
 EVENTS = ("integrity.tampered", "integrity.recovered", "integrity.first_anchor", POLICY_DENIED,
-          BUDGET_WARNING, BUDGET_EXCEEDED)
+          BUDGET_WARNING, BUDGET_EXCEEDED, APPROVAL_REQUESTED)
 
 # The record action_type the SDK writes for every policy evaluation.
 _POLICY_DECISION = "policy.decision"
@@ -72,8 +73,8 @@ class AlertEngine:
                 continue
         return sent
 
-    def _emit_payload(self, account_id: str | None, event_type: str, stream_id: str,
-                      body: dict[str, Any]) -> int:
+    def emit_payload(self, account_id: str | None, event_type: str, stream_id: str,
+                     body: dict[str, Any]) -> int:
         """Deliver one already-built event body to every subscribed webhook."""
         hooks = [h for h in self.store.webhooks_for_delivery(account_id)
                  if event_type in h["events"].split(",") or h["events"] == "*"]
@@ -164,10 +165,10 @@ class AlertEngine:
         denials = self.denials_in(records)
         fired = 0
         for d in denials:
-            fired += self._emit_payload(account_id, POLICY_DENIED, stream_id, {"denial": d})
+            fired += self.emit_payload(account_id, POLICY_DENIED, stream_id, {"denial": d})
         budget_events = self.budget_events_in(records)
         for b in budget_events:
-            fired += self._emit_payload(account_id, b["type"], stream_id, {"budget": b})
+            fired += self.emit_payload(account_id, b["type"], stream_id, {"budget": b})
         return {"denials": len(denials), "budget_events": len(budget_events), "fired": fired}
 
     def check_stream(self, stream_id: str, bundle: dict[str, Any],

@@ -85,12 +85,21 @@ class FlightRecorder:
         max_retries: int = 3,
         policy: Any | None = None,
         enforce: bool = True,
+        approval_timeout: float = 0.0,
+        approval_poll: float = 2.0,
     ):
         self.key = key or SigningKey.generate()
         # Optional active-policy enforcement at the dispatch boundary. The decision is recorded
         # into the chain so the record is evidence of enforcement, not just observation.
         self.policy = policy
         self.enforce = enforce
+        # Out-of-band oversight. Zero (the default) keeps today's behaviour exactly: a
+        # `require_oversight` rule with no recorded oversight denies immediately. A positive
+        # timeout turns that denial into a question asked of a human, and blocks the agent for
+        # up to this many seconds waiting for the answer. It is opt-in because pausing an agent
+        # on a human is a decision the operator must make deliberately, not inherit.
+        self.approval_timeout = float(approval_timeout or 0.0)
+        self.approval_poll = max(0.05, float(approval_poll))
         self._session_state = None  # policy.SessionState, reset per session
         self.chain = Chain(stream_id=stream_id, key=self.key)
         self.stream_id = stream_id
@@ -289,6 +298,73 @@ class FlightRecorder:
         self._session_state.prior_total_usd = total
         self._session_state.prior_known = known
 
+    def _is_oversight_rule(self, rule_id: str | None) -> bool:
+        """True when the denial came from a rule that wanted a human, not from a hard deny.
+
+        Only `require_oversight` is answerable by a person. A `deny` rule and a blown budget
+        are decisions the operator already made, and offering to click past them would turn
+        every guardrail into a prompt.
+        """
+        from .policy import REQUIRE_OVERSIGHT
+        if not rule_id:
+            return False
+        return any(r.id == rule_id and r.effect == REQUIRE_OVERSIGHT
+                   for r in getattr(self.policy, "rules", []))
+
+    def _await_human(self, event_type: str, ctx: dict[str, Any], decision: Any) -> bool:
+        """Open an approval request and block until a human answers, or the deadline passes.
+
+        Returns True only on an explicit approval. Every other outcome, including a sink that
+        is unreachable, a request that expires, and an interrupted wait, returns False and the
+        original denial stands: the flow fails closed, always.
+        """
+        import time
+
+        from .chain import POLICY_DECISION
+        target = ctx.get("tool") or ctx.get("resource") or ctx.get("model") or ""
+        try:
+            req = self.client.request_approval({
+                "stream_id": self.stream_id,
+                "session_id": self.chain.session_id,
+                "rule": decision.rule_id,
+                "event_type": event_type,
+                "target": target,
+                "reason": decision.reason,
+                "ttl_seconds": int(self.approval_timeout),
+            })
+        except Exception:
+            return False   # cannot ask anyone: the deny stands
+        # Recorded before the wait, so the pause itself is evidence: an auditor can see the
+        # agent stopped and asked, even if nobody ever answered.
+        self.record(POLICY_DECISION, {
+            "effect": "await_oversight", "rule": decision.rule_id,
+            "reason": f"waiting up to {int(self.approval_timeout)}s for a human decision",
+            "event_type": event_type, "target": target, "enforced": self.enforce,
+            "approval_request_id": req.get("request_id"),
+        })
+        deadline = time.monotonic() + self.approval_timeout
+        status = "expired"
+        decided_by = ""
+        while time.monotonic() < deadline:
+            time.sleep(min(self.approval_poll, max(0.0, deadline - time.monotonic())))
+            try:
+                current = self.client.get_approval(req["request_id"])
+            except Exception:
+                continue   # a transient sink failure must not read as a decision
+            status = current.get("status", "pending")
+            if status in ("approved", "denied", "expired"):
+                decided_by = current.get("decided_by") or ""
+                break
+        if status != "approved":
+            return False
+        # The agent writes the outcome into its own chain and signs it. The sink stores the
+        # answer but never holds the signing key, so it cannot manufacture an approval that
+        # verifies.
+        self.record_human_oversight(
+            "approved", approver=decided_by or "out-of-band link", rule=decision.rule_id,
+            target=target, approval_request_id=req.get("request_id"), channel="out_of_band")
+        return True
+
     def _enforce(self, event_type: str, ctx: dict[str, Any]) -> None:
         """Evaluate the active policy at a dispatch point. Records the decision into the chain
         (so it is signed evidence of enforcement) and, when a denial is enforced, raises
@@ -300,6 +376,15 @@ class FlightRecorder:
         if self._session_state is None:
             self._session_state = SessionState()
         decision = self.policy.decide(event_type, ctx, self._session_state)
+        if (decision.effect != ALLOW and self.approval_timeout > 0
+                and self._is_oversight_rule(decision.rule_id)):
+            # The rule wanted a human, and this process has none at the keyboard. Ask one
+            # out of band rather than failing the work outright. A granted approval is
+            # recorded as human_oversight first, so re-deciding now finds the oversight
+            # present and the SAME policy allows the call: the approval flows through the
+            # policy engine, it does not bypass it.
+            if self._await_human(event_type, ctx, decision):
+                decision = self.policy.decide(event_type, ctx, self._session_state)
         # Record an explicit decision only when a rule fired (deny, an oversight-gated allow, or
         # a budget warning); a default no-rule allow is left silent to avoid doubling every event.
         if decision.rule_id is not None or decision.effect != ALLOW or decision.warning:

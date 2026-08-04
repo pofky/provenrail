@@ -441,7 +441,14 @@ c. For each EXECUTED enforceable record (`model_call`, `tool_call`, `mcp_call`, 
 d. With zero such violations, report `policy_verified` (info), noting the count of content-gate
    rules and cross-session budgets that were enforced live but cannot be re-checked offline.
 
-### 13.4 Boundary
+### 13.4 Independent implementations
+
+Both the reference Python verifier and the in-browser JavaScript verifier (`web/verify.js`)
+implement this step, including the cost estimate a session budget replays against. Their price
+tables and cost arithmetic are parity-tested (`tests/test_js_verifier.py`), because a verifier
+that priced a call differently would accuse a clean run of failing to enforce its own budget.
+
+### 13.5 Boundary
 
 This proves the recorded run is consistent with the committed, re-verifiable guardrails. It does
 NOT prove completeness (a bypassed dispatch is not constrained), and content-gate rules are
