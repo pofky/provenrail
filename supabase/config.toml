@@ -1,0 +1,13 @@
+project_id = "jzgamrptvsdxnwtuascx"
+
+# Polar calls this endpoint with a Standard Webhooks signature and NO Supabase JWT. Leaving the
+# gateway's JWT check on makes every billing event bounce with 401 before the function runs, so
+# subscriptions silently stop provisioning. The function is not unauthenticated as a result: it
+# verifies the Standard Webhooks signature itself with POLAR_WEBHOOK_SECRET and returns 403 on
+# anything unsigned or badly signed.
+#
+# This is declared here rather than passed as `--deploy --no-verify-jwt` because the flag has to
+# be remembered on every single deploy, and forgetting it once takes billing down without any
+# visible error. It has already happened (2026-08-04).
+[functions.polar-webhook]
+verify_jwt = false
