@@ -2,12 +2,6 @@ MIT License
 
 Copyright (c) 2026 Provenrail
 
-This MIT license covers the Provenrail CLIENT, VERIFIER, and SPECIFICATION so that
-anyone can adopt, embed, and independently verify Provenrail records with no
-restrictions. See LICENSING.md for the exact path mapping. The server/sink under
-src/provenrail/server/ is licensed separately under the GNU AGPL v3 (LICENSE-AGPL),
-with a commercial license available; that split is intentional.
-
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -25,3 +19,10 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+Scope note (not part of the MIT license text above): this MIT license covers the
+Provenrail client, SDK, verifier and specification. The server/sink under
+src/provenrail/server/ is licensed separately under the GNU AGPL v3 (LICENSE-AGPL),
+with a commercial license available. See LICENSING.md for the exact path mapping.
