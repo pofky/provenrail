@@ -1,14 +1,14 @@
 {
   "name": "provenrail",
-  "version": "0.1.1",
-  "description": "The verifiable audit trail for AI agents, for TypeScript and Node. Capture every model and tool call your agent makes, hash-chain and sign it off-box, and verify it with the same open-source verifiers as the Python SDK.",
+  "version": "0.1.2",
+  "description": "Verifiable audit trail for AI agents, for TypeScript and Node. Capture every model and tool call your agent makes, hash-chain and sign it off-box, and verify it with the same open-source verifiers as the Python SDK.",
   "type": "module",
   "main": "src/index.js",
   "types": "src/index.d.ts",
   "exports": {
     ".": "./src/index.js"
   },
-  "files": ["src"],
+  "files": ["src", "README.md"],
   "engines": {
     "node": ">=20"
   },
@@ -16,13 +16,19 @@
     "test": "node --test"
   },
   "keywords": [
-    "ai", "agents", "audit-trail", "observability", "tamper-evident",
-    "ed25519", "verifiable", "compliance", "llm", "provenance"
+    "ai", "ai-agents", "agents", "audit-trail", "audit-log", "observability",
+    "tamper-evident", "hash-chain", "ed25519", "verifiable", "provenance",
+    "guardrails", "agent-security", "claude-code", "compliance", "eu-ai-act",
+    "llm", "openai", "anthropic", "mcp"
   ],
   "license": "MIT",
   "homepage": "https://provenrail.com",
+  "bugs": {
+    "url": "https://github.com/pofky/provenrail/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/provenrail/provenrail"
+    "url": "git+https://github.com/pofky/provenrail.git",
+    "directory": "sdk-js"
   }
 }

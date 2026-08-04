@@ -10,6 +10,11 @@ Observability you can take to court, now in your TypeScript stack. Drop-in captu
 and Anthropic JS clients; record any other provider or framework (the Vercel AI SDK, Mastra,
 LangChain.js, or a custom loop) with one line.
 
+> Want the guardrails rather than the SDK? If you use Claude Code, `/plugin marketplace add
+> pofky/provenrail` then `/plugin install provenrail-guard@provenrail` blocks `rm -rf`,
+> `terraform destroy`, `git push --force`, `DROP TABLE` and leaked keys before they run, and signs
+> each decision into the same chain. See <https://provenrail.com/claude-code-guardrails>.
+
 ## Install
 
 ```
