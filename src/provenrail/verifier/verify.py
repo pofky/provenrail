@@ -214,7 +214,7 @@ def _verify_bundle(bundle: dict[str, Any], pin: dict[str, Any] | None = None,
         rep.add("fail", "bad_format", f"unexpected bundle format {bundle.get('format')!r}")
         return rep
 
-    server_records = bundle.get("records", [])
+    server_records = bundle.get("records") or []
     if not server_records:
         rep.add("fail", "empty", "bundle has no records")
         return rep
@@ -280,7 +280,11 @@ def _verify_bundle(bundle: dict[str, Any], pin: dict[str, Any] | None = None,
             rep.add("fail", "duplicate_seq", f"{label}duplicate client seq values (replay)")
 
     # --- 4. anchors ---
-    anchors = bundle.get("anchors", [])
+    # `or []` rather than a dict default: a bundle carrying an explicit "anchors": null passes
+    # the key check, so the default never fires and the list comprehension below raises. The
+    # browser verifier coerces null to empty and carries on, so the two disagreed on the
+    # verdict for the same file, one calling it tampered and the other not.
+    anchors = bundle.get("anchors") or []
     if not anchors:
         rep.add("warn", "no_anchor",
                 "no external anchor present; records are not bound to a trusted external time")
@@ -384,7 +388,7 @@ def _verify_scitt(bundle: dict[str, Any], rep: Report, log_key: str | None) -> N
     receipt with no known TS key is surfaced as info (re-run with --tlog-pubkey to check it)."""
     from .. import scitt, tlog
     stream_id = bundle.get("stream_id", "")
-    anchors = bundle.get("anchors", [])
+    anchors = bundle.get("anchors") or []
     receipts = [a for a in anchors if a.get("scitt_receipt")]
     if not receipts:
         return
@@ -670,7 +674,7 @@ def _verify_tlog(bundle: dict[str, Any], rep: Report, log_key: str | None,
     from .. import tlog
 
     has_schema = bundle.get("tlog_schema_version") is not None
-    anchors = bundle.get("anchors", [])
+    anchors = bundle.get("anchors") or []
     stream_id = bundle.get("stream_id")
     now = now_utc or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     max_age_s = max_cosig_age_days * 86400.0
@@ -802,7 +806,7 @@ def _verify_tlog(bundle: dict[str, Any], rep: Report, log_key: str | None,
                     f"(append-only proofs present, no independent cosignature)")
 
     # --- step 8: consistency between checkpoints present in the bundle ---
-    for cp in bundle.get("tlog_consistency_proofs", []):
+    for cp in bundle.get("tlog_consistency_proofs") or []:
         old_size, new_size = cp.get("old_size"), cp.get("new_size")
         old_root, new_root = seen_roots.get(old_size), seen_roots.get(new_size)
         if old_root is None or new_root is None:

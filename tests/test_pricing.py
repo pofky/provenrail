@@ -230,10 +230,15 @@ def test_a_published_future_price_change_is_flagged_before_it_bites():
     """Sonnet 5 is on introductory pricing that the provider has already announced ends on
     31 August 2026. The table is freshly verified and still about to be wrong, which ordinary
     staleness cannot express."""
-    c = cost_for("claude-sonnet-5", {"input_tokens": 1_000_000, "output_tokens": 1_000_000})
-    assert c["cost_usd"] == pytest.approx(12.00)   # $2 in + $10 out, introductory
-    assert c["price_until"] == "2026-08-31"
-    assert c["price_expired"] is False             # today is 2026-08-04
+    usage = {"input_tokens": 1_000_000, "output_tokens": 1_000_000}
+    before = cost_for("claude-sonnet-5", usage, today="2026-08-04")
+    assert before["cost_usd"] == pytest.approx(12.00)   # $2 in + $10 out, introductory
+    assert before["price_until"] == "2026-08-31"
+    assert before["price_expired"] is False
+    # The date is passed in rather than read from the clock, so the expired branch is actually
+    # exercised. Asserting "not expired yet" against the real clock tests nothing today and
+    # fails the build on 1 September, which is the one day the flag starts mattering.
+    assert cost_for("claude-sonnet-5", usage, today="2026-09-01")["price_expired"] is True
     assert cost_for("claude-sonnet-4-5", {"input_tokens": 1})["price_until"] is None
 
 

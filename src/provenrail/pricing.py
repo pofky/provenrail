@@ -374,7 +374,7 @@ def is_known_unpriced(model: str) -> bool:
 
 
 def cost_for(model: str, usage: dict[str, Any] | None,
-             table: dict[str, Any] | None = None) -> dict[str, Any]:
+             table: dict[str, Any] | None = None, today: str | None = None) -> dict[str, Any]:
     """Estimate the cost of one model call.
 
     Returns token counts (including the cached and reasoning breakdown), USD, and the basis
@@ -447,7 +447,7 @@ def cost_for(model: str, usage: dict[str, Any] | None,
         "tier_applied": tiered,
         # A published price change the table already knows about. The rate is freshly verified
         # and still about to be wrong, which ordinary staleness cannot express.
-        "price_expired": bool(price.until and _today_iso() > price.until),
+        "price_expired": bool(price.until and (today or _today_iso()) > price.until),
         "price_until": price.until or None,
         # Retained for callers and for parity with the browser verifier. Both providers whose
         # convention was in doubt are now settled from their own documentation, so this is

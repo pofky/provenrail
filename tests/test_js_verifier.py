@@ -726,3 +726,57 @@ def test_coherence_signals_appear_in_both_verifiers(tmp_path):
     result = subprocess.run(["node", str(CONFORMANCE), str(mpath)],
                             capture_output=True, text=True)
     assert result.returncode == 0, f"JS missed the coherence signals:\n{result.stdout}"
+
+
+def test_a_null_anchors_field_is_not_tampering_in_either_verifier(tmp_path):
+    """`"anchors": null` passes a dict-default key check, so the Python default never fired and
+    iterating it raised, which the outer guard reported as a malformed bundle and the headline
+    called TAMPERED. The browser coerced null to empty and carried on. Same file, opposite
+    verdicts, which is the one outcome two implementations exist to prevent."""
+    from provenrail.verifier.verify import verify_bundle
+
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=False)
+    c = TestClient(app)
+    prov = provision_stream("http://t", http=c)
+    fr = FlightRecorder("http://t", prov["write_token"], prov["stream_id"], http=c)
+    with fr.session({"agent": "demo"}):
+        fr.record_decision("ship")
+    bundle = c.get(f"/v1/streams/{prov['stream_id']}/bundle").json()
+    bundle["anchors"] = None
+
+    rep = verify_bundle(bundle)
+    assert rep.result != "tampered"
+    assert "malformed_bundle" not in {f.code for f in rep.findings}
+
+    path = tmp_path / "null_anchors.json"
+    path.write_text(json.dumps(bundle), encoding="utf-8")
+    mpath = tmp_path / "null_anchors_manifest.json"
+    mpath.write_text(json.dumps([{"name": "null_anchors", "bundle": "null_anchors.json",
+                                  "expect_ok": rep.ok, "expect_result": rep.result}]),
+                     encoding="utf-8")
+    result = subprocess.run(["node", str(CONFORMANCE), str(mpath)],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, f"JS disagreed on null anchors:\n{result.stdout}"
+
+
+def test_both_verifiers_emit_the_same_finding_codes_on_a_clean_bundle(tmp_path):
+    """Not just the same verdict: the same set of codes. The browser omitted the closing
+    `summary` finding the CLI always emits, so any tool comparing the two implementations'
+    output saw them differ on every single bundle, for a reason that had nothing to do with
+    the record."""
+    from provenrail.verifier.verify import verify_bundle
+
+    bundle, _pin = _clean_bundle_and_pin(tmp_path)
+    rep = verify_bundle(bundle)
+    py_codes = sorted({f.code for f in rep.findings})
+
+    path = tmp_path / "codes.json"
+    path.write_text(json.dumps(bundle), encoding="utf-8")
+    mpath = tmp_path / "codes_manifest.json"
+    mpath.write_text(json.dumps([{"name": "code_parity", "bundle": "codes.json",
+                                  "expect_ok": rep.ok, "codes": py_codes}]), encoding="utf-8")
+    result = subprocess.run(["node", str(CONFORMANCE), str(mpath)],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, (
+        f"JS is missing finding codes the CLI emits. Python emitted {py_codes}\n"
+        f"{result.stdout}")

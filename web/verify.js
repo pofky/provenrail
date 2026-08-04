@@ -16,6 +16,7 @@ const SEAL = "lifecycle.session_end";
 const GENESIS = "lifecycle.session_start";
 const HUMAN_OVERSIGHT = "human_oversight";
 const MODEL_CALL = "model_call";
+const HEARTBEAT = "lifecycle.heartbeat";
 const JS_SAFE_INT_MAX = Number.MAX_SAFE_INTEGER; // 2^53 - 1
 
 // WebCrypto is a global in modern browsers and in Node 20+.
@@ -1118,6 +1119,12 @@ export async function verifyBundle(bundle, pin = null, opts = {}) {
 
   // 11. coherence signals (heuristics, never a verdict)
   detectCoherence(client, rep);
+
+  // The same closing summary the CLI emits. Missing here, so any tool that compared the two
+  // implementations' finding sets saw them differ on every bundle for a purely cosmetic reason.
+  const nHeartbeats = client.filter(r => r.action_type === HEARTBEAT).length;
+  rep.add("info", "summary",
+    `${(bundle.records || []).length} records, ${(bundle.anchors || []).length} anchors, ${nHeartbeats} heartbeats. Completeness is never attested by this tool.`);
 
   // 12. selective-disclosure redaction: validate any supplied openings against commitments
   await verifyRedactions(client, rep, opts.openings || null);
