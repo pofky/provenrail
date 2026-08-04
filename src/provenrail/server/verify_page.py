@@ -178,7 +178,7 @@ function redactionPanel(rep){
   const withheld = m ? parseInt(m[1],10) : 0;
   let hint='';
   if(bad){ hint='<div class="rhint"><b>A supplied opening did not match its commitment.</b> The disclosed value is not what was recorded; this is reported as tampering above.</div>'; }
-  else if(withheld>0 && !openings){ hint='<div class="rhint"><b>Privacy-protected fields are present.</b> Drop the operator's <code style="font-family:var(--font-mono)">openings.json</code> to disclose and verify them. Without it they stay redacted, and the record still verifies.</div>'; }
+  else if(withheld>0 && !openings){ hint='<div class="rhint"><b>Privacy-protected fields are present.</b> Drop the operator&#39;s <code style="font-family:var(--font-mono)">openings.json</code> to disclose and verify them. Without it they stay redacted, and the record still verifies.</div>'; }
   else if(withheld>0){ hint='<div class="rhint">Some fields remain withheld or erased; that is the right-to-erasure path and the record still verifies.</div>'; }
   return `<div class="redact"><div class="rt">${SHIELD}Selective disclosure</div><div class="rd">${esc(detail)}.</div>${hint}</div>`;
 }
