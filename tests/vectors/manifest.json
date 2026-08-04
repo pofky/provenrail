@@ -1,0 +1,123 @@
+{
+  "clean": {
+    "file": "clean.json",
+    "expect_ok": true,
+    "defining_code": null,
+    "description": "an untampered, anchored run; verifies clean"
+  },
+  "tamper_payload": {
+    "file": "tamper_payload.json",
+    "expect_ok": false,
+    "defining_code": "client_hash_mismatch",
+    "description": "a record payload edited after signing; the record hash no longer matches"
+  },
+  "delete_record": {
+    "file": "delete_record.json",
+    "expect_ok": false,
+    "defining_code": "server_chain_break",
+    "description": "a record removed mid-stream; the server receipt chain breaks"
+  },
+  "reorder": {
+    "file": "reorder.json",
+    "expect_ok": false,
+    "defining_code": "arrival_reorder",
+    "description": "two records swapped; arrival order no longer matches emission order"
+  },
+  "bad_signature": {
+    "file": "bad_signature.json",
+    "expect_ok": false,
+    "defining_code": "client_bad_signature",
+    "description": "a record signature corrupted; the device-key signature fails"
+  },
+  "strip_anchor": {
+    "file": "strip_anchor.json",
+    "expect_ok": true,
+    "defining_code": "no_anchor",
+    "description": "valid records with no external anchor; weaker, not tampered"
+  },
+  "multi_session": {
+    "file": "multi_session.json",
+    "expect_ok": true,
+    "defining_code": null,
+    "description": "three sealed sessions on one reused stream, one device key; verifies clean"
+  },
+  "tlog_witnessed": {
+    "file": "rich_witnessed.json",
+    "expect_ok": true,
+    "defining_code": "tlog_inclusion_witnessed_ok",
+    "description": "tlog inclusion proof cosigned by an independent witness; verifies green",
+    "verify": {
+      "tlog_log_key": "bc736154f5cd4b9e7f1c6a6202b8807e229a8744c8afe9c19ed91948020547f4",
+      "witness_pubkeys": {
+        "witness-A": "c442e9946d5d693e07973014c3328a2ae1db0aae813c72f809901d5776d57593"
+      },
+      "now_utc": "2030-03-17T18:20:00.000000Z"
+    }
+  },
+  "scitt_valid": {
+    "file": "scitt_valid.json",
+    "expect_ok": true,
+    "defining_code": "scitt_receipt_ok",
+    "description": "a SCITT COSE receipt that verifies against the transparency-service key",
+    "verify": {
+      "tlog_log_key": "bc736154f5cd4b9e7f1c6a6202b8807e229a8744c8afe9c19ed91948020547f4",
+      "witness_pubkeys": {
+        "witness-A": "c442e9946d5d693e07973014c3328a2ae1db0aae813c72f809901d5776d57593"
+      },
+      "now_utc": "2030-03-17T18:20:00.000000Z"
+    }
+  },
+  "scitt_forged": {
+    "file": "scitt_forged.json",
+    "expect_ok": false,
+    "defining_code": "scitt_receipt_invalid",
+    "description": "a SCITT receipt whose COSE signature was altered; hard fail",
+    "verify": {
+      "tlog_log_key": "bc736154f5cd4b9e7f1c6a6202b8807e229a8744c8afe9c19ed91948020547f4",
+      "witness_pubkeys": {
+        "witness-A": "c442e9946d5d693e07973014c3328a2ae1db0aae813c72f809901d5776d57593"
+      },
+      "now_utc": "2030-03-17T18:20:00.000000Z"
+    }
+  },
+  "redacted_disclosed": {
+    "file": "redacted.json",
+    "expect_ok": true,
+    "defining_code": "redaction_summary",
+    "description": "a redactable field disclosed with valid openings; commitments recompute",
+    "verify": {
+      "tlog_log_key": "bc736154f5cd4b9e7f1c6a6202b8807e229a8744c8afe9c19ed91948020547f4",
+      "witness_pubkeys": {
+        "witness-A": "c442e9946d5d693e07973014c3328a2ae1db0aae813c72f809901d5776d57593"
+      },
+      "now_utc": "2030-03-17T18:20:00.000000Z",
+      "openings": {
+        "6fccdb59c86f944222ea0e491842b1744d8873884b6390ecff9cd5bc3adaa894": {
+          "alg": "sha256",
+          "salt": "faf89c974d21fc4b6be0f9a8c8d523a905059734a789618883eb44585d7c803d",
+          "value": "SSN 078-05-1120"
+        }
+      }
+    }
+  },
+  "redacted_forged": {
+    "file": "redacted.json",
+    "expect_ok": false,
+    "defining_code": "redaction_disclosure_invalid",
+    "description": "a redactable field with a forged opening; the commitment does not match",
+    "verify": {
+      "tlog_log_key": "bc736154f5cd4b9e7f1c6a6202b8807e229a8744c8afe9c19ed91948020547f4",
+      "witness_pubkeys": {
+        "witness-A": "c442e9946d5d693e07973014c3328a2ae1db0aae813c72f809901d5776d57593"
+      },
+      "now_utc": "2030-03-17T18:20:00.000000Z",
+      "openings": {
+        "6fccdb59c86f944222ea0e491842b1744d8873884b6390ecff9cd5bc3adaa894": {
+          "alg": "sha256",
+          "salt": "faf89c974d21fc4b6be0f9a8c8d523a905059734a789618883eb44585d7c803d",
+          "value": "WRONG"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "provenrail",
+  "version": "0.1.1",
+  "description": "The verifiable audit trail for AI agents, for TypeScript and Node. Capture every model and tool call your agent makes, hash-chain and sign it off-box, and verify it with the same open-source verifiers as the Python SDK.",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": ["src"],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "ai", "agents", "audit-trail", "observability", "tamper-evident",
+    "ed25519", "verifiable", "compliance", "llm", "provenance"
+  ],
+  "license": "MIT",
+  "homepage": "https://provenrail.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/provenrail/provenrail"
+  }
+}

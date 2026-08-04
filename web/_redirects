@@ -1,0 +1,4 @@
+# Cloudflare Pages serves clean URLs automatically (/docs -> docs.html, and 308s
+# /docs.html -> /docs). Do NOT add `/docs /docs.html 200` style rewrites here: they
+# collide with that built-in behavior and cause a redirect loop. Add only real
+# redirects below (e.g. moved pages).

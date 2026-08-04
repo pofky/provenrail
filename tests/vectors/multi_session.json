@@ -1,0 +1,261 @@
+{
+  "format": "flightrecorder.bundle/1",
+  "stream_id": "e10c1f09-77f1-4a3b-8f49-f4812d50994e",
+  "server_head": {
+    "recv_seq": 8,
+    "server_record_hash": "ad4688bbbed1340ce604167afec39f34ac3e6b1a1724adb921c72b12aa07408b"
+  },
+  "records": [
+    {
+      "recv_seq": 0,
+      "recv_ts": "2026-07-30T10:24:59.701285Z",
+      "recv_hash": "39ed484fb662c23bb69ca8ff1871bf9c87a324d2424de53b24028a98f9b38bd3",
+      "server_prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "server_record_hash": "dac2e41ad5b255ca23ed2b21005cfe3aceda6808cafc7b82040df09d02d1d01a",
+      "record": {
+        "v": "1",
+        "stream_id": "e10c1f09-77f1-4a3b-8f49-f4812d50994e",
+        "session_id": "62219314-c91f-4d69-b046-95ba69867caf",
+        "record_id": "0fc89f48-7f31-4d14-997d-781ea0beb105",
+        "seq": 0,
+        "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "ts_utc": "2026-07-30T10:24:59.699088Z",
+        "pubkey": "d1c04557593a8bba479477b8df933f06ca5fd74ed62440e3f146244f23cb7d57",
+        "action_type": "lifecycle.session_start",
+        "payload": {
+          "meta": {
+            "agent": "conformance",
+            "task": "multi-session vector"
+          }
+        },
+        "record_hash": "97434df04305c58da4f5f4fa45a759ae563af82e22797a21ea6772f98d87e573",
+        "record_sig": "e4d2ba66e6b7556d10e7e1374ac332bfa558bc033a98b574d456348624d50f41076ef6c5edd4ee603d640371d358c6e8edc27fcd3cf39f811908413455379f00"
+      }
+    },
+    {
+      "recv_seq": 1,
+      "recv_ts": "2026-07-30T10:24:59.703944Z",
+      "recv_hash": "bea648f3e21ddf4e55dc7271d90e28d1c666168329100327643d2d73506bc5cc",
+      "server_prev_hash": "dac2e41ad5b255ca23ed2b21005cfe3aceda6808cafc7b82040df09d02d1d01a",
+      "server_record_hash": "69f9f367507420d8db59f93ab84ed827967214ec90205bdb790735e285b83803",
+      "record": {
+        "v": "1",
+        "stream_id": "e10c1f09-77f1-4a3b-8f49-f4812d50994e",
+        "session_id": "62219314-c91f-4d69-b046-95ba69867caf",
+        "record_id": "15e14fb3-30f9-42f3-8b72-ce859101ce96",
+        "seq": 1,
+        "prev_hash": "97434df04305c58da4f5f4fa45a759ae563af82e22797a21ea6772f98d87e573",
+        "ts_utc": "2026-07-30T10:24:59.702057Z",
+        "pubkey": "d1c04557593a8bba479477b8df933f06ca5fd74ed62440e3f146244f23cb7d57",
+        "action_type": "decision",
+        "payload": {
+          "summary": "run one"
+        },
+        "record_hash": "a7ff9459a3a350f33931e054d93eb20a1047edabb4f9c4a4d8a2a1c0b6304556",
+        "record_sig": "180c50f9b475ff2b03561392824b3af94876fad4afb4c043f52111ab845c7770effd789fee13f07f350941efe7c53a8a6e08c556a11461e84243a9bafab12a01"
+      }
+    },
+    {
+      "recv_seq": 2,
+      "recv_ts": "2026-07-30T10:24:59.708905Z",
+      "recv_hash": "eca8fbee09eed45350da1d5ddf22590db338e75e850dfdc0dca40602dd9a8477",
+      "server_prev_hash": "69f9f367507420d8db59f93ab84ed827967214ec90205bdb790735e285b83803",
+      "server_record_hash": "14d302c40b6a42f6a2710b8555e47fefcf6c4059da543ec01c844ea6e69087e2",
+      "record": {
+        "v": "1",
+        "stream_id": "e10c1f09-77f1-4a3b-8f49-f4812d50994e",
+        "session_id": "62219314-c91f-4d69-b046-95ba69867caf",
+        "record_id": "d478812a-10d6-49da-ae9b-78d31716fc84",
+        "seq": 2,
+        "prev_hash": "a7ff9459a3a350f33931e054d93eb20a1047edabb4f9c4a4d8a2a1c0b6304556",
+        "ts_utc": "2026-07-30T10:24:59.705683Z",
+        "pubkey": "d1c04557593a8bba479477b8df933f06ca5fd74ed62440e3f146244f23cb7d57",
+        "action_type": "lifecycle.session_end",
+        "payload": {
+          "outcome": "success",
+          "trigger": "normal",
+          "count": "2",
+          "session_hash": "05e7e438236172e256dcb7a8ab4c4cb477c83532221f3517827cd5b66d2f5372"
+        },
+        "record_hash": "ec8717541ee3c21e19cdcb8e832e107c955e1b6ce3c991fc72a6198d6fd9810b",
+        "record_sig": "9e6e9cfc2376e5d7e320479469251deff9a06c87a1b1bf17c03b8722b012ba39f069cef2150522b587182883163bec270ec565e4791b4293010f4fca6bbb1e0d"
+      }
+    },
+    {
+      "recv_seq": 3,
+      "recv_ts": "2026-07-30T10:24:59.711686Z",
+      "recv_hash": "8d81f4b729d4d1fab0066a2a87f120e96ee10a494896827b2aa4af09af5491ea",
+      "server_prev_hash": "14d302c40b6a42f6a2710b8555e47fefcf6c4059da543ec01c844ea6e69087e2",
+      "server_record_hash": "88ebbaaec7b5f11f5da906be643038cb53127d346fb67712a70b9e8855411298",
+      "record": {
+        "v": "1",
+        "stream_id": "e10c1f09-77f1-4a3b-8f49-f4812d50994e",
+        "session_id": "0ed605be-b7e4-48f4-8c32-dd6225f81d61",
+        "record_id": "46fe944c-1812-4672-968f-c6bb28b0b464",
+        "seq": 0,
+        "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "ts_utc": "2026-07-30T10:24:59.710338Z",
+        "pubkey": "d1c04557593a8bba479477b8df933f06ca5fd74ed62440e3f146244f23cb7d57",
+        "action_type": "lifecycle.session_start",
+        "payload": {
+          "meta": {
+            "agent": "conformance",
+            "task": "multi-session vector"
+          }
+        },
+        "record_hash": "4256e73825edb58dea1aeb15f5603c92f6908cd52a8aa69724f51b20e907e0bd",
+        "record_sig": "defaae334a4baf2698b8f97d7e17aa25d032a42f2e82864e147fcad0dbfff58e66678b613793b9f083a6003b8564d49337399a7fd45f0f52fadb413536ca530b"
+      }
+    },
+    {
+      "recv_seq": 4,
+      "recv_ts": "2026-07-30T10:24:59.714219Z",
+      "recv_hash": "4390bd0630664b2cd4f4ba43f7065b51d42484eb55b7966eca222b10e0ee5cc5",
+      "server_prev_hash": "88ebbaaec7b5f11f5da906be643038cb53127d346fb67712a70b9e8855411298",
+      "server_record_hash": "00adf48ff298e6a6ea294dc63b288253cff741c340056f6a8af0d34d737b91a9",
+      "record": {
+        "v": "1",
+        "stream_id": "e10c1f09-77f1-4a3b-8f49-f4812d50994e",
+        "session_id": "0ed605be-b7e4-48f4-8c32-dd6225f81d61",
+        "record_id": "107533d1-0796-473d-a72c-55d72a85167d",
+        "seq": 1,
+        "prev_hash": "4256e73825edb58dea1aeb15f5603c92f6908cd52a8aa69724f51b20e907e0bd",
+        "ts_utc": "2026-07-30T10:24:59.712771Z",
+        "pubkey": "d1c04557593a8bba479477b8df933f06ca5fd74ed62440e3f146244f23cb7d57",
+        "action_type": "decision",
+        "payload": {
+          "summary": "run two"
+        },
+        "record_hash": "0d52047d294147bc818e3f91e6003069983d68ee1397d73a308e270bf8533e2e",
+        "record_sig": "691d3bcf61db50d79e55ddcdb59ee223ae8115e9ef0da3e8c4e9d8f9452be17344363ec34ef43b5976d68a31a6f1ac8cb126df6d78cbb45f37385eee01d2f20b"
+      }
+    },
+    {
+      "recv_seq": 5,
+      "recv_ts": "2026-07-30T10:24:59.716169Z",
+      "recv_hash": "1155f0424bfdfdfa340e62d49ea2c2ac5c8729c1303aaf8bf612e2cc2bbc52dd",
+      "server_prev_hash": "00adf48ff298e6a6ea294dc63b288253cff741c340056f6a8af0d34d737b91a9",
+      "server_record_hash": "6b810a08d54d67a0cb04069b1951925f0923d9536e4b8051385c057fb3aa021d",
+      "record": {
+        "v": "1",
+        "stream_id": "e10c1f09-77f1-4a3b-8f49-f4812d50994e",
+        "session_id": "0ed605be-b7e4-48f4-8c32-dd6225f81d61",
+        "record_id": "152bce4b-d4b7-4403-b84b-ec010352bfbb",
+        "seq": 2,
+        "prev_hash": "0d52047d294147bc818e3f91e6003069983d68ee1397d73a308e270bf8533e2e",
+        "ts_utc": "2026-07-30T10:24:59.715008Z",
+        "pubkey": "d1c04557593a8bba479477b8df933f06ca5fd74ed62440e3f146244f23cb7d57",
+        "action_type": "lifecycle.session_end",
+        "payload": {
+          "outcome": "success",
+          "trigger": "normal",
+          "count": "2",
+          "session_hash": "43c86d2e775a7cfcfba4ca84b202b69e0021ec9292cad7e28cb932c912118b7a"
+        },
+        "record_hash": "b359924dfccfedd93ba9655a68684ac2c01faf829529722bb40bcc3d7f8f9d68",
+        "record_sig": "94fa76f1397c8303a75fcaaeaba0d5fe521bc7060c0b5cf12bec742163658876035af8b43a9c97369682320b680ccdc97d8561492ac9f1803b867fa59d844a00"
+      }
+    },
+    {
+      "recv_seq": 6,
+      "recv_ts": "2026-07-30T10:24:59.719927Z",
+      "recv_hash": "59586ab7a1e0fd09316239f37359faa6e20cc7d9d556d991a799eec93412f97c",
+      "server_prev_hash": "6b810a08d54d67a0cb04069b1951925f0923d9536e4b8051385c057fb3aa021d",
+      "server_record_hash": "963b24aef59bafc85984726a2ae0987ad1bbfde2f74db40f2f0bf1ee72bbeb45",
+      "record": {
+        "v": "1",
+        "stream_id": "e10c1f09-77f1-4a3b-8f49-f4812d50994e",
+        "session_id": "8d08e005-0cdb-4b85-ac71-51fa564ba739",
+        "record_id": "f87b5f10-528d-4ca9-8497-fe40476b0882",
+        "seq": 0,
+        "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "ts_utc": "2026-07-30T10:24:59.717357Z",
+        "pubkey": "d1c04557593a8bba479477b8df933f06ca5fd74ed62440e3f146244f23cb7d57",
+        "action_type": "lifecycle.session_start",
+        "payload": {
+          "meta": {
+            "agent": "conformance",
+            "task": "multi-session vector"
+          }
+        },
+        "record_hash": "deecb2eb06dce837934b1447c7b3048009e01e0a99b41fd6b7de680dd1810d4f",
+        "record_sig": "1a4aedb881b6134c5aed7d03be1976719e668e456948c5af756ede16b2b67244f3e7b74d861e000ede6bcc8f15e835124fd50aaf0b960ec3e40eb385a11da10a"
+      }
+    },
+    {
+      "recv_seq": 7,
+      "recv_ts": "2026-07-30T10:24:59.723568Z",
+      "recv_hash": "b97b26a9fc4bcb34c4d396998bcf366b08af97e4bc6670c0ba954b13b7ce6bef",
+      "server_prev_hash": "963b24aef59bafc85984726a2ae0987ad1bbfde2f74db40f2f0bf1ee72bbeb45",
+      "server_record_hash": "1cd307b0b647f4127f0f772e88e4dba8b147a1019575d42b74962c93bab34564",
+      "record": {
+        "v": "1",
+        "stream_id": "e10c1f09-77f1-4a3b-8f49-f4812d50994e",
+        "session_id": "8d08e005-0cdb-4b85-ac71-51fa564ba739",
+        "record_id": "4cf34e64-0089-4751-8dce-e8a2d7f3c6fa",
+        "seq": 1,
+        "prev_hash": "deecb2eb06dce837934b1447c7b3048009e01e0a99b41fd6b7de680dd1810d4f",
+        "ts_utc": "2026-07-30T10:24:59.721300Z",
+        "pubkey": "d1c04557593a8bba479477b8df933f06ca5fd74ed62440e3f146244f23cb7d57",
+        "action_type": "decision",
+        "payload": {
+          "summary": "run three"
+        },
+        "record_hash": "b45d08fbb5e285ccb6f92a21fbdfc40e4a9d27bcf0919c5c39e9d361616d39f1",
+        "record_sig": "8793adb62b1e77346f606c72a8ce33911bdd23af51672be370646a6e6b82b4ed8f33b2e2db084f6e184cc3ab76e16c9c488538782a76878738f917a91fc30e08"
+      }
+    },
+    {
+      "recv_seq": 8,
+      "recv_ts": "2026-07-30T10:24:59.726466Z",
+      "recv_hash": "4e959e053bfc6b5285eb2c69ad87846e3a671d4402681bd658940562d095232a",
+      "server_prev_hash": "1cd307b0b647f4127f0f772e88e4dba8b147a1019575d42b74962c93bab34564",
+      "server_record_hash": "ad4688bbbed1340ce604167afec39f34ac3e6b1a1724adb921c72b12aa07408b",
+      "record": {
+        "v": "1",
+        "stream_id": "e10c1f09-77f1-4a3b-8f49-f4812d50994e",
+        "session_id": "8d08e005-0cdb-4b85-ac71-51fa564ba739",
+        "record_id": "0eed205e-d4c2-41e8-b278-3f56476d0131",
+        "seq": 2,
+        "prev_hash": "b45d08fbb5e285ccb6f92a21fbdfc40e4a9d27bcf0919c5c39e9d361616d39f1",
+        "ts_utc": "2026-07-30T10:24:59.724734Z",
+        "pubkey": "d1c04557593a8bba479477b8df933f06ca5fd74ed62440e3f146244f23cb7d57",
+        "action_type": "lifecycle.session_end",
+        "payload": {
+          "outcome": "success",
+          "trigger": "normal",
+          "count": "2",
+          "session_hash": "ab251303c56602e66314834d89050d0d5f1f4cfb43d6527a331c212f3cad3cd4"
+        },
+        "record_hash": "36b6a97d65b0c9ef4c04edf243ddfd3de9a2ebbfe114e72254d71e58c7b40b0d",
+        "record_sig": "78a45b82d4d9cd935fa3275597e2d5da7d2cd1b71fae3199c9b73acc43477d9ff337fff58686d332060928042b132e0af6ff33271815d4ed4f57f5bcd11c910e"
+      }
+    }
+  ],
+  "anchors": [
+    {
+      "anchor_seq": 0,
+      "covers_up_to": 8,
+      "receipt": {
+        "kind": "local",
+        "merkle_root": "c914c3e091058a1015a2cadb26fb5b066c3a0b376aad8b407c5446c24019b4aa",
+        "gen_time": "2026-07-30T10:24:59.729650Z",
+        "token_b64": null,
+        "signature": "52e4653fd3e135106e10b5e1596a18d5fad747c82a37bae99c25a045f42724b100c3b4261fa2faa54486fe3b8d7e33bcab5f618d0501bb6386e9a59feb327809",
+        "anchor_pubkey": "d99280c805b803b186ac0910547a4e1e8ed3d98de1853204e1410d7d65335fe9",
+        "tsa_url": null
+      },
+      "tlog_inclusion": {
+        "kind": "tlog_inclusion",
+        "log_origin": "flightrecorder.io/v1/anchors/shared",
+        "leaf_index": 0,
+        "tree_size": 1,
+        "proof_hashes": [],
+        "checkpoint": "flightrecorder.io/v1/anchors/shared\n1\no3qG3Mnev7MJiew7W6StpwmUbNP42xzSbTplf4O19q4=\n\n\u2014 flightrecorder.io/v1/anchors/shared s2yQdzcfQx8sHyu+ESCUeTIKZz86lNWBwqUMQsKzss2z53mKaeFKIs7TPUfDMfJx6neyN6B2ZKe+5Uc8Jmc6bG+pIAk=\n"
+      },
+      "scitt_receipt": "0oRYYaQBJwRYIJFZN5fpAMpK1WTbxjHbOyALoytf/2fwPvMhA/EPv4RqD6IBbXByb3ZlbnJhaWwuaW8CeCRlMTBjMWYwOS03N2YxLTRhM2ItOGY0OS1mNDgxMmQ1MDk5NGU4bgGhON2hIIFEgwEAgFggo3qG3Mnev7MJiew7W6StpwmUbNP42xzSbTplf4O19q5YQCmfoZz5EWKyXGwxocmIe32Dhviw8WFSvRSU2sqAj35I1Ov/NB+aOX78XGsiXQZMGCGooxowQteZfTkEmKEyEAA="
+    }
+  ],
+  "tlog_schema_version": 1,
+  "scitt_schema_version": 1
+}

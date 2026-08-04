@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Provenrail | Guardrails for AI Agents, With a Receipt You Can Verify</title>
+  <meta name="description" content="Provenrail blocks destructive AI agent actions before they run (rm -rf, terraform destroy, force push, leaked keys) and signs every decision into a hash-chained record anyone can verify with an open-source tool. Free to start.">
+  <link rel="canonical" href="https://provenrail.com/">
+  <meta name="robots" content="index,follow">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Provenrail | Guardrails for AI Agents, With a Receipt You Can Verify">
+  <meta property="og:description" content="Block rm -rf, terraform destroy, force pushes and leaked keys at your agent's tool boundary, and get a signed, hash-chained record of every decision that anyone can verify.">
+  <meta property="og:url" content="https://provenrail.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://provenrail.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Provenrail: the verifiable audit trail for AI agents.">
+  <meta property="og:site_name" content="Provenrail">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Provenrail | Guardrails for AI Agents, With a Receipt You Can Verify">
+  <meta name="twitter:description" content="Block destructive agent actions before they run, and prove what happened afterwards. Off-box, hash-chained, independently verifiable.">
+  <meta name="twitter:image" content="https://provenrail.com/og.png">
+
+  <!-- Favicon -->
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0b0a08">
+
+  <!-- Fonts: loaded async so they never block first paint (Core Web Vitals) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"></noscript>
+
+  <!-- Critical CSS inline: nav + hero above-the-fold -->
+  <style>
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--bg-4:#221d15;--border:#29221a;--border-hi:#3a3124;--accent:#d3a957;--accent-2:#ecca7e;--accent-ink:#1c1408;--accent-glow:rgba(211, 169, 87,.16);--accent-glow-sm:rgba(211, 169, 87,.07);--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#5a626e;--font-mono:'DM Mono',ui-monospace,monospace;--font-body:'DM Sans',system-ui,sans-serif;--max-w:1140px;--gutter:clamp(1.1rem,5vw,3rem);--ease:cubic-bezier(.16,1,.3,1)}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{font-size:16px;scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+    body{font-family:var(--font-body);color:var(--text-hi);background:var(--bg);overflow-x:hidden;line-height:1.6}
+    .nav{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:.75rem var(--gutter);background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}
+    .nav-logo{display:flex;align-items:center;gap:.6rem;font-weight:600;font-size:1.02rem;letter-spacing:-.02em;color:var(--text-hi)}
+    .btn-primary{display:inline-flex;align-items:center;gap:.55rem;padding:0 1.5rem;min-height:48px;font-size:.95rem;font-weight:600;background:var(--accent);color:var(--accent-ink);border:none;border-radius:10px}
+    @media (prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#fff;--bg-4:#f0ebe1;--border:#e9e2d5;--border-hi:#dad1c2;--accent:#8a6c2c;--accent-2:#9a7626;--accent-ink:#fff;--accent-glow:rgba(138, 108, 44,.14);--accent-glow-sm:rgba(138, 108, 44,.06);--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#97a0ab}}
+  </style>
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- JSON-LD: Organization + WebSite + SoftwareApplication + FAQPage -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "name": "Provenrail",
+        "url": "https://provenrail.com",
+        "logo": "https://provenrail.com/icon-512.png",
+        "sameAs": [
+          "https://pypi.org/project/provenrail/",
+          "https://www.npmjs.com/package/provenrail",
+          "https://github.com/pofky/provenrail"
+        ],
+        "contactPoint": { "@type": "ContactPoint", "contactType": "sales", "email": "support@provenrail.com" }
+      },
+      {
+        "@type": "WebSite",
+        "name": "Provenrail",
+        "url": "https://provenrail.com"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "Provenrail",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Linux, macOS, Windows",
+        "url": "https://provenrail.com",
+        "description": "Guardrails and off-box, hash-chained, independently verifiable logging for AI agents. Destructive tool calls are blocked at the dispatch boundary and the decision is recorded as signed evidence. Every model call and tool call is captured, chained, and pushed to an append-only sink. Records cannot be silently altered, reordered, deleted, or back-dated. Anyone can verify the record with the open-source pr-verify tool.",
+        "featureList": [
+          "Guardrail packs that block destructive tool calls before they run",
+          "One-command Claude Code hook install (pr guard install)",
+          "Hash-chained append-only event log",
+          "RFC 3161 trusted timestamps (Builder and higher)",
+          "Independent off-box server receipt chain",
+          "Witnessed transparency log (Builder and higher)",
+          "Open-source pr-verify verifier",
+          "Works across providers and frameworks",
+          "Store-hash-not-content privacy default",
+          "Selective-disclosure redaction",
+          "60-second install via uv or pip",
+          "Shareable read-only proof links (Builder and higher)",
+          "EU AI Act Article 12 technical evidence",
+          "HIPAA 164.312(b) audit log evidence"
+        ],
+        "offers": [
+          { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "description": "50k events/month, single project, hash-chain integrity, open-source verifier, regulatory attestation reports (pr report), self-contained evidence packs (pr pack), and content authentication (pr verify-content)" },
+          { "@type": "Offer", "name": "Builder", "price": "29", "priceCurrency": "USD", "description": "500k events/month, RFC 3161 trusted timestamps, shareable client proof links and live badge" },
+          { "@type": "Offer", "name": "Team", "price": "99", "priceCurrency": "USD", "description": "2M events/month, unlimited projects, up to 10 team members with roles and SSO, data exports, attestation and HIPAA evidence packs" }
+        ],
+        "datePublished": "2026-01-01",
+        "dateModified": "2026-06-09"
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Can the agent fake the logs?", "acceptedAnswer": { "@type": "Answer", "text": "A cooperative agent cannot silently alter records once they reach the sink: the hash chain makes any tampering detectable. However, a hostile agent that simply refuses to call the SDK will not be logged. Provenrail detects tampering and deletion of records that were written; it cannot force an uncooperative agent to write in the first place. That limitation is stated explicitly in the docs and on this page." } },
+          { "@type": "Question", "name": "Do I have to trust Provenrail?", "acceptedAnswer": { "@type": "Answer", "text": "No. The verifier (pr-verify) is open-source and verifies the hash chain locally without contacting our servers. On Builder and higher plans it also checks RFC 3161 timestamps from an external time authority. You can run it yourself, or export a portable bundle and share it with any third party who can run the open-source verifier; on Builder and higher a hosted read-only proof link is also available. You do not need to trust us or the agent; you need to trust standard cryptography and, on paid plans, the third-party time authority." } },
+          { "@type": "Question", "name": "What about PII and privacy?", "acceptedAnswer": { "@type": "Answer", "text": "The default mode is store-hash-not-content: we record a SHA-256 hash of each prompt and response, not the raw text. The hash proves the content existed and has not changed; the raw text stays on your infrastructure. Selective-disclosure redaction lets you commit sensitive fields as salted hashes and reveal or erase them later. Full-content storage is opt-in and requires explicit configuration." } },
+          { "@type": "Question", "name": "Does this satisfy the EU AI Act Article 12 logging requirement?", "acceptedAnswer": { "@type": "Answer", "text": "Provenrail provides the technical evidence layer: an append-only, timestamped, tamper-evident log of AI system operations of the kind EU AI Act Article 12 calls for. Article 12 applies from 2027-12-02 for standalone Annex III high-risk systems and 2028-08-02 for Annex I embedded systems, deferred from 2026-08-02 by Regulation (EU) 2026/1744. Article 50 transparency obligations were not deferred and apply from 2026-08-02. Your team is responsible for regulatory certification. We provide the evidence; you provide the attestation. The Team plan includes one-click attestation evidence packs and HIPAA 164.312(b) evidence mapping." } },
+          { "@type": "Question", "name": "What does it cost?", "acceptedAnswer": { "@type": "Answer", "text": "Free: $0, 50k events/month, single project, hash-chain integrity. Builder: $29/month, 500k events, RFC 3161 trusted timestamps, shareable proof links. Team: $99/month, 2M events, unlimited projects, data exports, attestation and HIPAA evidence packs. Enterprise: custom pricing, private deployment, support terms by agreement. Limits apply to the licensed build you run; the integrity guarantee is open-source and identical on every plan." } },
+          { "@type": "Question", "name": "How do I verify a proof?", "acceptedAnswer": { "@type": "Answer", "text": "Install the verifier with: uv tool install provenrail (or pip install provenrail inside a virtualenv). Export your stream as a bundle, then run: pr verify bundle.json --pin pin.json. The tool recomputes the client hash chain, every Ed25519 signature, the independent server receipt chain, and every anchor locally, trusting neither the agent nor the sink. On Builder and higher plans each anchor carries an RFC 3161 trusted timestamp, which the tool verifies against the external time authority. It exits 0 if intact and non-zero with a detailed error if any record is missing, reordered, altered, or back-dated." } }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+
+<body>
+  <header>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="/" class="nav-logo" aria-label="Provenrail home">
+        <img class="seal" src="/assets/logo-mark.png" alt="" width="30" height="30">
+        <span>proven<span class="rail-accent">rail</span></span>
+      </a>
+
+      <button id="nav-toggle" class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M2 5h16M2 10h16M2 15h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <div id="nav-links" class="nav-links" role="navigation">
+        <a href="/#how-it-works">How it works</a>
+        <a href="/#see-it">Watch</a>
+        <a href="/#for-agencies">Use cases</a>
+        <a href="/#differentiators">Why Provenrail</a>
+        <a href="/#pricing">Pricing</a>
+        <a href="/#faq">FAQ</a>
+        <a href="/compare">Compare</a>
+        <a href="/start">Start here</a>
+        <a href="/docs">Docs</a>
+        <a href="/account">Sign in</a>
+        <a href="/#pricing" class="btn-nav">Start free</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <section class="hero" aria-labelledby="hero-h1">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="container">
+        <p class="hero-eyebrow">Agent guardrails, with a receipt</p>
+
+        <h1 class="hero-title" id="hero-h1">
+          Your coding agent is one<br>command from <em>deleting prod</em>.
+        </h1>
+
+        <p class="hero-claim">
+          Provenrail stops it, and hands you a receipt nobody can forge. One command puts
+          guardrails at your agent's own tool boundary, so <code>rm -rf</code>, <code>terraform
+          destroy</code>, force pushes and leaked keys are blocked before they run. Every
+          decision is signed and hash-chained off-box, verifiable by anyone with an open-source
+          tool that trusts neither the agent nor us.
+        </p>
+
+        <div class="hero-ctas">
+          <a href="/#live-proof" class="btn-primary">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M8 1v14M1 8l7 7 7-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Guard my agent
+          </a>
+          <a href="/verify" class="btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M2 8a6 6 0 1 0 12 0A6 6 0 0 0 2 8Zm4-1.5 4 1.5-4 1.5V6.5Z" fill="currentColor"/>
+            </svg>
+            Verify a record yourself
+          </a>
+        </div>
+
+        <p class="hero-deadline">
+          <span class="hd-dot" aria-hidden="true"></span>
+          <span><strong>In April 2026 an AI coding agent deleted a production database and every backup in nine seconds.</strong> There was no forensic record of what it was asked to do. <a href="/ai-agent-incidents">The incidents, and what would have stopped them &rarr;</a></span>
+        </p>
+
+        <p class="hero-risk">Free tier. No credit card. Installs in seconds. <a href="/compare" style="color:var(--accent)">See how it compares</a>.</p>
+
+        <p class="hero-honest" role="note">
+          Honest scope: guardrails cover the tool calls your agent routes through its hooks, and a
+          record is immutable and verifiable once it reaches the sink. Completeness is never claimed:
+          a process that never calls the hook will not appear. We state this plainly rather than bury
+          it. <a href="/#faq" style="color:inherit;text-decoration:underline">See the full threat model</a>.
+        </p>
+
+        <!-- Rail motif: chained, sealed checkpoints -->
+        <div class="rail-visual" aria-hidden="true">
+          <div class="rail-node">01</div>
+          <div class="rail-link"></div>
+          <div class="rail-node">02</div>
+          <div class="rail-link"></div>
+          <div class="rail-node">03</div>
+          <div class="rail-link"></div>
+          <div class="rail-node sealed">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <span class="rail-cap">chain verified</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- INSTALL SNIPPET -->
+    <section class="install-section" aria-labelledby="install-heading" id="live-proof">
+      <div class="container">
+        <div class="split">
+          <div>
+            <div class="section-eyebrow">30-second install</div>
+            <h2 class="section-title" id="install-heading">Two commands.<br>Nothing to rewrite.</h2>
+            <p class="lead">
+              If you use Claude Code, <code>pr guard install</code> arms the destructive, secrets and
+              production rule packs and wires them into its own tool hooks. No SDK, no code change.
+              For your own agents there is a Python <em>and</em> TypeScript SDK, with drop-in capture
+              for the OpenAI and Anthropic clients, LangChain and MCP; a run recorded in either
+              language verifies with the same open-source tools.
+            </p>
+            <p class="lead" style="font-family:var(--font-mono);font-size:.82rem;color:var(--text-lo)">
+              <span style="color:var(--accent)">uv tool install provenrail</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span style="color:var(--accent)">npm install provenrail</span>
+            </p>
+            <a href="/docs" class="btn-secondary">Read the quickstart guide</a>
+          </div>
+
+          <div class="reveal">
+            <div class="code-block" role="region" aria-label="Installation code example">
+              <div class="code-header">
+                <div class="code-dots" aria-hidden="true"><span class="code-dot code-dot-r"></span><span class="code-dot code-dot-y"></span><span class="code-dot code-dot-g"></span></div>
+                <span class="code-label">quickstart.py</span>
+                <button class="copy-btn" aria-label="Copy code snippet">Copy</button>
+              </div>
+              <pre aria-label="Guard installation and usage example"><span class="tok-comment"># 1. Install, and arm the guardrails (no account, nothing leaves the box)</span>
+<span class="tok-prompt">$ </span><span class="tok-var">uv tool install provenrail</span>
+<span class="tok-prompt">$ </span><span class="tok-var">pr quickstart &amp;&amp; pr guard install</span>
+
+<span class="tok-comment"># 2. Your agent tries something destructive</span>
+<span class="tok-prompt">&gt; </span><span class="tok-var">rm -rf ./src</span>
+<span class="tok-str">  blocked  destructive.recursive-force-remove</span>
+
+<span class="tok-comment"># 3. The block is signed evidence. Check it yourself.</span>
+<span class="tok-prompt">$ </span><span class="tok-var">pr guard receipt</span>
+<span class="tok-str">  1 DENIED  rm -rf ./src</span>
+<span class="tok-prompt">$ </span><span class="tok-var">pr verify </span><span class="tok-str">guard-receipt.json</span>
+<span class="tok-str">  RESULT: VERIFIED</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- HOW IT WORKS -->
+    <section class="how-section" aria-labelledby="how-heading" id="how-it-works">
+      <div class="container">
+        <div class="section-header reveal">
+          <div class="section-eyebrow">How it works</div>
+          <h2 class="section-title" id="how-heading">Three steps. Zero trust required.</h2>
+          <p class="section-desc">The design is simple by intention: fewer moving parts to trust means less to audit.</p>
+        </div>
+
+        <div class="steps-grid">
+          <div class="step-card reveal">
+            <div class="step-num"><span class="step-num-badge">01</span>Instrument</div>
+            <h3 class="step-title">Wrap your agent loop</h3>
+            <p class="step-desc">One <code>with pr.record()</code> block captures every model and tool call wherever your agent makes decisions. Each event is hashed and sequenced on the client before it leaves your process.</p>
+          </div>
+          <div class="step-card reveal" style="transition-delay:.1s">
+            <div class="step-num"><span class="step-num-badge">02</span>Chain</div>
+            <h3 class="step-title">Records land on an off-box rail</h3>
+            <p class="step-desc">Each record carries a hash of the previous one, forming a chain. The sink is append-only: records cannot be deleted or reordered without breaking the chain. On Builder and higher plans, RFC 3161 timestamps from an independent authority anchor the sequence so back-dating is detectable; the Free plan hash-chains the sequence without a third-party timestamp.</p>
+          </div>
+          <div class="step-card reveal" style="transition-delay:.2s">
+            <div class="step-num"><span class="step-num-badge">03</span>Verify</div>
+            <h3 class="step-title">Anyone can check the proof</h3>
+            <p class="step-desc">The open-source <code>pr-verify</code> tool reconstructs the chain and validates every anchor independently. Export your bundle and share it with a client, auditor, or regulator who runs the same tool; on Builder and higher a hosted read-only proof link is also available. They trust the math, not you.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- TRY IT: LIVE TAMPER WIDGET -->
+    <style>
+      .prove-card{max-width:680px;margin:1.6rem auto 0;border:1px solid var(--border);border-radius:18px;background:var(--bg-2);padding:clamp(1.2rem,4vw,2rem);text-align:left}
+      .prove-card[data-state="bad"]{border-color:#c2502f}
+      .prove-card[data-state="ok"]{border-color:#3f7a52}
+      .prove-verdict{display:flex;align-items:center;gap:.7rem;font-family:var(--font-mono);font-weight:600;font-size:clamp(1.05rem,3.4vw,1.4rem);letter-spacing:-.01em}
+      .prove-dot{width:.72rem;height:.72rem;border-radius:50%;flex:0 0 auto;background:var(--text-lo)}
+      [data-state="ok"] .prove-dot{background:#6fcf86;box-shadow:0 0 0 4px rgba(111,207,134,.16)}
+      [data-state="bad"] .prove-dot{background:#e0653f;box-shadow:0 0 0 4px rgba(224,101,63,.16)}
+      [data-state="ok"] .prove-verdict{color:#6fcf86}
+      [data-state="bad"] .prove-verdict{color:#e0653f}
+      .prove-meta{color:var(--text-mid);font-size:.93rem;margin:.7rem 0 0;line-height:1.55;min-height:2.6em}
+      .prove-meta code{font-family:var(--font-mono);font-size:.82em;background:var(--bg-3);padding:.1em .4em;border-radius:5px;color:var(--text-hi)}
+      .prove-actions{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1.1rem}
+      .prove-note{color:var(--text-lo);font-size:.8rem;margin-top:.9rem}
+      .prove-card button[disabled]{opacity:.5;cursor:not-allowed}
+    </style>
+    <section class="how-section" aria-labelledby="prove-heading" id="try-it">
+      <div class="container">
+        <div class="section-header reveal">
+          <p class="section-eyebrow">Try it right here</p>
+          <h2 id="prove-heading">Change one byte. Watch the proof break.</h2>
+          <p class="section-sub">Below is a real Provenrail record, verified live in your browser. Flip a single character and the open-source verifier rejects it. This is the whole idea, and you do not have to trust us to see it.</p>
+        </div>
+        <div class="prove-card reveal" id="prove-card" data-state="loading">
+          <div class="prove-verdict"><span class="prove-dot"></span><span id="prove-badge">Verifying the record...</span></div>
+          <p class="prove-meta" id="prove-meta">Recomputing every hash, signature, Merkle anchor, and witness cosignature locally.</p>
+          <div class="prove-actions">
+            <button class="btn-primary" id="prove-tamper" disabled>Flip one byte</button>
+            <button class="btn-secondary" id="prove-reset" hidden>Reset to the real record</button>
+            <a class="btn-secondary" href="/verify">Open the full verifier</a>
+          </div>
+          <p class="prove-note">Runs entirely in your browser via the open-source verifier. Your data never leaves your device, not even to us.</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- SEE IT IN ACTION -->
+    <section class="tour-section" aria-labelledby="tour-heading" id="see-it">
+      <div class="container">
+        <div class="section-header reveal">
+          <div class="section-eyebrow">See it in action</div>
+          <h2 class="section-title" id="tour-heading">Watch it work, end to end.</h2>
+          <p class="section-desc">Real terminal sessions, no mockups. Every command and every output below is captured verbatim from <code>provenrail 0.2.0</code>.</p>
+        </div>
+
+        <div class="tour-grid">
+          <figure class="tour-card reveal" data-src="/media/getting-started.mp4">
+            <button type="button" class="tour-play" aria-label="Play tutorial: Install, record, verify">
+              <img src="/media/getting-started.jpg" alt="Terminal: pr quickstart, pr demo and pr verify confirming an intact record chain" width="1920" height="1080" loading="lazy" decoding="async">
+              <span class="tour-badge" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
+            </button>
+            <figcaption class="tour-cap">
+              <span class="tour-num">Tutorial 01 · 16s</span>
+              <span class="tour-title">Install, record, verify</span>
+              <span class="tour-desc">Four commands: install, <code>pr quickstart</code>, <code>pr demo</code>, <code>pr verify</code>.</span>
+            </figcaption>
+          </figure>
+
+          <figure class="tour-card reveal" style="transition-delay:.08s" data-src="/media/verify-yourself.mp4">
+            <button type="button" class="tour-play" aria-label="Play tutorial: Verify it yourself">
+              <img src="/media/verify-yourself.jpg" alt="Terminal showing RESULT: VERIFIED, then a one-byte edit producing RESULT: TAMPERING DETECTED" width="1920" height="1080" loading="lazy" decoding="async">
+              <span class="tour-badge" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
+            </button>
+            <figcaption class="tour-cap">
+              <span class="tour-num">Tutorial 02 · 20s</span>
+              <span class="tour-title">Verify it yourself</span>
+              <span class="tour-desc">Witnessed verify, then catch a one-byte tamper with a non-zero exit code.</span>
+            </figcaption>
+          </figure>
+
+          <figure class="tour-card reveal" style="transition-delay:.16s" data-src="/media/plans-licensing.mp4">
+            <button type="button" class="tour-play" aria-label="Play tutorial: Plans and licensing">
+              <img src="/media/plans-licensing.jpg" alt="Account page showing Free plan with Builder and Team subscription tiers" width="1920" height="1080" loading="lazy" decoding="async">
+              <span class="tour-badge" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
+            </button>
+            <figcaption class="tour-cap">
+              <span class="tour-num">Tutorial 03 · 25s</span>
+              <span class="tour-title">Plans &amp; licensing</span>
+              <span class="tour-desc">Subscribe through Polar, get a license key, <code>pr activate</code> your server.</span>
+            </figcaption>
+          </figure>
+
+          <figure class="tour-card reveal" style="transition-delay:.24s" data-src="/media/record-evidence.mp4">
+            <button type="button" class="tour-play" aria-label="Play tutorial: Record from code and build an evidence pack">
+              <img src="/media/record-evidence.jpg" alt="Python and TypeScript record() code producing an EU AI Act evidence report with integrity verified" width="1920" height="1080" loading="lazy" decoding="async">
+              <span class="tour-badge" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
+            </button>
+            <figcaption class="tour-cap">
+              <span class="tour-num">Tutorial 04 · 22s</span>
+              <span class="tour-title">Record from code</span>
+              <span class="tour-desc">Python &amp; TypeScript <code>record()</code> to <code>pr report</code> and a portable evidence pack.</span>
+            </figcaption>
+          </figure>
+
+          <figure class="tour-card reveal" data-src="/media/team-sso.mp4">
+            <button type="button" class="tour-play" aria-label="Play tutorial: Team and SSO">
+              <img src="/media/team-sso.jpg" alt="Terminal: inviting a team member, a viewer denied by role, configuring OIDC SSO, and a teammate logging in with their IdP token" width="1920" height="1080" loading="lazy" decoding="async">
+              <span class="tour-badge" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
+            </button>
+            <figcaption class="tour-cap">
+              <span class="tour-num">Tutorial 05 · 31s</span>
+              <span class="tour-title">Team &amp; SSO</span>
+              <span class="tour-desc">Invite teammates with roles, connect your OIDC identity provider, and sign in with your IdP.</span>
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- AUDIENCE 1 -->
+    <section class="audience-section" aria-labelledby="agencies-heading" id="for-agencies">
+      <div class="container">
+        <div class="audience-grid">
+          <div class="reveal">
+            <p class="audience-eyebrow">For freelancers and agencies</p>
+            <h2 class="audience-title" id="agencies-heading">Deliver AI work with a<br>verifiable paper trail.</h2>
+            <p class="audience-body">
+              When you deliver an autonomous agent project to a client, billing disputes and scope-creep
+              questions are inevitable. Provenrail gives you a verifiable record of exactly what the agent
+              did, when, and in what order. No more "the agent went rogue" conversations.
+            </p>
+            <div class="audience-benefit">Share a portable proof bundle your client verifies themselves, or a hosted proof link on Builder and higher.</div>
+            <div class="audience-benefit">Tamper-evident: if anything is altered after delivery, the chain breaks.</div>
+            <div class="audience-benefit">Builds repeat business. Clients who can verify the work trust the next project.</div>
+            <div style="margin-top:1.5rem"><a href="/#pricing" class="btn-primary">Start free</a></div>
+          </div>
+          <div class="audience-visual reveal" style="transition-delay:.15s">
+            <div class="terminal-card">
+              <div class="terminal-bar">
+                <div class="code-dots" aria-hidden="true"><span class="code-dot code-dot-r"></span><span class="code-dot code-dot-y"></span><span class="code-dot code-dot-g"></span></div>
+                <span class="terminal-title">Client proof link</span>
+              </div>
+              <div class="terminal-body">
+                <div class="t-line"><span class="t-key">stream</span><span class="t-val">proj_acme_seo_refresh</span></div>
+                <div class="t-line"><span class="t-key">events</span><span class="t-val t-hi">1,847</span></div>
+                <div class="t-line"><span class="t-key">period</span><span class="t-val">2026-05-12 to 2026-05-14</span></div>
+                <div class="t-sep"></div>
+                <div class="t-line"><span class="t-key">chain</span><span class="t-val t-ok">INTACT</span></div>
+                <div class="t-line"><span class="t-key">timestamps</span><span class="t-val t-ok">VERIFIED (RFC 3161)</span></div>
+                <div class="t-line"><span class="t-key">deletions</span><span class="t-val t-ok">NONE DETECTED</span></div>
+                <div class="t-sep"></div>
+                <div class="t-line"><span class="t-key">tools used</span><span class="t-val">web_search, file_write,</span></div>
+                <div class="t-line"><span class="t-key"></span><span class="t-val">browser_navigate (49x)</span></div>
+                <div class="t-line"><span class="t-key">model calls</span><span class="t-val">claude (312x)</span></div>
+                <div class="t-sep"></div>
+                <div class="t-line"><span class="t-key">verified by</span><span class="t-val t-dim">pr-verify 1.2.0</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- AUDIENCE 2 -->
+    <section class="audience-section" aria-labelledby="autonomous-heading" id="for-developers">
+      <div class="container">
+        <div class="audience-grid reverse">
+          <div class="reveal">
+            <p class="audience-eyebrow">For developers with production-access agents</p>
+            <h2 class="audience-title" id="autonomous-heading">When something goes wrong,<br>know exactly what happened.</h2>
+            <p class="audience-body">
+              Agents with access to money, production infrastructure, or email can cause real damage.
+              After an incident you need a reconstruction, not speculation. Provenrail gives you a verifiable
+              sequence of every decision the agent made, in the exact order it made them.
+            </p>
+            <div class="audience-benefit">Post-incident reconstruction without log-tampering doubts.</div>
+            <div class="audience-benefit">Drop-in capture for OpenAI, Anthropic, LangChain and MCP.</div>
+            <div class="audience-benefit">Any other provider, framework or custom loop records with one line, to the same chain.</div>
+            <div style="margin-top:1.5rem"><a href="/docs" class="btn-secondary">Read the docs</a></div>
+          </div>
+          <div class="audience-visual reveal" style="transition-delay:.15s">
+            <div class="terminal-card">
+              <div class="terminal-bar">
+                <div class="code-dots" aria-hidden="true"><span class="code-dot code-dot-r"></span><span class="code-dot code-dot-y"></span><span class="code-dot code-dot-g"></span></div>
+                <span class="terminal-title">Incident reconstruction</span>
+              </div>
+              <div class="terminal-body">
+                <div class="t-line"><span class="t-key" style="min-width:46px">seq</span><span class="t-key" style="min-width:70px">time</span><span class="t-key">event</span></div>
+                <div class="t-sep"></div>
+                <div class="t-line"><span class="t-hi" style="min-width:46px">1091</span><span class="t-dim" style="min-width:70px">14:22:01</span><span class="t-val">model_call claude in=512tok</span></div>
+                <div class="t-line"><span class="t-hi" style="min-width:46px">1092</span><span class="t-dim" style="min-width:70px">14:22:03</span><span class="t-val">tool stripe.charge $340</span></div>
+                <div class="t-line"><span class="t-err" style="min-width:46px">1093</span><span class="t-dim" style="min-width:70px">14:22:04</span><span class="t-err">tool stripe.charge $340</span></div>
+                <div class="t-line"><span class="t-err" style="min-width:46px">1094</span><span class="t-dim" style="min-width:70px">14:22:04</span><span class="t-err">tool stripe.charge $340</span></div>
+                <div class="t-line"><span class="t-hi" style="min-width:46px">1095</span><span class="t-dim" style="min-width:70px">14:22:06</span><span class="t-val">model_call claude in=891tok</span></div>
+                <div class="t-sep"></div>
+                <div class="t-line"><span class="t-dim">chain INTACT, timestamps VERIFIED</span></div>
+                <div class="t-line"><span class="t-ok">root cause: retry loop, no idempotency key</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- AUDIENCE 3 -->
+    <section class="audience-section" aria-labelledby="compliance-heading" id="for-compliance">
+      <div class="container">
+        <div class="audience-grid">
+          <div class="reveal">
+            <p class="audience-eyebrow">For teams with regulatory exposure</p>
+            <h2 class="audience-title" id="compliance-heading">The technical evidence layer<br>for EU AI Act and HIPAA.</h2>
+            <p class="audience-body">
+              EU AI Act Article 12 logging requirements apply from 2027-12-02 for standalone high-risk
+              systems, deferred from 2026-08-02 by Regulation (EU) 2026/1744. HIPAA 164.312(b)
+              requires audit controls for systems handling protected health information. Provenrail provides
+              an append-only, timestamped, tamper-evident event log designed to serve as technical evidence
+              in regulatory contexts. Certification and attestation remain your responsibility.
+            </p>
+            <div class="audience-benefit">Append-only log; RFC 3161 trusted timestamps on Builder and higher.</div>
+            <div class="audience-benefit">Attestation report templates for auditors and regulators.</div>
+            <div class="audience-benefit">HIPAA 164.312(b) evidence mapping; you remain the covered entity and certify compliance.</div>
+            <div style="margin-top:1.5rem"><a href="mailto:support@provenrail.com" class="btn-primary">Talk to us</a></div>
+          </div>
+          <div class="audience-visual reveal" style="transition-delay:.15s">
+            <div>
+              <div class="compliance-regs">
+                <span class="reg-badge active">EU AI Act Art. 12</span>
+                <span class="reg-badge active">HIPAA 164.312(b)</span>
+              </div>
+              <div class="terminal-card">
+                <div class="terminal-bar">
+                  <div class="code-dots" aria-hidden="true"><span class="code-dot code-dot-r"></span><span class="code-dot code-dot-y"></span><span class="code-dot code-dot-g"></span></div>
+                  <span class="terminal-title">Attestation report</span>
+                </div>
+                <div class="terminal-body">
+                  <div class="t-line"><span class="t-key">regulation</span><span class="t-val">EU AI Act Art. 12</span></div>
+                  <div class="t-line"><span class="t-key">requirement</span><span class="t-val">Automatic logging of</span></div>
+                  <div class="t-line"><span class="t-key"></span><span class="t-val">AI system operations</span></div>
+                  <div class="t-sep"></div>
+                  <div class="t-line"><span class="t-key">evidence</span><span class="t-val t-ok">Append-only event log</span></div>
+                  <div class="t-line"><span class="t-key">tamper proof</span><span class="t-val t-ok">Hash chain + RFC 3161</span></div>
+                  <div class="t-line"><span class="t-key">evidence pack</span><span class="t-val t-ok">1-click (Team)</span></div>
+                  <div class="t-sep"></div>
+                  <div class="t-line"><span class="t-dim">Attestation signed by: Your team</span></div>
+                  <div class="t-line"><span class="t-dim">Evidence provided by: Provenrail</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- DIFFERENTIATORS -->
+    <section class="diff-section" aria-labelledby="diff-heading" id="differentiators">
+      <div class="container">
+        <div class="section-header reveal">
+          <div class="section-eyebrow">Why Provenrail</div>
+          <h2 class="section-title" id="diff-heading">Built to be independently verified.</h2>
+          <p class="section-desc">Most observability tools ask you to trust them. Provenrail is designed so that you do not have to.</p>
+        </div>
+        <div class="diff-grid">
+          <div class="diff-card reveal">
+            <div class="diff-icon" aria-hidden="true">VF</div>
+            <h3 class="diff-title">Open-source verifier</h3>
+            <p class="diff-body">The <code>pr-verify</code> tool is open-source and runs entirely offline. Any party can check the chain without contacting our servers. Trust the math, not the vendor.</p>
+          </div>
+          <div class="diff-card reveal" style="transition-delay:.08s">
+            <div class="diff-icon" aria-hidden="true">TS</div>
+            <h3 class="diff-title">RFC 3161 trusted timestamps</h3>
+            <p class="diff-body">On Builder and higher plans, each anchor is timestamped by an external authority using the RFC 3161 standard, so the timing cannot be back-dated, even by us. The Free plan hash-chains ordering without a third-party timestamp.</p>
+          </div>
+          <div class="diff-card reveal" style="transition-delay:.16s">
+            <div class="diff-icon" aria-hidden="true">WL</div>
+            <h3 class="diff-title">Witnessed log, standards-aligned</h3>
+            <p class="diff-body">An independent off-box receipt chain closes the single-host rewrite gap on every plan. On Builder and higher, an append-only Merkle log cosigned by independent witnesses closes the equivocation gap too, and every inclusion is emitted as an IETF SCITT (COSE) receipt any standards-aware auditor can verify.</p>
+          </div>
+          <div class="diff-card reveal" style="transition-delay:.24s">
+            <div class="diff-icon" aria-hidden="true">PV</div>
+            <h3 class="diff-title">Privacy-first by default</h3>
+            <p class="diff-body">Default mode stores a SHA-256 hash of each prompt and response, not the raw text. Selective-disclosure redaction lets you reveal or erase sensitive fields later, without breaking the proof.</p>
+          </div>
+          <div class="diff-card reveal" style="transition-delay:.32s">
+            <div class="diff-icon" aria-hidden="true">XP</div>
+            <h3 class="diff-title">Works across every provider</h3>
+            <p class="diff-body">Drop-in capture for the OpenAI and Anthropic clients, LangChain and MCP. Any other provider or framework, Gemini, local models, or a custom loop, records with one line, all to the same chain.</p>
+          </div>
+          <div class="diff-card reveal" style="transition-delay:.4s">
+            <div class="diff-icon" aria-hidden="true">HN</div>
+            <h3 class="diff-title">Honest about the threat model</h3>
+            <p class="diff-body">We document exactly what Provenrail does and does not catch. Technical buyers trust specificity. We tell you what we cannot guarantee before you commit to a plan.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- PRICING -->
+    <section class="pricing-section" aria-labelledby="pricing-heading" id="pricing">
+      <div class="container">
+        <div class="section-header reveal" style="text-align:center;max-width:540px;margin-inline:auto;margin-bottom:3rem">
+          <div class="section-eyebrow" style="justify-content:center">Pricing</div>
+          <h2 class="section-title" id="pricing-heading">Start free. Scale when you need to.</h2>
+          <p class="section-desc" style="margin-inline:auto">No email gate on pricing. No hidden fees. Cancel anytime.</p>
+        </div>
+        <div class="pricing-grid reveal">
+          <article class="plan-card" aria-labelledby="plan-free-name">
+            <div class="plan-name" id="plan-free-name">Free</div>
+            <div class="plan-price">$0</div>
+            <div class="plan-period">forever</div>
+            <ul class="plan-features" aria-label="Free plan features">
+              <li class="plan-feature">50k events per month (roughly 200 to 500 agent runs)</li>
+              <li class="plan-feature">Single project, single user</li>
+              <li class="plan-feature">Hash-chain integrity (local timestamps)</li>
+              <li class="plan-feature">Open-source verifier, offline or hosted</li>
+              <li class="plan-feature">Regulatory attestation reports (<code>pr report</code>)</li>
+              <li class="plan-feature">Self-contained evidence packs (<code>pr pack</code>)</li>
+              <li class="plan-feature">Prove a transcript is authentic (<code>pr verify-content</code>)</li>
+              <li class="plan-feature">Community support</li>
+            </ul>
+            <a href="/account" class="btn-plan">Get started</a>
+          </article>
+
+          <article class="plan-card popular" aria-labelledby="plan-builder-name">
+            <div class="plan-popular-badge" aria-label="Most popular plan">Most popular</div>
+            <div class="plan-name" id="plan-builder-name">Builder</div>
+            <div class="plan-price">$29<span>/mo</span></div>
+            <div class="plan-period">billed monthly</div>
+            <ul class="plan-features" aria-label="Builder plan features">
+              <li class="plan-feature">500k events per month</li>
+              <li class="plan-feature">RFC 3161 trusted timestamps</li>
+              <li class="plan-feature">Shareable client proof links + live badge</li>
+              <li class="plan-feature">Single project, single user</li>
+              <li class="plan-feature">Email support</li>
+            </ul>
+            <a href="/account" class="btn-plan">Start Builder</a>
+          </article>
+
+          <article class="plan-card" aria-labelledby="plan-team-name">
+            <div class="plan-name" id="plan-team-name">Team</div>
+            <div class="plan-price">$99<span>/mo</span></div>
+            <div class="plan-period">billed monthly</div>
+            <ul class="plan-features" aria-label="Team plan features">
+              <li class="plan-feature">2M events per month</li>
+              <li class="plan-feature">Everything in Builder</li>
+              <li class="plan-feature">Up to 10 team members, roles + SSO</li>
+              <li class="plan-feature">Unlimited projects</li>
+              <li class="plan-feature">Data exports (NDJSON / SIEM)</li>
+              <li class="plan-feature">Attestation + HIPAA evidence packs</li>
+              <li class="plan-feature">Priority email support</li>
+            </ul>
+            <a href="/account" class="btn-plan">Start Team</a>
+          </article>
+
+          <article class="plan-card" aria-labelledby="plan-enterprise-name">
+            <div class="plan-name" id="plan-enterprise-name">Enterprise</div>
+            <div class="plan-price" style="font-size:1.4rem">Custom</div>
+            <div class="plan-period">volume + support</div>
+            <ul class="plan-features" aria-label="Enterprise plan features">
+              <li class="plan-feature">Unlimited events</li>
+              <li class="plan-feature">Everything in Team</li>
+              <li class="plan-feature">Unlimited members + SSO</li>
+              <li class="plan-feature">Private / self-hosted deployment</li>
+              <li class="plan-feature">Support terms by agreement</li>
+              <li class="plan-feature">Dedicated support</li>
+            </ul>
+            <a href="mailto:support@provenrail.com" class="btn-plan">Contact sales</a>
+          </article>
+        </div>
+        <p class="reveal" style="text-align:center;font-family:var(--font-mono);font-size:.75rem;color:var(--text-lo);margin-top:2rem">
+          Every plan includes full hash-chain integrity and the open-source verifier, identical on
+          every tier. Paid plans add RFC 3161 trusted timestamps, shareable proof links and a live
+          badge (Builder); then up to 10 team members with roles and SSO, data exports, and
+          attestation plus HIPAA evidence packs (Team).
+          Limits apply to the licensed build you run. We host no agent records. 14-day refund on paid plans.
+        </p>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- FAQ -->
+    <section class="faq-section" aria-labelledby="faq-heading" id="faq">
+      <div class="container">
+        <div class="section-header reveal">
+          <div class="section-eyebrow">FAQ</div>
+          <h2 class="section-title" id="faq-heading">Common questions.</h2>
+        </div>
+        <div class="faq-list reveal" style="transition-delay:.1s">
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-1">Can the agent fake the logs?<span class="faq-q-icon" aria-hidden="true"></span></button>
+            <div class="faq-a" id="faq-a-1" role="region">A cooperative agent cannot silently alter records once they reach the sink: the hash chain makes any tampering detectable, and on Builder and higher plans RFC 3161 timestamps from an external authority prevent back-dating. However, a hostile agent that simply does not call the SDK at all will not appear in the record. Provenrail detects tampering and deletion of records that were written. It cannot force an uncooperative agent to write in the first place. This limitation is a documented part of the threat model, not fine print.</div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-2">Do I have to trust Provenrail?<span class="faq-q-icon" aria-hidden="true"></span></button>
+            <div class="faq-a" id="faq-a-2" role="region">No. The verifier (<code>pr-verify</code>) is open-source and verifies the hash chain locally without contacting our servers. On Builder and higher plans it also checks RFC 3161 timestamps from an external time authority. You can run it yourself, or export a portable bundle and hand it to any third party who runs the open-source verifier; on Builder and higher a hosted read-only proof link is also available. You do not need to trust us or the agent; you need to trust standard cryptography and, on paid plans, the third-party time authority.</div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-3">What about PII and privacy?<span class="faq-q-icon" aria-hidden="true"></span></button>
+            <div class="faq-a" id="faq-a-3" role="region">The default mode is store-hash-not-content: we record a SHA-256 hash of each prompt and response, not the raw text. The hash proves the content existed and has not changed; the raw text stays on your infrastructure. Selective-disclosure redaction lets you commit sensitive fields as salted hashes and reveal or erase them later without breaking the proof. For HIPAA-covered entities, Provenrail maps evidence to 164.312(b); you remain the covered entity and own certification.</div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-4">Does this satisfy the EU AI Act Article 12 logging requirement?<span class="faq-q-icon" aria-hidden="true"></span></button>
+            <div class="faq-a" id="faq-a-4" role="region">Provenrail provides the technical evidence layer: an append-only, timestamped, tamper-evident log of AI system operations of the kind EU AI Act Article 12 calls for. Article 12 applies from 2027-12-02 for standalone Annex III high-risk systems and 2028-08-02 for Annex I embedded systems, deferred from 2026-08-02 by Regulation (EU) 2026/1744. Article 50 transparency obligations were not deferred and apply from 2026-08-02. Your team is responsible for regulatory certification. We provide the evidence; you provide the attestation. The Team plan includes one-click attestation evidence packs designed for use with auditors and regulators.</div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-5">What does it cost?<span class="faq-q-icon" aria-hidden="true"></span></button>
+            <div class="faq-a" id="faq-a-5" role="region">Free: $0, 50k events/month, single project, single user, hash-chain integrity, open-source verifier. Builder: $29/month, 500k events, RFC 3161 trusted timestamps, shareable client proof links and live badge, single user. Team: $99/month, 2M events, unlimited projects, up to 10 team members with role-based access and SSO, data exports, and one-click attestation plus HIPAA evidence packs. Enterprise: custom pricing, unlimited members, private deployment, support terms by agreement, contact us. Limits apply to the licensed build you run; the open-source integrity guarantee is identical on every plan, and we host no agent records. All paid plans include a 14-day refund window.</div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-6">How do I verify a proof?<span class="faq-q-icon" aria-hidden="true"></span></button>
+            <div class="faq-a" id="faq-a-6" role="region">Install the verifier: <code>uv tool install provenrail</code> (or <code>pip install provenrail</code> inside a virtualenv). Export your stream as a bundle, then run: <code>pr verify bundle.json --pin pin.json</code>. The tool recomputes the client hash chain, every Ed25519 signature, the independent server receipt chain, and every anchor locally, trusting neither the agent nor the sink. On Builder and higher plans each anchor carries an RFC 3161 trusted timestamp that the tool verifies against the external time authority. It exits 0 if intact and non-zero with a detailed error if any record is missing, reordered, altered, or back-dated. You can hand the bundle to a third party to run the verifier themselves; on Builder and higher a hosted read-only proof link is also available.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer" aria-label="Site footer">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block" loading="lazy" decoding="async">
+        </div>
+        <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Observability you can take to court.</p>
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="/docs">Documentation</a>
+          <a href="/#pricing">Pricing</a>
+          <a href="/#faq">FAQ</a>
+          <a href="/verify">Verify a record</a>
+          <a href="https://pypi.org/project/provenrail/" rel="noopener">Package (PyPI)</a>
+          <a href="mailto:support@provenrail.com">support@provenrail.com</a>
+        </nav>
+      </div>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Product</div>
+          <div class="footer-nav-links">
+            <a href="/#how-it-works">How it works</a>
+            <a href="/#see-it">Watch it work</a>
+            <a href="/#differentiators">Why Provenrail</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/start">Start here (beginners)</a>
+            <a href="/docs">Quickstart</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Resources</div>
+          <div class="footer-nav-links">
+            <a href="/compare">Compare</a>
+            <a href="/eu-ai-act">EU AI Act Article 12</a>
+            <a href="/ai-agent-incidents">Agent incidents</a>
+            <a href="/security">Security</a>
+            <a href="/conformance">Conformance</a>
+            <a href="/changelog">Changelog</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Legal</div>
+          <div class="footer-nav-links">
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+            <a href="/disclaimer">Disclaimer</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+    <div class="footer-copy container">
+      <p>Copyright 2026 Provenrail. All rights reserved.</p>
+      <p><span style="color:var(--accent)">pr-verify</span>, the SDK and the spec are open-source under MIT; the server under AGPL-3.0</p>
+    </div>
+    <div class="footer-copy container" style="margin-top:0;border-top:0;padding-top:0">
+      <p style="max-width:64ch;color:var(--text-lo);font-family:var(--font-body)">Provenrail is evidence tooling, not legal advice or a compliance guarantee. It makes recorded events tamper-evident and independently verifiable; it never claims completeness. Compliance references describe technical evidence mapping, not certification. Software provided as-is, without warranty.</p>
+    </div>
+  </footer>
+
+  <script src="main.js" defer></script>
+  <script type="module">
+    // Live tamper widget: verify a real record in the browser, then let the visitor break it.
+    // Reuses the exact open-source verifier that backs /verify and the `pr verify` CLI.
+    import { verifyBundle } from '/verify.js';
+    const DEMO_OPTS = { witnessPubkeys: { 'demo-witness': 'f5f6d366ff50408229e0e4717e342a38a2dbd6eb9c7f435ecac55319cf787876' } };
+    const card = document.getElementById('prove-card');
+    if (card) {
+      const badge = document.getElementById('prove-badge');
+      const meta = document.getElementById('prove-meta');
+      const tamperBtn = document.getElementById('prove-tamper');
+      const resetBtn = document.getElementById('prove-reset');
+      let pristine = null;
+      const flip = (s) => s.slice(0, -1) + (s[s.length - 1] === '0' ? '1' : '0');
+
+      async function render(bundle, { tampered } = {}) {
+        let rep;
+        try { rep = await verifyBundle(bundle, bundle.__pin || null, DEMO_OPTS); }
+        catch (e) { card.dataset.state = 'bad'; badge.textContent = 'Could not verify'; meta.textContent = String(e.message || e); return; }
+        if (rep.ok) {
+          card.dataset.state = 'ok';
+          badge.textContent = 'VERIFIED';
+          const n = (bundle.records || []).length;
+          meta.innerHTML = `Every hash, signature, Merkle anchor, and witness cosignature across ${n} records recomputed locally. Intact, correctly ordered, and independently dated.`;
+        } else {
+          card.dataset.state = 'bad';
+          badge.textContent = 'TAMPERING DETECTED';
+          const f = (rep.findings || []).length;
+          meta.innerHTML = tampered
+            ? `We changed a single character of one record's <code>server_record_hash</code>. The verifier caught it instantly: ${f} broken check${f === 1 ? '' : 's'}. A changed record cannot pass.`
+            : `${f} failing check${f === 1 ? '' : 's'}.`;
+        }
+      }
+
+      function tamper() {
+        const bad = JSON.parse(JSON.stringify(pristine));
+        // Flip one hex character of a server receipt hash: a real one-byte change.
+        const rec = (bad.records || []).find(r => typeof r.server_record_hash === 'string' && r.server_record_hash.length > 2);
+        if (rec) rec.server_record_hash = flip(rec.server_record_hash);
+        tamperBtn.hidden = true; resetBtn.hidden = false;
+        render(bad, { tampered: true });
+      }
+      function reset() { resetBtn.hidden = true; tamperBtn.hidden = false; render(pristine); }
+
+      (async () => {
+        try {
+          pristine = await (await fetch('/demo-bundle.json')).json();
+          await render(pristine);
+          tamperBtn.disabled = false;
+          tamperBtn.addEventListener('click', tamper);
+          resetBtn.addEventListener('click', reset);
+        } catch (e) {
+          card.dataset.state = 'bad'; badge.textContent = 'Could not load the demo record'; meta.textContent = 'Try the full verifier instead.';
+        }
+      })();
+    }
+  </script>
+</body>
+</html>

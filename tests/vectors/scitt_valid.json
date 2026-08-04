@@ -1,0 +1,118 @@
+{
+  "format": "flightrecorder.bundle/1",
+  "stream_id": "e5ad3848-a119-4df3-b634-3b740107d646",
+  "server_head": {
+    "recv_seq": 2,
+    "server_record_hash": "b15bd4d4b4f3d382ea44b360a2edbe2512c382366a71467422fd2974cbbeadbb"
+  },
+  "records": [
+    {
+      "recv_seq": 0,
+      "recv_ts": "2026-07-30T10:24:59.786916Z",
+      "recv_hash": "3966e9b775b131a5caaed9f8d77daad9c1a68e1d3998a2ac84935f01573d820c",
+      "server_prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "server_record_hash": "944b91158777e62b66f0c1ce13cd5db4914a9eb36e1eac7721ca50374a69f0f8",
+      "record": {
+        "v": "1",
+        "stream_id": "e5ad3848-a119-4df3-b634-3b740107d646",
+        "session_id": "a82961b0-2aa2-4729-a8ba-63da38614471",
+        "record_id": "d4d67359-5729-4eb2-9984-0d4348890ed0",
+        "seq": 0,
+        "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "ts_utc": "2026-07-30T10:24:59.782471Z",
+        "pubkey": "099cd135d39939d2908ad29744725629713b6cbfffe5937cc922f1ca748723da",
+        "action_type": "lifecycle.session_start",
+        "payload": {
+          "meta": {
+            "agent": "conformance",
+            "task": "rich golden vector"
+          }
+        },
+        "record_hash": "5a78a8a82991f8f31b9f7611f29b0b0b60bb6e4370c0d75426e7835e2436f4ba",
+        "record_sig": "863708b03d5ba1c282f3093f43c5c01e87c0e13254665d7d1ebeee6aefe49093154d9b2036b903438ccfc12f0eaaa454a3e68ac689cf8bf3f951e19560592701"
+      }
+    },
+    {
+      "recv_seq": 1,
+      "recv_ts": "2026-07-30T10:24:59.797381Z",
+      "recv_hash": "06fc1fc36e8a3f8fecd4dd134b5bbd82d2dd67e57009eb17515e4e7f8946c212",
+      "server_prev_hash": "944b91158777e62b66f0c1ce13cd5db4914a9eb36e1eac7721ca50374a69f0f8",
+      "server_record_hash": "a10d46df3f086076be7aaca4a60e33c664f5432e7dec742844ba3175874dd565",
+      "record": {
+        "v": "1",
+        "stream_id": "e5ad3848-a119-4df3-b634-3b740107d646",
+        "session_id": "a82961b0-2aa2-4729-a8ba-63da38614471",
+        "record_id": "2f871675-11a9-47ba-a556-5c5a71c91177",
+        "seq": 1,
+        "prev_hash": "5a78a8a82991f8f31b9f7611f29b0b0b60bb6e4370c0d75426e7835e2436f4ba",
+        "ts_utc": "2026-07-30T10:24:59.792671Z",
+        "pubkey": "099cd135d39939d2908ad29744725629713b6cbfffe5937cc922f1ca748723da",
+        "action_type": "decision",
+        "payload": {
+          "summary": "ship it",
+          "note": {
+            "__fr_redacted__": {
+              "v": 1,
+              "alg": "sha256",
+              "commit": "6fccdb59c86f944222ea0e491842b1744d8873884b6390ecff9cd5bc3adaa894"
+            }
+          }
+        },
+        "record_hash": "5a9dc9f08f997f119a885381c73a74910ed60ff247f7e047404c8d1716938f4c",
+        "record_sig": "6b0184fd1b9007db62aab6f63152a30b3c6dfe6a4e84021af50283f86e0a89a572a1287dd1219eaf4eda90655d83cb3169a8143f427c24099eebcc39bd5a0303"
+      }
+    },
+    {
+      "recv_seq": 2,
+      "recv_ts": "2026-07-30T10:24:59.804599Z",
+      "recv_hash": "ad41f1d80f6b25f7a2b645b1b3316affd7674013c5465b3533ae5993707edb45",
+      "server_prev_hash": "a10d46df3f086076be7aaca4a60e33c664f5432e7dec742844ba3175874dd565",
+      "server_record_hash": "b15bd4d4b4f3d382ea44b360a2edbe2512c382366a71467422fd2974cbbeadbb",
+      "record": {
+        "v": "1",
+        "stream_id": "e5ad3848-a119-4df3-b634-3b740107d646",
+        "session_id": "a82961b0-2aa2-4729-a8ba-63da38614471",
+        "record_id": "f99db5c8-cb42-4e6d-aacd-1842277d071d",
+        "seq": 2,
+        "prev_hash": "5a9dc9f08f997f119a885381c73a74910ed60ff247f7e047404c8d1716938f4c",
+        "ts_utc": "2026-07-30T10:24:59.798355Z",
+        "pubkey": "099cd135d39939d2908ad29744725629713b6cbfffe5937cc922f1ca748723da",
+        "action_type": "lifecycle.session_end",
+        "payload": {
+          "outcome": "success",
+          "trigger": "normal",
+          "count": "2",
+          "session_hash": "542a0860a66f6095e9886d4bd85910cdb754bd23d2e6c96e07c59340b7fe5b25"
+        },
+        "record_hash": "2f3cd22a90c3a920f0d79152556a56a7f728825d6dc0de569f769686eb24140c",
+        "record_sig": "e3298c4903852439e9ef511fab72db164e9a5b83cb69936b7bb46ef6289db0aca6c967d491f7709fe06223221687c9d859d12495c48245c88ac599d589ce0f09"
+      }
+    }
+  ],
+  "anchors": [
+    {
+      "anchor_seq": 0,
+      "covers_up_to": 2,
+      "receipt": {
+        "kind": "local",
+        "merkle_root": "947300c44ea0ba72d8c66a5ad70fce6b234c64087d0996c066b82a68ba926279",
+        "gen_time": "2026-07-30T10:24:59.816762Z",
+        "token_b64": null,
+        "signature": "3028fd4757b1d7c70644c9d2547818c9ed1faf38d4923c0659ae221eac8a5489ae094a548386d2fd9d72f5956c1e8a60ed3762716d1cc3d4ed0175e396f6a20a",
+        "anchor_pubkey": "140e579df2f48c874284d8df50f0f262c0330a0cc4165badbfe11d8a42c717ef",
+        "tsa_url": null
+      },
+      "tlog_inclusion": {
+        "kind": "tlog_inclusion",
+        "log_origin": "flightrecorder.io/v1/anchors/shared",
+        "leaf_index": 0,
+        "tree_size": 1,
+        "proof_hashes": [],
+        "checkpoint": "flightrecorder.io/v1/anchors/shared\n1\nIzAzyFjZ5Ts6xrCqe7z0Z0FEzpp+7oaA7z5eXlNewEw=\n\n\u2014 flightrecorder.io/v1/anchors/shared qRFfQ5c7qa3Nntc/oLrWTzEfob6YaUvL70u3E1RdkNgLs/LTnW271m8WFTK/tIMIB2/q5kWSd35N1pBEwRkts6qtjgM=\n\u2014 witness-A 3KynHgAAAABxP7MANB6sbaYEODpNCWyeDA+GqLFPdqTyOtNo5rdjKobV42VPe3hyt6mX41L9Yt9itfVpPUB6+RzTdQ8FPoMuGZyLCA==\n"
+      },
+      "scitt_receipt": "0oRYYaQBJwRYILxzYVT1zUuefxxqYgK4gH4imodEyK/pwZ7ZGUgCBUf0D6IBbXByb3ZlbnJhaWwuaW8CeCRlNWFkMzg0OC1hMTE5LTRkZjMtYjYzNC0zYjc0MDEwN2Q2NDY4bgGhON2hIIFEgwEAgFggIzAzyFjZ5Ts6xrCqe7z0Z0FEzpp+7oaA7z5eXlNewExYQJR+QXzCdIPJHpCRQQnwmV/5cTK5TBOlpXmsG2VtvjZDFHBXTPSlWLkcviO6EXfZYsUneBREVbxP2U08xT8m9Ag="
+    }
+  ],
+  "tlog_schema_version": 1,
+  "scitt_schema_version": 1
+}

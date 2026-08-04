@@ -1,0 +1,61 @@
+[project]
+name = "provenrail"
+version = "0.2.12"
+description = "The verifiable audit trail for AI agents. Off-box, hash-chained, tamper-evident record of what an agent did, independently verifiable. Observability you can take to court."
+license = { text = "MIT for client/SDK/verifier/spec; AGPL-3.0-or-later for server. See LICENSING.md" }
+requires-python = ">=3.11"
+dependencies = [
+    "cryptography>=42",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "httpx>=0.27",
+    # Required at VERIFY time to decode and check RFC 3161 trusted timestamps (Builder
+    # tier). The whole promise is "anyone can verify"; a recipient who installs provenrail
+    # to check a trusted-timestamped proof must be able to, so this is a core dependency,
+    # not an optional extra. (It was previously under the `anchor` extra, which silently
+    # made default installs report a valid trusted-time proof as a decode failure.)
+    "rfc3161-client>=1.0",
+]
+
+[project.optional-dependencies]
+# Retained as a no-op alias so existing `provenrail[anchor]` installs keep resolving.
+anchor = ["rfc3161-client>=1.0"]
+dev = ["pytest>=8", "cbor2>=5", "opentimestamps>=0.4"]
+
+[project.scripts]
+pr = "provenrail.cli:main"
+pr-verify = "provenrail.verifier.verify:main"
+pr-server = "provenrail.server.app:run"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+provenrail = ["trust/*.pem"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E741", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# server/app.py embeds an HTML/CSS proof-page template with intentionally long lines
+"src/provenrail/server/app.py" = ["E501"]
+# dashboard.py and verify_page.py are single self-contained HTML/CSS/JS template strings
+"src/provenrail/server/dashboard.py" = ["E501", "I001"]
+"src/provenrail/server/verify_page.py" = ["E501", "I001"]
+# pack.py embeds a print-to-PDF HTML cover template with intentionally long lines
+"src/provenrail/pack.py" = ["E501"]
+# evidence_report.py embeds a printable HTML verification report with intentionally long CSS lines
+"src/provenrail/evidence_report.py" = ["E501"]

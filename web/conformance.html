@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conformance vectors two verifiers agree on | Provenrail</title>
+  <meta name="description" content="Provenrail freezes a public suite of conformance vectors. Two independent verifiers, Python and JavaScript, must agree on every one. Browse them here.">
+  <link rel="canonical" href="https://provenrail.com/conformance">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Conformance vectors two verifiers agree on | Provenrail">
+  <meta name="twitter:description" content="Provenrail freezes a public suite of conformance vectors. Two independent verifiers, Python and JavaScript, must agree on every one. Browse them here.">
+  <meta name="twitter:image" content="https://provenrail.com/og.png">
+  <meta name="robots" content="index,follow">
+  <meta property="og:title" content="Conformance: frozen vectors two verifiers must agree on">
+  <meta property="og:description" content="Independent verifiability is only real if more than one implementation gets the same answer. These are the frozen vectors that hold us to it.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://provenrail.com/conformance">
+  <meta property="og:image" content="https://provenrail.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Provenrail: the verifiable audit trail for AI agents.">
+  <meta property="og:site_name" content="Provenrail">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0b0a08">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#5a626e;--yes:#6fcf86;--no:#c2502f;
+      --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#8a6c2c;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#97a0ab;--yes:#2f8f4e;--no:#b1442a}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+    body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
+    .wrap{max-width:880px;margin:0 auto;padding:clamp(1.5rem,5vw,3.5rem) clamp(1.1rem,5vw,2rem) 5rem}
+    .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:.7rem}
+    h1{font-family:var(--font-mono);font-size:clamp(1.7rem,4vw,2.3rem);font-weight:500;letter-spacing:-.02em;margin-bottom:.5rem}
+    .lede{color:var(--text-mid);font-size:1.02rem;margin-bottom:1.4rem;max-width:66ch}
+    h2{font-size:1.2rem;font-weight:600;margin:2.4rem 0 .5rem;letter-spacing:-.01em}
+    p,li{color:var(--text-mid);margin-bottom:.7rem}
+    a{color:var(--accent)}
+    strong{color:var(--text-hi);font-weight:600}
+    code{font-family:var(--font-mono);font-size:.82em;background:var(--bg-3);padding:.12em .42em;border-radius:5px;color:var(--text-hi)}
+    .pillrow{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.1rem 0 1.6rem}
+    .pill{font-family:var(--font-mono);font-size:.76rem;border:1px solid var(--border);border-radius:999px;padding:.35rem .8rem;color:var(--text-mid)}
+    .pill b{color:var(--accent);font-weight:500}
+    table{width:100%;border-collapse:collapse;margin:1rem 0 1.2rem;font-size:.9rem;display:block;overflow-x:auto}
+    th,td{text-align:left;padding:.6rem .7rem;border-bottom:1px solid var(--border);vertical-align:top}
+    thead th{color:var(--text-hi);font-weight:600;font-size:.8rem;white-space:nowrap}
+    td:nth-child(2){white-space:nowrap;font-family:var(--font-mono);font-weight:500}
+    .v{color:var(--yes)}
+    .r{color:var(--no)}
+    .name{font-family:var(--font-mono);color:var(--text-hi);white-space:nowrap}
+    td code{font-size:.78em}
+    .note{background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:.85rem 1rem;margin:1.2rem 0;font-size:.93rem}
+    .note strong{color:var(--accent)}
+    .back{display:inline-block;margin-top:2.5rem;font-family:var(--font-mono);font-size:.82rem;color:var(--text-lo);text-decoration:none}
+    .back:hover{color:var(--accent)}
+  </style>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+    {"@type":"ListItem","position":1,"name":"Home","item":"https://provenrail.com/"},
+    {"@type":"ListItem","position":2,"name":"Conformance","item":"https://provenrail.com/conformance"}]}
+  </script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"TechArticle","headline":"Conformance vectors two verifiers agree on | Provenrail","url":"https://provenrail.com/conformance","description":"Provenrail freezes a public suite of conformance vectors. Two independent verifiers, Python and JavaScript, must agree on every one. Browse them here.","dateModified":"2026-06-11","author":{"@type":"Organization","name":"Provenrail"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
+  </script>
+</head>
+<body>
+  <header>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="/" class="nav-logo" aria-label="Provenrail home">
+        <img class="seal" src="/assets/logo-mark.png" alt="" width="30" height="30">
+        <span>proven<span class="rail-accent">rail</span></span>
+      </a>
+      <button id="nav-toggle" class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M2 5h16M2 10h16M2 15h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div id="nav-links" class="nav-links" role="navigation">
+        <a href="/#how-it-works">How it works</a>
+        <a href="/compare">Compare</a>
+        <a href="/security">Security</a>
+        <a href="/start">Start here</a>
+        <a href="/docs">Docs</a>
+        <a href="/account">Sign in</a>
+        <a href="/#pricing" class="btn-nav">Start free</a>
+      </div>
+    </nav>
+  </header>
+  <div class="wrap">
+
+    <p class="eyebrow">Conformance</p>
+    <h1>Frozen vectors that two verifiers must agree on</h1>
+    <p class="lede">Independent verifiability is only real if more than one implementation can check a record and reach the same answer. Provenrail freezes a public suite of conformance vectors, and two separate verifiers, the Python <code>pr verify</code> CLI and the in-browser JavaScript verifier, must produce the recorded verdict on every one. If they ever drifted apart, the test suite fails.</p>
+
+    <div class="pillrow">
+      <span class="pill"><b>11</b> frozen vectors</span>
+      <span class="pill"><b>2</b> independent implementations</span>
+      <span class="pill"><b>Python + JavaScript</b> in lockstep</span>
+      <span class="pill"><b>Open source</b> under MIT</span>
+    </div>
+
+    <h2>The suite</h2>
+    <p>Each vector is a fixed bundle with a recorded expectation. A conforming verifier must agree on the verdict, and should surface the defining finding code that explains it.</p>
+    <table>
+      <thead>
+        <tr><th>Vector</th><th>Verdict</th><th>What it proves</th><th>Defining code</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="name">clean</td><td class="v">Verifies</td><td>An untampered, anchored run. Verifies clean.</td><td>none (clean pass)</td></tr>
+        <tr><td class="name">tamper_payload</td><td class="r">Rejected</td><td>A record payload edited after signing. The record hash no longer matches.</td><td><code>client_hash_mismatch</code></td></tr>
+        <tr><td class="name">delete_record</td><td class="r">Rejected</td><td>A record removed mid-stream. The server receipt chain breaks.</td><td><code>server_chain_break</code></td></tr>
+        <tr><td class="name">reorder</td><td class="r">Rejected</td><td>Two records swapped. Arrival order no longer matches emission order.</td><td><code>arrival_reorder</code></td></tr>
+        <tr><td class="name">bad_signature</td><td class="r">Rejected</td><td>A record signature corrupted. The device-key signature fails.</td><td><code>client_bad_signature</code></td></tr>
+        <tr><td class="name">strip_anchor</td><td class="v">Verifies</td><td>Valid records with no external anchor. Weaker, but not tampered.</td><td><code>no_anchor</code></td></tr>
+        <tr><td class="name">tlog_witnessed</td><td class="v">Verifies</td><td>A transparency-log inclusion proof cosigned by an independent witness.</td><td><code>tlog_inclusion_witnessed_ok</code></td></tr>
+        <tr><td class="name">scitt_valid</td><td class="v">Verifies</td><td>A SCITT COSE receipt that verifies against the transparency-service key.</td><td><code>scitt_receipt_ok</code></td></tr>
+        <tr><td class="name">scitt_forged</td><td class="r">Rejected</td><td>A SCITT receipt whose COSE signature was altered. Hard fail.</td><td><code>scitt_receipt_invalid</code></td></tr>
+        <tr><td class="name">redacted_disclosed</td><td class="v">Verifies</td><td>A redactable field disclosed with valid openings. Commitments recompute.</td><td><code>redaction_summary</code></td></tr>
+        <tr><td class="name">redacted_forged</td><td class="r">Rejected</td><td>A redactable field with a forged opening. The commitment does not match.</td><td><code>redaction_disclosure_invalid</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2>Why this is the bar</h2>
+    <p>Anyone can claim their records are verifiable. The honest test is whether a second, independent implementation reaches the same conclusion. These vectors cover the full chain: client signatures, the server receipt chain, arrival ordering, external anchors, the witnessed transparency log, SCITT COSE receipts, and verifiable redaction. Both the shipped verifiers run all of them on every change.</p>
+    <div class="note"><strong>Frozen on purpose.</strong> The vectors are locked. A change in verification behavior, in either implementation, is caught immediately rather than slipping out quietly. That is what keeps a record verified today still verifiable tomorrow.</div>
+
+    <h2>Verify it yourself</h2>
+    <p>You do not have to take the table's word for it. Run the verifier against a live record in your browser at <a href="/verify">provenrail.com/verify</a>, watch it <a href="/verify?tamper">reject a tampered one</a>, or install the CLI and run <code>pr verify</code> locally. The SDKs, the verifier, and the spec are open source under MIT.</p>
+
+    <a href="/security" class="back">&larr; Back to security</a>
+  </div>
+
+  <footer class="footer" aria-label="Site footer">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block">
+        </div>
+        <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Observability you can take to court.</p>
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="/docs">Documentation</a>
+          <a href="/#pricing">Pricing</a>
+          <a href="/#faq">FAQ</a>
+          <a href="/verify">Verify a record</a>
+          <a href="mailto:support@provenrail.com">support@provenrail.com</a>
+        </nav>
+      </div>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Product</div>
+          <div class="footer-nav-links">
+            <a href="/start">Start here (beginners)</a>
+            <a href="/compare">Compare</a>
+            <a href="/#how-it-works">How it works</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/docs">Quickstart</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Trust</div>
+          <div class="footer-nav-links">
+            <a href="/security">Security</a>
+            <a href="/conformance">Conformance</a>
+            <a href="/changelog">Changelog</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+    <div class="footer-copy container">
+      <p>Copyright 2026 Provenrail. All rights reserved.</p>
+      <p><span style="color:var(--accent)">pr-verify</span>, the SDK and the spec are open-source under MIT; the server under AGPL-3.0</p>
+    </div>
+    <div class="footer-copy container" style="margin-top:0;border-top:0;padding-top:0">
+      <p style="max-width:64ch;color:var(--text-lo);font-family:var(--font-body)">Provenrail is evidence tooling, not legal advice or a compliance guarantee. It makes recorded events tamper-evident and independently verifiable; it never claims completeness. Compliance references describe technical evidence mapping, not certification. Software provided as-is, without warranty.</p>
+    </div>
+  </footer>
+  <script src="/main.js" defer></script>
+</body>
+</html>

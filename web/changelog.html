@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Changelog | Provenrail</title>
+  <meta name="description" content="What changed in Provenrail and when. Releases of the SDK, the verifier, and the platform.">
+  <link rel="canonical" href="https://provenrail.com/changelog">
+  <meta property="og:title" content="Changelog | Provenrail">
+  <meta property="og:description" content="What changed in Provenrail and when. Releases of the SDK, the verifier, and the platform.">
+  <meta property="og:url" content="https://provenrail.com/changelog">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="https://provenrail.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Provenrail: the verifiable audit trail for AI agents.">
+  <meta property="og:site_name" content="Provenrail">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Changelog | Provenrail">
+  <meta name="twitter:description" content="What changed in Provenrail and when. Releases of the SDK, the verifier, and the platform.">
+  <meta name="twitter:image" content="https://provenrail.com/og.png">
+  <meta name="robots" content="index,follow">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0b0a08">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#5a626e;
+      --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#8a6c2c;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#97a0ab}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+    body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
+    .wrap{max-width:760px;margin:0 auto;padding:clamp(1.5rem,5vw,3.5rem) clamp(1.1rem,5vw,2rem) 5rem}
+    .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:.7rem}
+    h1{font-family:var(--font-mono);font-size:clamp(1.7rem,4vw,2.3rem);font-weight:500;letter-spacing:-.02em;margin-bottom:.5rem}
+    .lede{color:var(--text-mid);font-size:1.02rem;margin-bottom:2rem;max-width:62ch}
+    .rel{border-top:1px solid var(--border);padding-top:1.4rem;margin-top:1.8rem}
+    .rel-head{display:flex;align-items:baseline;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem}
+    .ver{font-family:var(--font-mono);font-size:1.05rem;font-weight:600;color:var(--text-hi)}
+    .date{font-family:var(--font-mono);font-size:.8rem;color:var(--text-lo)}
+    .tag{font-family:var(--font-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--border);border-radius:6px;padding:.1rem .45rem;color:var(--accent)}
+    ul{padding-left:1.2rem;margin:.3rem 0}
+    li{color:var(--text-mid);margin-bottom:.4rem}
+    li b{color:var(--text-hi);font-weight:600}
+    code{font-family:var(--font-mono);font-size:.82em;background:var(--bg-3);padding:.1em .4em;border-radius:5px;color:var(--text-hi)}
+    a{color:var(--accent)}
+    .back{display:inline-block;margin-top:2.5rem;font-family:var(--font-mono);font-size:.82rem;color:var(--text-lo);text-decoration:none}
+    .back:hover{color:var(--accent)}
+  </style>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"WebPage","name":"Changelog | Provenrail","url":"https://provenrail.com/changelog","description":"What changed in Provenrail and when. Releases of the SDK, the verifier, and the platform.","dateModified":"2026-06-11","isPartOf":{"@type":"WebSite","name":"Provenrail","url":"https://provenrail.com/"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
+  </script>
+</head>
+<body>
+  <header>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="/" class="nav-logo" aria-label="Provenrail home">
+        <img class="seal" src="/assets/logo-mark.png" alt="" width="30" height="30">
+        <span>proven<span class="rail-accent">rail</span></span>
+      </a>
+      <button id="nav-toggle" class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M2 5h16M2 10h16M2 15h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div id="nav-links" class="nav-links" role="navigation">
+        <a href="/#how-it-works">How it works</a>
+        <a href="/compare">Compare</a>
+        <a href="/security">Security</a>
+        <a href="/start">Start here</a>
+        <a href="/docs">Docs</a>
+        <a href="/account">Sign in</a>
+        <a href="/#pricing" class="btn-nav">Start free</a>
+      </div>
+    </nav>
+  </header>
+  <div class="wrap">
+
+    <p class="eyebrow">Changelog</p>
+    <h1>What changed, and when</h1>
+    <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.1</span><span class="date">June 11, 2026</span><span class="tag">CLI</span></div>
+      <ul>
+        <li><b>Verify your own run, free and local.</b> New <code>pr export</code> pulls a run you recorded out of the local sink into a bundle, so you can close the full loop on your own machine: record, <code>pr export</code>, <code>pr verify</code>, with no account.</li>
+        <li><b>quickstart keeps a read token.</b> <code>pr quickstart</code> now saves a read token in <code>.provenrail.json</code>, which is what makes <code>pr export</code> work with zero extra setup.</li>
+        <li><b>Deterministic tests.</b> The test suite no longer reads the developer's installed license, so free-tier behavior is verified consistently on every machine.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.0</span><span class="date">June 11, 2026</span><span class="tag">CLI</span></div>
+      <ul>
+        <li><b>Commercial licensing.</b> <code>pr activate</code> verifies a signed license key fully offline and runs the self-hosted deployment at the licensed tier. Plan limits and feature gates are enforced server-side; the integrity guarantee never depends on any of it.</li>
+        <li><b>Install that survives a system Python upgrade.</b> Recommended install moved to <code>uv tool install provenrail</code>, which brings its own pinned Python.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.1.x</span><span class="date">June 2026</span><span class="tag">Launch</span></div>
+      <ul>
+        <li><b>The core.</b> Off-box, hash-chained, signed records with an append-only sink and an independent server receipt chain.</li>
+        <li><b>Two SDKs in lockstep.</b> Python and TypeScript recording SDKs producing byte-for-byte compatible records, with drop-in capture for OpenAI, Anthropic, LangChain, and MCP.</li>
+        <li><b>An offline verifier.</b> <code>pr verify</code> and an in-browser verifier that trust nobody, backed by a frozen public <a href="/conformance">conformance suite</a> both must agree on.</li>
+        <li><b>Trusted time and transparency.</b> RFC 3161 timestamps, a witnessed transparency log, SCITT COSE receipts, verifiable redaction, and OpenTimestamps (Bitcoin) proof verification.</li>
+        <li><b>Evidence packs.</b> One-command attestation and regime evidence packs for EU AI Act and HIPAA mapping.</li>
+      </ul>
+    </div>
+
+    <p style="margin-top:2rem;color:var(--text-lo);font-size:.9rem">Dates reflect public release. For the precise commit history, the SDKs, verifier, and spec are open source under MIT.</p>
+
+    <a href="/" class="back">&larr; Back to home</a>
+  </div>
+
+  <footer class="footer" aria-label="Site footer">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block">
+        </div>
+        <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Observability you can take to court.</p>
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="/docs">Documentation</a>
+          <a href="/#pricing">Pricing</a>
+          <a href="/#faq">FAQ</a>
+          <a href="/verify">Verify a record</a>
+          <a href="mailto:support@provenrail.com">support@provenrail.com</a>
+        </nav>
+      </div>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Product</div>
+          <div class="footer-nav-links">
+            <a href="/start">Start here (beginners)</a>
+            <a href="/compare">Compare</a>
+            <a href="/#how-it-works">How it works</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/docs">Quickstart</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Trust</div>
+          <div class="footer-nav-links">
+            <a href="/security">Security</a>
+            <a href="/conformance">Conformance</a>
+            <a href="/changelog">Changelog</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+    <div class="footer-copy container">
+      <p>Copyright 2026 Provenrail. All rights reserved.</p>
+      <p><span style="color:var(--accent)">pr-verify</span>, the SDK and the spec are open-source under MIT; the server under AGPL-3.0</p>
+    </div>
+    <div class="footer-copy container" style="margin-top:0;border-top:0;padding-top:0">
+      <p style="max-width:64ch;color:var(--text-lo);font-family:var(--font-body)">Provenrail is evidence tooling, not legal advice or a compliance guarantee. It makes recorded events tamper-evident and independently verifiable; it never claims completeness. Compliance references describe technical evidence mapping, not certification. Software provided as-is, without warranty.</p>
+    </div>
+  </footer>
+  <script src="/main.js" defer></script>
+</body>
+</html>

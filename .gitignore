@@ -1,0 +1,49 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+*.db
+*.sqlite
+bundle.json
+pin.json
+device_key.pem
+dist/
+build/
+*.tgz
+node_modules/
+.provenrail.json
+*.pid
+.DS_Store
+.pypirc
+.npmrc
+
+.wrangler/
+
+.secrets/
+*.signing_key*
+
+# Supabase CLI local state (project refs, not secrets, but machine-local)
+supabase/.temp/
+supabase/functions/supabase/
+
+# Remotion tutorial workspace: deps and rendered output are rebuildable
+tutorials/node_modules/
+tutorials/out/
+
+# Internal: business model, moat, GTM, drafted launch posts, owner-only runbooks.
+# These live in the PRIVATE repo pofky/provenrail-internal, not in the public tree.
+/BUSINESS.md
+/STRATEGY.md
+/MOAT.md
+/PUBLISH.md
+/POLAR_SETUP.md
+/SUPABASE_SETUP.md
+/DEPLOY.md
+/docs/GTM-2026-08.md
+/docs/DISTRIBUTION-KIT.md
+/docs/launch-posts.md
+/docs/langchain-issue-replies.md
+/docs/research-2026-06-29-market-synthesis.md
+/docs/design-research.md

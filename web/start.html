@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Provenrail from zero: your first proof | Provenrail</title>
+  <meta name="description" content="Never opened a terminal? This walkthrough takes you from a blank screen to a verified, tamper-evident record of your AI agent. Mac, Windows, Linux.">
+  <link rel="canonical" href="https://provenrail.com/start">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Provenrail from zero: your first proof | Provenrail">
+  <meta name="twitter:description" content="Never opened a terminal? This walkthrough takes you from a blank screen to a verified, tamper-evident record of your AI agent. Mac, Windows, Linux.">
+  <meta name="twitter:image" content="https://provenrail.com/og.png">
+  <meta name="robots" content="index,follow">
+  <meta property="og:title" content="Provenrail from zero: your first proof, every keystroke spelled out">
+  <meta property="og:description" content="No terminal experience needed. Install, run, and verify your first tamper-evident AI agent record in about ten minutes.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://provenrail.com/start">
+  <meta property="og:image" content="https://provenrail.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Provenrail: the verifiable audit trail for AI agents.">
+  <meta property="og:site_name" content="Provenrail">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0b0a08">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#5a626e;
+      --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#8a6c2c;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#97a0ab}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+    body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
+    .wrap{max-width:780px;margin:0 auto;padding:clamp(1.5rem,5vw,3.5rem) clamp(1.1rem,5vw,2rem) 5rem}
+    .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:.7rem}
+    h1{font-family:var(--font-mono);font-size:clamp(1.7rem,4vw,2.3rem);font-weight:500;letter-spacing:-.02em;margin-bottom:.5rem;line-height:1.25}
+    .lede{color:var(--text-mid);font-size:1.05rem;margin-bottom:1.4rem}
+    h2{font-size:1.25rem;font-weight:600;margin:2.6rem 0 .5rem;letter-spacing:-.01em;scroll-margin-top:1.5rem}
+    h3{font-size:1rem;font-weight:600;margin:1.5rem 0 .4rem;color:var(--text-hi)}
+    p,li{color:var(--text-mid);margin-bottom:.7rem}
+    ul,ol{padding-left:1.2rem}
+    li{margin-bottom:.45rem}
+    a{color:var(--accent)}
+    strong{color:var(--text-hi);font-weight:600}
+    code{font-family:var(--font-mono);font-size:.85em;background:var(--bg-3);padding:.12em .42em;border-radius:5px;color:var(--text-hi);word-break:break-word}
+    pre{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:1rem 1.1rem;overflow-x:auto;margin:.6rem 0 1rem;font-size:.86rem;line-height:1.6}
+    pre code{background:none;padding:0;font-size:.86rem;color:var(--text-hi)}
+    pre .c{color:var(--text-lo)}
+    pre .g{color:var(--accent)}
+    pre .p{color:var(--text-lo);user-select:none}
+    pre .ok{color:#6fcf86}
+    .toc{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.4rem 0 2rem}
+    .toc a{font-family:var(--font-mono);font-size:.78rem;background:var(--bg-2);border:1px solid var(--border);border-radius:999px;padding:.35rem .8rem;text-decoration:none;color:var(--text-mid)}
+    .toc a:hover{border-color:var(--accent);color:var(--accent)}
+    .note{background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:.85rem 1rem;margin:1rem 0;font-size:.92rem}
+    .note strong{color:var(--accent)}
+    .meta{display:flex;flex-wrap:wrap;gap:.5rem .9rem;font-family:var(--font-mono);font-size:.76rem;color:var(--text-lo);margin-bottom:1.6rem}
+    .meta span{display:inline-flex;align-items:center;gap:.35rem}
+    .step{display:flex;gap:.85rem;margin:1.1rem 0;align-items:baseline}
+    .step .n{flex:0 0 auto;width:1.7rem;height:1.7rem;border-radius:50%;border:1px solid var(--accent);color:var(--accent);font-family:var(--font-mono);font-size:.8rem;display:flex;align-items:center;justify-content:center;font-weight:500}
+    .step .b{flex:1 1 auto;min-width:0}
+    .step .b > :first-child{margin-top:0}
+    .os{display:inline-block;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);border:1px solid var(--border);border-radius:6px;padding:.1rem .45rem;margin:.4rem .35rem .2rem 0}
+    kbd{font-family:var(--font-mono);font-size:.8em;background:var(--bg-3);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:.05em .4em;color:var(--text-hi)}
+    table{width:100%;border-collapse:collapse;margin:.8rem 0 1.2rem;font-size:.9rem;display:block;overflow-x:auto}
+    th,td{text-align:left;padding:.6rem .7rem;border-bottom:1px solid var(--border);vertical-align:top}
+    th{color:var(--text-hi);font-weight:600;font-size:.82rem}
+    td code{white-space:nowrap}
+    .faq dt{color:var(--text-hi);font-weight:600;margin-top:1.1rem}
+    .faq dd{color:var(--text-mid);margin:.25rem 0 0;padding:0}
+    .next{display:flex;flex-direction:column;gap:.6rem;margin-top:1rem}
+    .next a{display:flex;align-items:center;justify-content:space-between;gap:1rem;background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:.9rem 1.1rem;text-decoration:none;color:var(--text-hi);font-weight:600}
+    .next a:hover{border-color:var(--accent)}
+    .next a span{color:var(--text-lo);font-family:var(--font-mono);font-size:.8rem;font-weight:400}
+    .back{display:inline-block;margin-top:2.5rem;font-family:var(--font-mono);font-size:.82rem;color:var(--text-lo);text-decoration:none}
+    .back:hover{color:var(--accent)}
+  </style>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+    {"@type":"ListItem","position":1,"name":"Home","item":"https://provenrail.com/"},
+    {"@type":"ListItem","position":2,"name":"Start","item":"https://provenrail.com/start"}]}
+  </script>
+</head>
+<body>
+  <header>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="/" class="nav-logo" aria-label="Provenrail home">
+        <img class="seal" src="/assets/logo-mark.png" alt="" width="30" height="30">
+        <span>proven<span class="rail-accent">rail</span></span>
+      </a>
+      <button id="nav-toggle" class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M2 5h16M2 10h16M2 15h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div id="nav-links" class="nav-links" role="navigation">
+        <a href="/#how-it-works">How it works</a>
+        <a href="/#see-it">Watch</a>
+        <a href="/#for-agencies">Use cases</a>
+        <a href="/compare">Compare</a>
+        <a href="/#pricing">Pricing</a>
+        <a href="/docs">Docs</a>
+        <a href="/account">Sign in</a>
+        <a href="/#pricing" class="btn-nav">Start free</a>
+      </div>
+    </nav>
+  </header>
+  <div class="wrap">
+
+    <p class="eyebrow">Start here</p>
+    <h1>Provenrail from zero: open a terminal, ship your first proof</h1>
+    <p class="lede">Built your app by vibe-coding and never really touched a terminal? Good. This is the one page that takes you from a blank screen to a verified, tamper-evident record of what your AI agent did. Every keystroke is written out. You do not need to know how to code, and you do not need to install or understand Python.</p>
+
+    <div class="meta">
+      <span>About 10 minutes</span>
+      <span>Mac, Windows, or Linux</span>
+      <span>No account needed to start</span>
+      <span>Nothing is sent anywhere</span>
+    </div>
+
+    <div class="note"><strong>How to read this page.</strong> Lines that start with <code>$</code> are commands you type into the terminal. Do not type the <code>$</code> itself. Type or paste the rest, then press <kbd>Enter</kbd>. The greyed-out lines under a command are what the computer prints back, so you can check you are on track.</div>
+
+    <div class="toc">
+      <a href="#need">0. What you need</a>
+      <a href="#terminal">1. Open the terminal</a>
+      <a href="#uv">2. Install uv</a>
+      <a href="#install">3. Install Provenrail</a>
+      <a href="#firstproof">4. Your first proof</a>
+      <a href="#record">5. Record your own agent</a>
+      <a href="#realcalls">6. Capture real AI calls</a>
+      <a href="#hosted">7. Share and go live</a>
+      <a href="#trouble">If something goes wrong</a>
+      <a href="#faq">FAQ</a>
+    </div>
+
+    <h2 id="need">0. What you need</h2>
+    <p>That is the whole list:</p>
+    <ul>
+      <li>A computer running <strong>macOS, Windows, or Linux</strong>.</li>
+      <li>An internet connection (only for the two install steps; recording itself works offline).</li>
+      <li>About ten minutes.</li>
+    </ul>
+    <p>You do <strong>not</strong> need Python, Node, Docker, an account, a credit card, or any prior command-line experience. Provenrail is the open-source tool that records what your AI agent did and lets anyone verify the record was not altered after the fact. We will install it, prove it works, then record a run of your own.</p>
+
+    <h2 id="terminal">1. Open the terminal</h2>
+    <p>The terminal is a plain text window where you type a command and press <kbd>Enter</kbd> to run it. Open it once and leave it open for the whole guide.</p>
+
+    <div class="step"><div class="n">1</div><div class="b">
+      <span class="os">macOS</span>
+      <p>Press <kbd>Cmd</kbd> + <kbd>Space</kbd> to open Spotlight, type <strong>Terminal</strong>, and press <kbd>Enter</kbd>. A small window opens with a blinking cursor.</p>
+    </div></div>
+    <div class="step"><div class="n">2</div><div class="b">
+      <span class="os">Windows</span>
+      <p>Press the <kbd>Windows</kbd> key, type <strong>Terminal</strong> (or <strong>PowerShell</strong>), and press <kbd>Enter</kbd>. If you have neither, type <strong>cmd</strong> instead. Any of them works.</p>
+    </div></div>
+    <div class="step"><div class="n">3</div><div class="b">
+      <span class="os">Linux</span>
+      <p>Press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>T</kbd>, or open your applications menu and search for <strong>Terminal</strong>.</p>
+    </div></div>
+
+    <p>You will see a line ending in a symbol like <code>%</code>, <code>$</code>, or <code>&gt;</code>, with a cursor next to it. That is the <strong>prompt</strong>: the computer waiting for you to type. To run any command in this guide, click into the window, type (or paste) the command, and press <kbd>Enter</kbd>.</p>
+    <div class="note"><strong>Pasting tip.</strong> On Mac use <kbd>Cmd</kbd> + <kbd>V</kbd>. In Windows Terminal and most Linux terminals use <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>V</kbd> (right-click also works). Paste one command at a time and press <kbd>Enter</kbd> after each.</p></div>
+
+    <h2 id="uv">2. Install uv (this handles Python for you)</h2>
+    <p><strong>uv</strong> is a tiny, fast tool that installs command-line apps and quietly brings its own copy of Python, kept separate from anything else on your machine. That one detail is why people who installed Python through other means sometimes watch their tools break after an update: those tools lean on a shared system Python that moves under them. uv does not. Install it once and you never think about Python again.</p>
+
+    <p>Copy the line for your system, paste it into the terminal, and press <kbd>Enter</kbd>.</p>
+    <span class="os">macOS / Linux</span>
+    <pre><code><span class="p">$ </span><span class="g">curl -LsSf https://astral.sh/uv/install.sh | sh</span></code></pre>
+    <span class="os">Windows (PowerShell)</span>
+    <pre><code><span class="p">&gt; </span><span class="g">powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</span></code></pre>
+
+    <p>It prints a few lines as it downloads, ending with something like <code>installed uv</code> and a note about your PATH.</p>
+    <div class="note"><strong>Important, do this once.</strong> Close the terminal window completely and open a new one (repeat step 1). This lets your computer find the freshly installed <code>uv</code> command. To confirm it worked, run:</p>
+    <pre><code><span class="p">$ </span><span class="g">uv --version</span>
+<span class="c">uv 0.11.6</span></code></pre>
+    <p style="margin:.4rem 0 0">If you see a version number, you are set. If instead you see <code>command not found</code>, jump to <a href="#trouble">If something goes wrong</a>.</p></div>
+
+    <h2 id="install">3. Install Provenrail</h2>
+    <p>One command. This installs the <code>pr</code> tool (that is the Provenrail command) in its own isolated space, so it can never clash with your other software.</p>
+    <pre><code><span class="p">$ </span><span class="g">uv tool install provenrail</span>
+<span class="c">Installed 3 executables: pr, pr-server, pr-verify</span></code></pre>
+    <p>Check it is there by running <code>pr</code> on its own. It prints its list of commands, which means it is installed and working:</p>
+    <pre><code><span class="p">$ </span><span class="g">pr</span>
+<span class="c">usage: pr [-h] {serve,activate,demo,verify,disclose,report,pack,diff,quickstart,...} ...</span></code></pre>
+    <div class="note">If <code>pr</code> says <code>command not found</code>, close and reopen the terminal once (the same PATH reason as uv), then try again. Still stuck? See <a href="#trouble">troubleshooting</a>.</div>
+
+    <h2 id="firstproof">4. Your first proof, with no code at all</h2>
+    <p>Before touching your own agent, prove the whole idea in two commands. The first creates a small sample run and seals it into a file called a <strong>bundle</strong>. The second checks that bundle, recomputing every hash and signature, and tells you whether anyone tampered with it.</p>
+    <pre><code><span class="p">$ </span><span class="g">pr demo</span>
+<span class="c">Recorded a 6-event demo run and sealed it into bundle.json.</span>
+
+<span class="c">Now prove it is tamper-evident. Re-derive every hash and signature, trusting nothing:</span>
+<span class="c">  pr verify bundle.json</span>
+
+<span class="p">$ </span><span class="g">pr verify bundle.json</span>
+<span class="c">[info] summary: 6 records, 1 anchors, 0 heartbeats.</span>
+<span class="ok">RESULT: VERIFIED</span>
+<span class="c">The warn/info lines above are advisory context, not failures.</span></code></pre>
+    <p><strong>That green <span style="color:#6fcf86">VERIFIED</span> is the entire product in one word.</strong> The verifier trusted nobody: not us, not the file, not your network. It re-derived the record from scratch and confirmed it is intact. Want to feel the other side? Open <code>bundle.json</code> in any text editor, change a single character inside it, save, and run <code>pr verify bundle.json</code> again. It will report <strong>TAMPERING DETECTED</strong> and refuse to pass. That is the point: a changed record cannot pass.</p>
+    <div class="note"><strong>You will also see a few <code>[warn]</code> lines, and that is expected on the free plan.</strong> They say things like "local anchor only" and "not witnessed": the record carries your own machine's time, not a trusted third-party timestamp. That timestamp, plus witness cosignatures, is the paid Builder feature. The integrity proof is identical on every plan, so the line that matters here is the last one: <span style="color:#6fcf86">RESULT: VERIFIED</span>. Warnings are guidance, not failures; only <strong>TAMPERING DETECTED</strong> is a failure.</div>
+    <div class="note">No coding happened here, and nothing left your machine. You can also try it in your browser with no install at all on the <a href="/verify?demo">live verifier</a>.</div>
+
+    <h2 id="record">5. Record a run of your own agent</h2>
+    <p>Now record something yourself. We will keep it to a tiny example with no AI keys required, so it runs anywhere. Once you see it work, swapping in your real agent is one line (next section).</p>
+
+    <div class="step"><div class="n">1</div><div class="b">
+      <h3 style="margin-top:0">Make a folder to work in and move into it</h3>
+      <p>A folder keeps the files for this run together. <code>mkdir</code> makes the folder; <code>cd</code> ("change directory") steps into it. Every command after this runs <em>inside</em> that folder.</p>
+      <pre><code><span class="p">$ </span><span class="g">mkdir my-first-agent</span>
+<span class="p">$ </span><span class="g">cd my-first-agent</span></code></pre>
+    </div></div>
+
+    <div class="step"><div class="n">2</div><div class="b">
+      <h3 style="margin-top:0">Start the recorder</h3>
+      <p>This starts a small local recorder in the background and writes a tiny config file so your code needs zero setup. It runs entirely on your own computer.</p>
+      <pre><code><span class="p">$ </span><span class="g">pr quickstart</span>
+<span class="c">started a local sink (pid 12345) and wrote .provenrail.json</span>
+
+<span class="c">Now your whole setup is two lines:</span>
+<span class="c">    import provenrail as fr</span>
+<span class="c">    with fr.record('my-agent'):</span>
+<span class="c">        ...   # your agent runs; calls are captured automatically</span></code></pre>
+    </div></div>
+
+    <div class="step"><div class="n">3</div><div class="b">
+      <h3 style="margin-top:0">Create the script file</h3>
+      <p>In the <strong>same folder</strong>, make a file named <code>my_first_agent.py</code> with the code below. If you use VS Code, Cursor, or any editor: choose File, New File, paste this in, and save it as <code>my_first_agent.py</code> inside the <code>my-first-agent</code> folder.</p>
+      <pre><code>import provenrail as fr
+
+with fr.record(<span class="g">"my-first-agent"</span>) as run:
+    run.record_model_call(
+        <span class="g">"anthropic"</span>, <span class="g">"claude-opus-4-8"</span>,
+        request={<span class="g">"prompt"</span>: <span class="g">"Summarize the contract."</span>},
+        response={<span class="g">"text"</span>: <span class="g">"Three key risks: A, B, C."</span>},
+        usage={<span class="g">"input"</span>: <span class="g">"640"</span>, <span class="g">"output"</span>: <span class="g">"180"</span>},
+    )
+    run.record_decision(<span class="g">"answer is grounded; returning to user"</span>, confidence=<span class="g">"high"</span>)
+    run.record_human_oversight(<span class="g">"approved"</span>, approver=<span class="g">"me@example.com"</span>)
+
+print(<span class="g">"Done. The run was captured and sealed off-box."</span>)</code></pre>
+      <p>No editor open? On Mac or Linux you can create the file straight from the terminal by pasting this whole block at once and pressing <kbd>Enter</kbd>:</p>
+      <pre><code><span class="p">$ </span><span class="g">cat &gt; my_first_agent.py &lt;&lt;'EOF'</span>
+<span class="g">import provenrail as fr</span>
+<span class="g">with fr.record("my-first-agent") as run:</span>
+<span class="g">    run.record_model_call("anthropic", "claude-opus-4-8",</span>
+<span class="g">        request={"prompt": "Summarize the contract."},</span>
+<span class="g">        response={"text": "Three key risks: A, B, C."})</span>
+<span class="g">    run.record_decision("grounded; returning to user", confidence="high")</span>
+<span class="g">print("Done. The run was captured and sealed off-box.")</span>
+<span class="g">EOF</span></code></pre>
+    </div></div>
+
+    <div class="step"><div class="n">4</div><div class="b">
+      <h3 style="margin-top:0">Run it</h3>
+      <p>This one command runs your script. The <code>uv run --with provenrail</code> part means uv quietly fetches what the script needs into a throwaway environment, so you never install or manage Python yourself.</p>
+      <pre><code><span class="p">$ </span><span class="g">uv run --with provenrail python my_first_agent.py</span>
+<span class="c">Installed 26 packages in 19ms</span>
+<span class="ok">Done. The run was captured and sealed off-box.</span></code></pre>
+      <p>That is a real, signed, tamper-evident record of your run, sealed and stored by the recorder. "Off-box" means it is written somewhere your agent code cannot quietly rewrite, which is the whole point of an independent record.</p>
+    </div></div>
+
+    <div class="step"><div class="n">5</div><div class="b">
+      <h3 style="margin-top:0">Verify your own run, free and offline</h3>
+      <p>Now close the loop on your <strong>own</strong> data. <code>pr export</code> pulls your sealed run out of the recorder into a bundle; <code>pr verify</code> then recomputes every hash and signature and confirms it is intact, trusting nobody.</p>
+      <pre><code><span class="p">$ </span><span class="g">pr export my-run.json</span>
+<span class="c">wrote my-run.json (4 records, 1 anchors). Verify it yourself with:</span>
+<span class="c">    pr verify my-run.json</span>
+
+<span class="p">$ </span><span class="g">pr verify my-run.json</span>
+<span class="ok">RESULT: VERIFIED</span></code></pre>
+      <p>That is the whole promise, on your own machine, for free: a record of what your agent did that you can prove was not altered after the fact. Tamper with one character of <code>my-run.json</code> and re-verify to watch it fail.</p>
+    </div></div>
+
+    <div class="step"><div class="n">6</div><div class="b">
+      <h3 style="margin-top:0">Turn it into something you can hand over (this is the point)</h3>
+      <p>A green VERIFIED is the proof. The value is what you do with it. Two commands turn your run into a deliverable, both free and on your own machine.</p>
+      <p><strong>A readable report for a client or auditor:</strong></p>
+      <pre><code><span class="p">$ </span><span class="g">pr report --regime eu-ai-act my-run.json --md &gt; report.md</span></code></pre>
+      <p>That writes a plain-English <code>report.md</code>: what was recorded, whether integrity verified, a breakdown of the events, and how they map to EU AI Act Article 12. Swap in <code>--regime hipaa</code> or <code>--regime generic</code> for other contexts. On this free local setup the report honestly notes that the recorded times are self-asserted; the Builder plan adds RFC 3161 trusted time so an auditor can rely on the timing too.</p>
+      <p><strong>A self-contained evidence package for an auditor:</strong></p>
+      <pre><code><span class="p">$ </span><span class="g">pr pack my-run.json --out evidence.zip</span>
+<span class="c">Wrote 12893 byte evidence pack to evidence.zip (regime=generic)   # exact size varies by run</span>
+<span class="c">Contents: bundle.json, attestation, VERIFY.txt, MANIFEST.json</span></code></pre>
+      <p>Hand over <code>evidence.zip</code>. It carries the run, a written attestation, and a <code>VERIFY.txt</code> that tells the recipient exactly how to check it themselves with the open-source verifier, trusting nothing you say. That is the whole pitch: you do not ask them to trust you, you hand them proof they can verify.</p>
+    </div></div>
+
+    <div class="step"><div class="n">7</div><div class="b">
+      <h3 style="margin-top:0">Stop the recorder when you are done</h3>
+      <pre><code><span class="p">$ </span><span class="g">pr quickstart --stop</span>
+<span class="c">stopped the local Provenrail sink</span></code></pre>
+    </div></div>
+
+    <h2 id="realcalls">6. Capture your real AI calls automatically</h2>
+    <p>The example above logged events by hand so it would run with no API keys. In a real app you do not write those lines yourself. You hand Provenrail your OpenAI or Anthropic client once, and every model call inside the recorded block is captured for you:</p>
+    <pre><code>import provenrail as fr
+from openai import OpenAI
+
+client = OpenAI()
+
+with fr.record(<span class="g">"billing-agent"</span>, clients=[client]):
+    client.chat.completions.create(
+        model=<span class="g">"gpt-4o"</span>,
+        messages=[{<span class="g">"role"</span>: <span class="g">"user"</span>, <span class="g">"content"</span>: <span class="g">"..."</span>}],
+    )
+    <span class="c"># every call your agent makes in here is recorded, no extra lines</span></code></pre>
+    <p>Anthropic works the same way: pass your Anthropic client in <code>clients=[...]</code>. LangChain and MCP are supported too, and anything else records with one explicit line. Full reference lives in the <a href="/docs">docs</a>.</p>
+
+    <h2 id="hosted">7. Share a proof and go live</h2>
+    <p>Everything so far ran free on your own machine. When you want a teammate, a client, or an auditor to verify a run without installing anything, Provenrail can host the record behind a shareable proof link and add a trusted timestamp from an independent authority. That is the paid tier.</p>
+    <ol>
+      <li>Go to <a href="/account">provenrail.com/account</a> and sign in with your email (you get a one-click magic link, no password).</li>
+      <li>Pick a plan. After payment your account page shows a license key that starts with <code>prl_live_</code>.</li>
+      <li>Activate it in your terminal:
+        <pre style="margin-top:.5rem"><code><span class="p">$ </span><span class="g">pr activate prl_live_your_key_here</span>
+<span class="ok">License valid: builder tier (no expiry). Verified offline, nothing was sent anywhere.</span></code></pre>
+      </li>
+    </ol>
+    <p>The key is checked on your own machine, offline. From then on your runs can carry trusted timestamps and shareable proof links. See <a href="/#pricing">pricing</a> for what each tier includes.</p>
+
+    <h2 id="trouble">If something goes wrong</h2>
+    <p>Almost every first-time snag is one of these. Find your message on the left.</p>
+    <table>
+      <thead><tr><th>What you see</th><th>What to do</th></tr></thead>
+      <tbody>
+        <tr><td><code>command not found: uv</code> or <code>pr</code></td><td>The terminal has not picked up the newly installed command yet. Close the window completely and open a brand-new one, then try again. This fixes it the vast majority of the time.</td></tr>
+        <tr><td><code>command not found: python</code> or <code>python3</code></td><td>You do not need a system Python. Use the <code>uv run --with provenrail python ...</code> command exactly as written; uv supplies Python for you.</td></tr>
+        <tr><td>You installed Python with Homebrew and tools broke</td><td>Use the <code>uv tool install provenrail</code> path on this page instead of <code>pip</code>. uv keeps its own Python, so a <code>brew upgrade</code> can never orphan it.</td></tr>
+        <tr><td><code>permission denied</code> during install</td><td>Do not add <code>sudo</code>. The uv and <code>uv tool install</code> commands here install into your own user space and never need administrator rights.</td></tr>
+        <tr><td><code>pr verify</code> says <strong>TAMPERING DETECTED</strong></td><td>If you edited the bundle on purpose, that is the correct answer. If not, re-run <code>pr demo</code> to make a fresh, unaltered bundle and verify that.</td></tr>
+        <tr><td>The <code>cat &gt; ... EOF</code> block did nothing or hangs</td><td>That shortcut is for Mac and Linux only. On Windows, create the file in Notepad or VS Code instead (step 3, first method).</td></tr>
+        <tr><td>Nothing happens after I paste</td><td>You probably did not press <kbd>Enter</kbd>. The command only runs when you press <kbd>Enter</kbd>. Paste one command at a time.</td></tr>
+      </tbody>
+    </table>
+    <p>Still stuck? Email <a href="mailto:support@provenrail.com">support@provenrail.com</a> with the exact command you ran and the exact message you saw, and we will get you moving.</p>
+
+    <h2 id="faq">FAQ</h2>
+    <dl class="faq">
+      <dt>Do I need to know how to code?</dt>
+      <dd>No. Steps 1 through 4 are pure copy and paste and give you a real verified proof. Recording your own agent (step 5) means pasting one short file; you do not need to understand it to run it.</dd>
+      <dt>Do I need Python installed?</dt>
+      <dd>No. uv brings its own Python, and the <code>uv run</code> command uses it. You never install or manage Python yourself.</dd>
+      <dt>Does it matter which folder I am in?</dt>
+      <dd>For installing (steps 2 and 3) it does not matter at all. For recording your own run (step 5), make a folder and <code>cd</code> into it first, so the config file and your script live together. The recorder reads the config from the folder you run your script in.</dd>
+      <dt>Do I have to keep the terminal open?</dt>
+      <dd>Keep it open while you work through the guide. The local recorder from <code>pr quickstart</code> runs until you run <code>pr quickstart --stop</code> or close the terminal. Installed tools like <code>pr</code> and <code>uv</code> stay installed forever; you do not reinstall them.</dd>
+      <dt>Is any of my data sent to Provenrail?</dt>
+      <dd>Not in this guide. Installing, recording, and verifying all happen on your own machine and work offline. Data only leaves your machine if you later choose a hosted plan to share proof links.</dd>
+      <dt>Does this work on Windows?</dt>
+      <dd>Yes. Use the Windows lines where this page shows them (opening the terminal, and the uv install command). Everything else is identical.</dd>
+      <dt>What is the difference between this and the docs?</dt>
+      <dd>This page assumes nothing and spells out every keystroke. The <a href="/docs">docs</a> are the faster reference once you are comfortable in a terminal.</dd>
+    </dl>
+
+    <div class="next">
+      <a href="/docs">Read the full docs and CLI reference <span>/docs</span></a>
+      <a href="/verify?demo">Verify a record in your browser <span>/verify</span></a>
+      <a href="/#pricing">See plans and pricing <span>/#pricing</span></a>
+    </div>
+
+    <a href="/" class="back">&larr; Back to home</a>
+  </div>
+
+  <footer class="footer" aria-label="Site footer">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block">
+        </div>
+        <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Observability you can take to court.</p>
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="/docs">Documentation</a>
+          <a href="/#pricing">Pricing</a>
+          <a href="/#faq">FAQ</a>
+          <a href="/verify">Verify a record</a>
+          <a href="mailto:support@provenrail.com">support@provenrail.com</a>
+        </nav>
+      </div>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Product</div>
+          <div class="footer-nav-links">
+            <a href="/start">Start here</a>
+            <a href="/#how-it-works">How it works</a>
+            <a href="/#see-it">Watch it work</a>
+            <a href="/#differentiators">Why Provenrail</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/docs">Quickstart</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Legal</div>
+          <div class="footer-nav-links">
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+            <a href="/disclaimer">Disclaimer</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+    <div class="footer-copy container">
+      <p>Copyright 2026 Provenrail. All rights reserved.</p>
+      <p><span style="color:var(--accent)">pr-verify</span>, the SDK and the spec are open-source under MIT; the server under AGPL-3.0</p>
+    </div>
+    <div class="footer-copy container" style="margin-top:0;border-top:0;padding-top:0">
+      <p style="max-width:64ch;color:var(--text-lo);font-family:var(--font-body)">Provenrail is evidence tooling, not legal advice or a compliance guarantee. It makes recorded events tamper-evident and independently verifiable; it never claims completeness. Compliance references describe technical evidence mapping, not certification. Software provided as-is, without warranty.</p>
+    </div>
+  </footer>
+  <script src="/main.js" defer></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "HowTo",
+        "name": "Install and use Provenrail from zero",
+        "description": "A complete beginner walkthrough: open a terminal, install uv and Provenrail, verify a sample proof, and record your own AI agent run on Mac, Windows, or Linux.",
+        "totalTime": "PT10M",
+        "tool": [{ "@type": "HowToTool", "name": "A computer running macOS, Windows, or Linux" }],
+        "step": [
+          { "@type": "HowToStep", "name": "Open the terminal", "text": "Open the Terminal app on macOS (Cmd+Space, type Terminal), Windows (Windows key, type Terminal or PowerShell), or Linux (Ctrl+Alt+T).", "url": "https://provenrail.com/start#terminal" },
+          { "@type": "HowToStep", "name": "Install uv", "text": "Run the uv install command for your system. uv brings its own Python so nothing else on your machine is affected.", "url": "https://provenrail.com/start#uv" },
+          { "@type": "HowToStep", "name": "Install Provenrail", "text": "Run: uv tool install provenrail. This installs the pr command in an isolated environment.", "url": "https://provenrail.com/start#install" },
+          { "@type": "HowToStep", "name": "Verify your first proof", "text": "Run pr demo to create a sealed sample run, then pr verify bundle.json to confirm it is intact. No code required.", "url": "https://provenrail.com/start#firstproof" },
+          { "@type": "HowToStep", "name": "Record your own agent", "text": "Make a folder, run pr quickstart, add a short Python file, and run it with uv run --with provenrail python my_first_agent.py.", "url": "https://provenrail.com/start#record" }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Do I need to know how to code to use Provenrail?", "acceptedAnswer": { "@type": "Answer", "text": "No. Installing and verifying a sample proof is pure copy and paste. Recording your own agent means pasting one short file, which you do not need to understand to run." } },
+          { "@type": "Question", "name": "Do I need Python installed?", "acceptedAnswer": { "@type": "Answer", "text": "No. uv brings its own Python, and the uv run command uses it. You never install or manage Python yourself." } },
+          { "@type": "Question", "name": "Does it matter which folder I am in?", "acceptedAnswer": { "@type": "Answer", "text": "Not for installing. For recording your own run, make a folder and cd into it first so the config file and your script live together, because the recorder reads its config from the folder you run your script in." } },
+          { "@type": "Question", "name": "Do I have to keep the terminal open?", "acceptedAnswer": { "@type": "Answer", "text": "Keep it open while you work through the guide. The local recorder from pr quickstart runs until you stop it or close the terminal. Installed tools like pr and uv stay installed permanently." } },
+          { "@type": "Question", "name": "Is any of my data sent to Provenrail?", "acceptedAnswer": { "@type": "Answer", "text": "Not in this guide. Installing, recording, and verifying all happen on your own machine and work offline. Data only leaves your machine if you later choose a hosted plan to share proof links." } },
+          { "@type": "Question", "name": "Does this work on Windows?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Use the Windows lines for opening the terminal and installing uv. Everything else is identical across macOS, Windows, and Linux." } }
+        ]
+      }
+    ]
+  }
+  </script>
+</body>
+</html>

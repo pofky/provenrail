@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Verify a record | Provenrail</title>
+  <meta name="description" content="Independently verify a Provenrail bundle in your browser. Every hash, signature, and timestamp is recomputed locally. Nothing is sent to our servers.">
+  <link rel="canonical" href="https://provenrail.com/verify">
+  <meta property="og:title" content="Verify a record | Provenrail">
+  <meta property="og:description" content="Independently verify a Provenrail bundle in your browser. Every hash, signature, and timestamp is recomputed locally. Nothing is sent to our servers.">
+  <meta property="og:url" content="https://provenrail.com/verify">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://provenrail.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Provenrail: the verifiable audit trail for AI agents.">
+  <meta property="og:site_name" content="Provenrail">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Verify a record | Provenrail">
+  <meta name="twitter:description" content="Independently verify a Provenrail bundle in your browser. Every hash, signature, and timestamp is recomputed locally. Nothing is sent to our servers.">
+  <meta name="twitter:image" content="https://provenrail.com/og.png">
+  <meta name="robots" content="index,follow">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0b0a08">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--border-hi:#3a3124;
+      --accent:#d3a957;--accent-2:#ecca7e;--accent-ink:#1c1408;--accent-glow:rgba(211, 169, 87,.14);
+      --warn:#f0b23a;--bad:#f06a5d;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#5a626e;
+      --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#fff;--border:#e9e2d5;--border-hi:#dad1c2;--accent:#8a6c2c;--accent-2:#9a7626;--accent-ink:#fff;--accent-glow:rgba(138, 108, 44,.12);--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#97a0ab}}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-font-smoothing:antialiased}
+    body{font-family:var(--font-body);line-height:1.6;color:var(--text-hi);background:var(--bg);min-height:100vh}
+    .wrap{max-width:760px;margin:0 auto;padding:clamp(1.4rem,5vw,3rem) clamp(1.1rem,5vw,1.6rem) 5rem}
+    .top{display:flex;align-items:center;gap:.55rem;font-family:var(--font-mono);font-size:.84rem;font-weight:500;color:var(--text-hi);text-decoration:none;margin-bottom:2.5rem}
+    .top svg{width:24px;height:24px}
+    .top .rail{color:var(--accent)}
+    .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:.5rem;margin-bottom:.9rem}
+    .eyebrow::before{content:'';width:18px;height:1px;background:var(--accent)}
+    h1{font-family:var(--font-mono);font-size:clamp(1.7rem,4.5vw,2.4rem);font-weight:500;letter-spacing:-.02em;line-height:1.1;margin-bottom:.85rem}
+    .lede{color:var(--text-mid);font-size:1rem;max-width:60ch;margin-bottom:.6rem}
+    .trust{color:var(--accent);font-family:var(--font-mono);font-size:.78rem;margin-bottom:2rem;display:flex;align-items:center;gap:.5rem}
+    .trust svg{width:15px;height:15px;flex-shrink:0}
+    .cta{display:flex;flex-wrap:wrap;gap:.7rem;margin-bottom:1.4rem}
+    .btn{display:inline-flex;align-items:center;gap:.5rem;font-family:var(--font-body);font-size:.9rem;font-weight:600;border:none;border-radius:10px;padding:.8rem 1.25rem;min-height:48px;cursor:pointer;transition:background .15s,transform .12s,border-color .15s}
+    .btn.primary{background:var(--accent);color:var(--accent-ink)}
+    .btn.primary:hover{background:var(--accent-2);transform:translateY(-1px)}
+    .btn.ghost{background:transparent;color:var(--text-hi);border:1px solid var(--border-hi);font-weight:500}
+    .btn.ghost:hover{border-color:var(--accent)}
+    .drop{border:1.5px dashed var(--border-hi);border-radius:16px;background:var(--bg-2);padding:clamp(1.4rem,5vw,2.2rem);text-align:center;cursor:pointer;transition:border-color .18s,background .18s}
+    .drop.over{border-color:var(--accent);background:var(--accent-glow)}
+    .drop .ic{width:38px;height:38px;margin:0 auto .7rem;color:var(--accent)}
+    .drop .t{font-family:var(--font-mono);font-size:.9rem;color:var(--text-hi);margin-bottom:.25rem}
+    .drop .d{font-size:.82rem;color:var(--text-lo)}
+    .adv{margin-top:1rem}
+    .adv summary{font-family:var(--font-mono);font-size:.78rem;color:var(--text-mid);cursor:pointer;list-style:none;display:flex;align-items:center;gap:.4rem}
+    .adv summary::-webkit-details-marker{display:none}
+    .adv summary::before{content:'+';color:var(--accent);font-weight:600}
+    .adv[open] summary::before{content:'-'}
+    .adv textarea{width:100%;margin-top:.7rem;min-height:120px;font-family:var(--font-mono);font-size:.76rem;color:var(--text-mid);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:.75rem;resize:vertical}
+    .result{margin-top:2rem}
+    .verdict{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;border:1px solid var(--border);border-left-width:3px;border-radius:12px;padding:1.15rem 1.3rem;background:var(--bg-2)}
+    .verdict.green{border-left-color:var(--accent)}.verdict.amber{border-left-color:var(--warn)}.verdict.red{border-left-color:var(--bad)}.verdict.neutral{border-left-color:var(--text-lo)}
+    .vbadge{display:inline-flex;align-items:center;gap:.5rem;font-family:var(--font-mono);font-size:.8rem;font-weight:500;padding:.4rem .75rem;border-radius:999px;border:1px solid;white-space:nowrap}
+    .vbadge .bd{width:8px;height:8px;border-radius:50%}
+    .green .vbadge{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:var(--accent-glow)}.green .vbadge .bd{background:var(--accent)}
+    .amber .vbadge{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent);background:rgba(240,178,58,.12)}.amber .vbadge .bd{background:var(--warn)}
+    .red .vbadge{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent);background:rgba(240,106,93,.12)}.red .vbadge .bd{background:var(--bad)}
+    .neutral .vbadge{color:var(--text-lo);border-color:var(--border)}.neutral .vbadge .bd{background:var(--text-lo)}
+    .vmeta{flex:1;min-width:12rem}
+    .vmeta .h{font-family:var(--font-mono);font-size:1rem;color:var(--text-hi)}
+    .vmeta .s{font-size:.84rem;color:var(--text-mid);margin-top:.15rem}
+    .checks{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+    .chk{display:inline-flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.72rem;color:var(--text-mid);border:1px solid var(--border);background:var(--bg-3);border-radius:999px;padding:.32rem .65rem}
+    .chk.ok{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+    .chk.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
+    .chk .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+    .findings{margin-top:1.25rem;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .f{display:flex;gap:.85rem;align-items:flex-start;padding:.7rem 1.1rem;border-bottom:1px solid var(--border)}
+    .f:last-child{border-bottom:0}
+    .f .sev{font-family:var(--font-mono);font-size:.62rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding:.18rem .45rem;border-radius:5px;flex-shrink:0;margin-top:.15rem}
+    .f.fail .sev{color:var(--bad);background:rgba(240,106,93,.12)}.f.warn .sev{color:var(--warn);background:rgba(240,178,58,.12)}.f.info .sev{color:var(--accent);background:var(--accent-glow)}
+    .f .code{font-family:var(--font-mono);font-size:.76rem;color:var(--text-hi)}
+    .f .detail{font-size:.8rem;color:var(--text-mid);margin-top:.15rem;word-break:break-word}
+    .foot{margin-top:2.5rem;font-size:.8rem;color:var(--text-lo);line-height:1.6;border-top:1px solid var(--border);padding-top:1.25rem}
+    .foot a{color:var(--accent)}
+    .foot code{font-family:var(--font-mono);background:var(--bg-3);padding:.1em .4em;border-radius:5px}
+    .spin{width:16px;height:16px;border:2px solid var(--border-hi);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;display:inline-block;vertical-align:-2px}
+    @keyframes sp{to{transform:rotate(360deg)}}
+  </style>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+    {"@type":"ListItem","position":1,"name":"Home","item":"https://provenrail.com/"},
+    {"@type":"ListItem","position":2,"name":"Verify","item":"https://provenrail.com/verify"}]}
+  </script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"WebApplication","name":"Provenrail in-browser verifier","url":"https://provenrail.com/verify","description":"Independently verify a Provenrail bundle in your browser. Every hash, signature, and timestamp is recomputed locally. Nothing is sent to our servers.","applicationCategory":"SecurityApplication","operatingSystem":"Any (browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
+  </script>
+</head>
+<body>
+  <header>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="/" class="nav-logo" aria-label="Provenrail home">
+        <img class="seal" src="/assets/logo-mark.png" alt="" width="30" height="30">
+        <span>proven<span class="rail-accent">rail</span></span>
+      </a>
+      <button id="nav-toggle" class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M2 5h16M2 10h16M2 15h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div id="nav-links" class="nav-links" role="navigation">
+        <a href="/#how-it-works">How it works</a>
+        <a href="/#see-it">Watch</a>
+        <a href="/#for-agencies">Use cases</a>
+        <a href="/#differentiators">Why Provenrail</a>
+        <a href="/#pricing">Pricing</a>
+        <a href="/#faq">FAQ</a>
+        <a href="/docs">Docs</a>
+        <a href="/account">Sign in</a>
+        <a href="/#pricing" class="btn-nav">Start free</a>
+      </div>
+    </nav>
+  </header>
+  <div class="wrap">
+
+    <p class="eyebrow">Independent verification</p>
+    <h1>Verify a record.<br>Trust no one.</h1>
+    <p class="lede">
+      The open-source verifier recomputes every hash, signature, chain link, Merkle root, and witness
+      cosignature from scratch, trusting neither the agent that produced the record nor the sink that
+      stored it.
+    </p>
+    <p class="trust">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Runs entirely in your browser. Your bundle never leaves your device, not even to us.
+    </p>
+
+    <div class="cta">
+      <button class="btn primary" id="demo">Verify the live demo run</button>
+      <button class="btn ghost" id="tamper">See it catch a tampered run</button>
+    </div>
+
+    <div class="drop" id="drop" role="button" tabindex="0" aria-label="Drop or choose a bundle file">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <div class="t">Drop your own bundle.json here</div>
+      <div class="d">or tap to choose a file. Verified locally, nothing is uploaded.</div>
+      <input type="file" id="file" accept="application/json,.json" hidden>
+    </div>
+
+    <details class="adv">
+      <summary>Advanced: paste a bundle, or transparency-log keys</summary>
+      <textarea id="paste" placeholder='Paste bundle JSON here, then press Enter'></textarea>
+    </details>
+
+    <div class="result" id="result" hidden></div>
+
+    <div class="foot">
+      The exact same verifier runs offline in the <code>pr verify</code> CLI and is tested against a
+      frozen public conformance-vector suite, in both Python and JavaScript. Want to record your own
+      verifiable runs? <a href="/">Get started</a>. MIT licensed.
+    </div>
+  </div>
+
+  <script type="module">
+    // Versioned so a fresh page never pairs with an edge-cached older verify.js: the verdict
+    // logic here (result-based) and the engine must ship together. Bump on any verify.js change.
+    import { verifyBundle } from '/verify.js?v=20260612c';
+
+    // The hosted demo log's published keys, so the demo verifies as fully witnessed.
+    const DEMO_KEYS = {
+      tlogLogKey: '8197a805aa715d2436aa8f4d36d055cb4fdc95ab714c81c92694fee61c74cac1',
+      witnessPubkeys: { 'demo-witness': 'f5f6d366ff50408229e0e4717e342a38a2dbd6eb9c7f435ecac55319cf787876' },
+      // The demo shows the witnessed path; do not age out its cosignature in this static fixture.
+      maxCosigAgeDays: 36500,
+    };
+
+    const result = document.getElementById('result');
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    function deriveState(rep) {
+      // Defense in depth: an engine without the result field must still fail safe, never green.
+      if (!rep.result && rep.fail > 0) return { k: 'red', label: 'Verification failed', sub: 'One or more checks did not pass. See the findings below.' };
+      if (rep.result === 'malformed') return { k: 'amber', label: 'Not a Provenrail bundle', sub: 'This file is valid JSON but is not a Provenrail bundle. Check you loaded the right file (one made by pr demo or pr export).' };
+      if (rep.result === 'empty') return { k: 'amber', label: 'No records', sub: 'This bundle is empty: nothing was recorded, or every record was stripped. If you expected events, the agent may not have connected to the recorder.' };
+      if (rep.result === 'tampered') return { k: 'red', label: 'Tampering detected', sub: 'One or more records were altered, reordered, deleted, or back-dated after signing.' };
+      if (rep.result === 'unconfirmed') return { k: 'amber', label: 'Not confirmed', sub: 'The record is intact, but a transparency-log or witness key you supplied did not match (wrong or stale key, or a proof from a different log). This is not evidence of tampering.' };
+      const codes = new Set(rep.findings.map(f => f.code));
+      if (codes.has('tlog_inclusion_witnessed_ok'))
+        return { k: 'green', label: 'Verified and witnessed', sub: 'Every record is intact and the transparency log was cosigned by an independent witness.' };
+      if (rep.warn > 0)
+        return { k: 'amber', label: 'Verified, with notes', sub: 'Records are intact and signed; see the advisory notes below.' };
+      return { k: 'green', label: 'Verified', sub: 'Every record is intact, signed, and hash-chained.' };
+    }
+
+    function checkRow(rep) {
+      const codes = new Set(rep.findings.map(f => f.code));
+      const has = (...cs) => cs.some(c => codes.has(c));
+      const items = [
+        ['Hash chain', !has('client_broken_link', 'client_hash_mismatch', 'server_chain_break', 'recv_hash_mismatch')],
+        ['Signatures', !has('client_bad_signature', 'pin_bad_signature')],
+        ['Arrival order', !has('arrival_reorder', 'duplicate_seq')],
+        ['Transparency log', has('tlog_inclusion_witnessed_ok') ? true : (has('tlog_inclusion_fail', 'tlog_consistency_fail') ? false : null)],
+        ['Trusted time', codes.has('anchor_rfc3161_unchecked') ? null : (has('anchor_root_mismatch', 'anchor_bad_sig') ? false : null)],
+      ];
+      return items.filter(([, ok]) => ok !== null).map(([label, ok]) =>
+        `<span class="chk ${ok ? 'ok' : 'bad'}"><span class="d"></span>${label}</span>`).join('');
+    }
+
+    function render(rep, opts) {
+      const st = deriveState(rep);
+      const checks = checkRow(rep);
+      const shown = rep.findings.filter(f => f.severity !== 'info' || f.code === 'summary');
+      const findings = shown.map(f =>
+        `<div class="f ${f.severity}"><span class="sev">${f.severity}</span><div><div class="code">${esc(f.code)}</div><div class="detail">${esc(f.detail)}</div></div></div>`).join('');
+      result.className = `result ${st.k}`;
+      result.innerHTML =
+        `<div class="verdict ${st.k}">
+           <span class="vbadge"><span class="bd"></span>${st.label}</span>
+           <div class="vmeta"><div class="h">${{ verified: 'Bundle verified', unconfirmed: 'Could not confirm', malformed: 'Not a bundle', empty: 'No records' }[rep.result] || 'Verification failed'}</div><div class="s">${st.sub}</div></div>
+         </div>
+         ${checks ? `<div class="checks">${checks}</div>` : ''}
+         ${findings ? `<div class="findings">${findings}</div>` : ''}`;
+      result.hidden = false;
+      result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async function verify(bundle, opts) {
+      result.hidden = false;
+      result.className = 'result';
+      result.innerHTML = `<div class="verdict neutral"><span class="vbadge"><span class="bd"></span><span class="spin"></span> Verifying locally</span></div>`;
+      try {
+        const rep = await verifyBundle(bundle, bundle.__pin || null, opts || {});
+        render(rep, opts);
+      } catch (e) {
+        result.className = 'result neutral';
+        result.innerHTML = `<div class="verdict neutral"><span class="vbadge"><span class="bd"></span>Could not verify</span><div class="vmeta"><div class="s">${esc(e.message || e)}</div></div></div>`;
+      }
+    }
+
+    async function loadAndVerify(url, opts) {
+      const r = await fetch(url);
+      const bundle = await r.json();
+      verify(bundle, opts);
+    }
+
+    document.getElementById('demo').onclick = () => loadAndVerify('/demo-bundle.json', DEMO_KEYS);
+    document.getElementById('tamper').onclick = () => loadAndVerify('/demo-bundle-tampered.json', DEMO_KEYS);
+
+    const drop = document.getElementById('drop');
+    const file = document.getElementById('file');
+    drop.onclick = () => file.click();
+    drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') file.click(); };
+    file.onchange = () => { const f = file.files[0]; if (f) f.text().then(t => verify(JSON.parse(t), {})); };
+    ['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+    drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) f.text().then(t => verify(JSON.parse(t), {})); });
+
+    const paste = document.getElementById('paste');
+    paste.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey || !e.shiftKey)) {
+        e.preventDefault();
+        try { verify(JSON.parse(paste.value), {}); } catch (err) { alert('Not valid JSON: ' + err.message); }
+      }
+    });
+
+    // Deep links: /verify?demo shows a live verified run immediately; /verify?tamper shows it
+    // catching tampering. Useful for shareable demo links.
+    const q = new URLSearchParams(location.search);
+    if (q.has('tamper')) loadAndVerify('/demo-bundle-tampered.json', DEMO_KEYS);
+    else if (q.has('demo')) loadAndVerify('/demo-bundle.json', DEMO_KEYS);
+  </script>
+  <footer class="footer" aria-label="Site footer">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block">
+        </div>
+        <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Observability you can take to court.</p>
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="/docs">Documentation</a>
+          <a href="/#pricing">Pricing</a>
+          <a href="/#faq">FAQ</a>
+          <a href="/verify">Verify a record</a>
+          <a href="mailto:support@provenrail.com">support@provenrail.com</a>
+        </nav>
+      </div>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Product</div>
+          <div class="footer-nav-links">
+            <a href="/#how-it-works">How it works</a>
+            <a href="/#see-it">Watch it work</a>
+            <a href="/#differentiators">Why Provenrail</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/docs">Quickstart</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Legal</div>
+          <div class="footer-nav-links">
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+            <a href="/disclaimer">Disclaimer</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+    <div class="footer-copy container">
+      <p>Copyright 2026 Provenrail. All rights reserved.</p>
+      <p><span style="color:var(--accent)">pr-verify</span>, the SDK and the spec are open-source under MIT; the server under AGPL-3.0</p>
+    </div>
+    <div class="footer-copy container" style="margin-top:0;border-top:0;padding-top:0">
+      <p style="max-width:64ch;color:var(--text-lo);font-family:var(--font-body)">Provenrail is evidence tooling, not legal advice or a compliance guarantee. It makes recorded events tamper-evident and independently verifiable; it never claims completeness. Compliance references describe technical evidence mapping, not certification. Software provided as-is, without warranty.</p>
+    </div>
+  </footer>
+  <script src="/main.js" defer></script>
+</body>
+</html>

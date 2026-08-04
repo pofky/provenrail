@@ -1,0 +1,13 @@
+services:
+  flightrecorder:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - fr-data:/data
+    environment:
+      - FR_DB=/data/flightrecorder.db
+    restart: unless-stopped
+
+volumes:
+  fr-data:

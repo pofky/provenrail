@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quickstart and docs | Provenrail</title>
+  <meta name="description" content="Install Provenrail, record your first agent run, and verify it. Python and TypeScript quickstart, CLI reference, self-hosting, and licensing.">
+  <link rel="canonical" href="https://provenrail.com/docs">
+  <meta property="og:title" content="Quickstart and docs | Provenrail">
+  <meta property="og:description" content="Install Provenrail, record your first agent run, and verify it. Python and TypeScript quickstart, CLI reference, self-hosting, and licensing.">
+  <meta property="og:url" content="https://provenrail.com/docs">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="https://provenrail.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Provenrail: the verifiable audit trail for AI agents.">
+  <meta property="og:site_name" content="Provenrail">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Quickstart and docs | Provenrail">
+  <meta name="twitter:description" content="Install Provenrail, record your first agent run, and verify it. Python and TypeScript quickstart, CLI reference, self-hosting, and licensing.">
+  <meta name="twitter:image" content="https://provenrail.com/og.png">
+  <meta name="robots" content="index,follow">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0b0a08">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#7c8490;
+      --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#7e6428;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#5f6974}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+    body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
+    .wrap{max-width:780px;margin:0 auto;padding:clamp(1.5rem,5vw,3.5rem) clamp(1.1rem,5vw,2rem) 5rem}
+    .top{display:flex;align-items:center;gap:.6rem;font-family:var(--font-mono);font-size:.86rem;font-weight:500;margin-bottom:2.5rem;color:var(--text-hi);text-decoration:none}
+    .top svg{width:24px;height:24px}
+    .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:.7rem}
+    h1{font-family:var(--font-mono);font-size:clamp(1.7rem,4vw,2.3rem);font-weight:500;letter-spacing:-.02em;margin-bottom:.5rem}
+    .lede{color:var(--text-mid);font-size:1.02rem;margin-bottom:1.6rem}
+    h2{font-size:1.2rem;font-weight:600;margin:2.4rem 0 .5rem;letter-spacing:-.01em;scroll-margin-top:1.5rem}
+    h3{font-size:1rem;font-weight:600;margin:1.5rem 0 .4rem;color:var(--text-hi)}
+    p,li{color:var(--text-mid);margin-bottom:.7rem}
+    ul,ol{padding-left:1.2rem}
+    a{color:var(--accent)}
+    strong{color:var(--text-hi);font-weight:600}
+    code{font-family:var(--font-mono);font-size:.85em;background:var(--bg-3);padding:.12em .42em;border-radius:5px;color:var(--text-hi)}
+    pre{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:1rem 1.1rem;overflow-x:auto;margin:.6rem 0 1rem;font-size:.86rem;line-height:1.6}
+    pre code{background:none;padding:0;font-size:.86rem;color:var(--text-hi)}
+    pre .c{color:var(--text-lo)}
+    pre .g{color:var(--accent)}
+    .toc{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.4rem 0 2rem}
+    .toc a{font-family:var(--font-mono);font-size:.78rem;background:var(--bg-2);border:1px solid var(--border);border-radius:999px;padding:.35rem .8rem;text-decoration:none;color:var(--text-mid)}
+    .toc a:hover{border-color:var(--accent);color:var(--accent)}
+    .note{background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:.85rem 1rem;margin:1rem 0;font-size:.92rem}
+    table{width:100%;border-collapse:collapse;margin:.6rem 0 1.2rem;font-size:.9rem;display:block;overflow-x:auto}
+    th,td{text-align:left;padding:.6rem .7rem;border-bottom:1px solid var(--border);vertical-align:top}
+    thead th{color:var(--text-hi);font-weight:600;font-size:.8rem}
+    td:first-child{white-space:nowrap}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    .note strong{color:var(--accent)}
+    .next{display:flex;flex-direction:column;gap:.6rem;margin-top:1rem}
+    .next a{display:flex;align-items:center;justify-content:space-between;gap:1rem;background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:.9rem 1.1rem;text-decoration:none;color:var(--text-hi);font-weight:600}
+    .next a:hover{border-color:var(--accent)}
+    .next a span{color:var(--text-lo);font-family:var(--font-mono);font-size:.8rem;font-weight:400}
+    .back{display:inline-block;margin-top:2.5rem;font-family:var(--font-mono);font-size:.82rem;color:var(--text-lo);text-decoration:none}
+    .back:hover{color:var(--accent)}
+  </style>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+    {"@type":"ListItem","position":1,"name":"Home","item":"https://provenrail.com/"},
+    {"@type":"ListItem","position":2,"name":"Docs","item":"https://provenrail.com/docs"}]}
+  </script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"TechArticle","headline":"Quickstart and docs | Provenrail","url":"https://provenrail.com/docs","description":"Install Provenrail, record your first agent run, and verify it. Python and TypeScript quickstart, CLI reference, self-hosting, and licensing.","dateModified":"2026-06-11","author":{"@type":"Organization","name":"Provenrail"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
+  </script>
+</head>
+<body>
+  <header>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="/" class="nav-logo" aria-label="Provenrail home">
+        <img class="seal" src="/assets/logo-mark.png" alt="" width="30" height="30">
+        <span>proven<span class="rail-accent">rail</span></span>
+      </a>
+      <button id="nav-toggle" class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M2 5h16M2 10h16M2 15h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div id="nav-links" class="nav-links" role="navigation">
+        <a href="/#how-it-works">How it works</a>
+        <a href="/#see-it">Watch</a>
+        <a href="/#for-agencies">Use cases</a>
+        <a href="/#differentiators">Why Provenrail</a>
+        <a href="/#pricing">Pricing</a>
+        <a href="/#faq">FAQ</a>
+        <a href="/start">Start here</a>
+        <a href="/docs">Docs</a>
+        <a href="/account">Sign in</a>
+        <a href="/#pricing" class="btn-nav">Start free</a>
+      </div>
+    </nav>
+  </header>
+  <div class="wrap">
+
+    <p class="eyebrow">Quickstart</p>
+    <h1>Record your first run in 60 seconds</h1>
+    <p class="lede">Install the SDK, wrap your agent, and verify the result yourself. No account is required to use the open-source software. Python and TypeScript are byte-for-byte compatible.</p>
+
+    <div class="note"><strong>New to the terminal?</strong> If you vibe-coded your way here and have never run a command line, start with <a href="/start">Provenrail from zero</a> instead. It spells out every keystroke, from opening the terminal to your first verified proof. This page is the faster reference once you are comfortable.</div>
+
+    <div class="toc">
+      <a href="#install">Install</a>
+      <a href="#guard">Guard a coding agent</a>
+      <a href="#python">Python</a>
+      <a href="#typescript">TypeScript</a>
+      <a href="#verify">Verify</a>
+      <a href="#policy">Guardrails &amp; alerts</a>
+      <a href="#cli">CLI</a>
+      <a href="#selfhost">Self-host the sink</a>
+      <a href="#team">Team &amp; SSO</a>
+      <a href="#licensing">Licensing</a>
+      <a href="#source">Source</a>
+    </div>
+
+    <h2 id="install">Install</h2>
+    <p>The CLI (<code>pr</code> quickstart, verifier, and sink). Recommended: install with
+      <a href="https://docs.astral.sh/uv/">uv</a>, which brings its own pinned Python, so a later
+      <code>brew upgrade</code> or system Python change cannot orphan it:</p>
+    <pre><code><span class="g">uv tool install provenrail</span></code></pre>
+    <p>No uv yet? One line installs it: <code>curl -LsSf https://astral.sh/uv/install.sh | sh</code>.</p>
+    <p>Prefer pip? It works, but install it inside a virtualenv, not a system or Homebrew Python.
+      A global <code>pip install</code> breaks the day Homebrew upgrades Python (the package lands in the
+      old interpreter's site-packages). If that happens, recover with
+      <code>pipx reinstall provenrail</code> or switch to the uv command above:</p>
+    <pre><code><span class="g">python3 -m venv .venv &amp;&amp; source .venv/bin/activate</span>
+<span class="g">pip install provenrail</span></code></pre>
+    <p>Using the SDK from your own project? Add it to that project's environment, again not system Python:</p>
+    <pre><code><span class="g">uv add provenrail</span>   <span class="c"># or: pip install provenrail (venv active)</span></code></pre>
+    <p>TypeScript / Node 20+ (recording SDK):</p>
+    <pre><code><span class="g">npm install provenrail</span></code></pre>
+
+    <h2 id="guard">Guard a coding agent (no code)</h2>
+    <p>If you run Claude Code, this is the shortest path to something useful. Two commands arm the
+      prebuilt guardrail packs and wire them into Claude Code's own tool hooks:</p>
+    <pre><code><span class="g">pr quickstart</span>       <span class="c"># local sink, no account, nothing leaves your machine</span>
+<span class="g">pr guard install</span>    <span class="c"># arms destructive + secrets + production, installs the hooks</span></code></pre>
+    <p>From your next Claude Code session in that folder:</p>
+    <ul>
+      <li><code>rm -rf</code>, <code>terraform destroy</code>, <code>git push --force</code>,
+        <code>DROP TABLE</code>, <code>chmod 777</code> and leaked API keys are <strong>blocked
+        before they run</strong>, and the agent is told which rule fired.</li>
+      <li>An action that needs a human (touching <code>.env</code>, a deploy, a migration) becomes a
+        permission prompt instead of a hard block, and your approval is recorded as human oversight.</li>
+      <li>Every decision is Ed25519-signed and hash-chained, so the block itself is evidence.</li>
+    </ul>
+    <pre><code><span class="g">pr guard status</span>     <span class="c"># what is armed, and what it blocked</span>
+<span class="g">pr guard receipt</span>    <span class="c"># export the proof, then pr verify it yourself</span>
+<span class="g">pr guard uninstall</span>  <span class="c"># removes only our hooks; your own are untouched</span></code></pre>
+    <p>The verdict is computed offline, before anything touches the network, so a sink that is down
+      can never turn a deny into an allow. A decision that cannot be recorded is journalled locally
+      and reported as unsigned and pending, never as proof.</p>
+    <p><strong>Honest scope.</strong> This covers the tool calls Claude Code routes through its
+      hooks. It cannot constrain a process that never calls them. Per-session <code>limit</code>
+      rules count within one hook process, so blast-radius caps do not accumulate across a whole
+      Claude Code session; deny and oversight rules are unaffected. Other agent hosts are not
+      claimed until their hook contract has been read and tested.</p>
+
+    <h2 id="python">Python quickstart</h2>
+    <p>One command sets up a local sink and writes <code>.provenrail.json</code>, so your code carries no URLs or tokens:</p>
+    <pre><code><span class="g">pr quickstart</span>   <span class="c"># starts a local sink + writes config</span></code></pre>
+    <p>Then two lines in your code:</p>
+    <pre><code>import provenrail as fr
+
+with fr.record(<span class="g">"my-agent"</span>):
+    ...   <span class="c"># your agent runs; model and tool calls are captured</span></code></pre>
+    <p><code>fr.record(...)</code> provisions a stream, opens a signed session, and seals and drains it
+      off-box when the block exits. A decorator form exists too: <code>@fr.recorded("nightly-job")</code>.
+      Stop the local sink with <code>pr quickstart --stop</code>; point at your own sink with
+      <code>pr quickstart --url &lt;URL&gt;</code>.</p>
+    <p>Run your agent as many times as you like: each run becomes its own sealed session on the
+      same stream, and one export verifies them all. The first run also creates
+      <code>.provenrail.key</code>, the device signing key reused by every later run. Keep it out
+      of version control (add it to <code>.gitignore</code> next to <code>.provenrail.json</code>);
+      losing it only means future runs sign under a new identity.</p>
+
+    <h3>Drop-in capture (one line per SDK)</h3>
+    <pre><code>from provenrail.integrations import instrument_openai, instrument_anthropic, instrument_mcp
+
+instrument_openai(openai_client, fr)      <span class="c"># every model call captured</span>
+instrument_anthropic(anthropic_client, fr)
+instrument_mcp(mcp_session, fr)           <span class="c"># every MCP call_tool captured</span></code></pre>
+
+    <h3>LangChain / LangGraph (Article 12 callback handler)</h3>
+    <pre><code>from provenrail.integrations.langchain import ComplianceCallbackHandler
+
+with fr.record(<span class="g">"my-agent"</span>) as rec:
+    chain.invoke(x, config={<span class="g">"callbacks"</span>: [ComplianceCallbackHandler(rec)]})</code></pre>
+    <p><code>ComplianceCallbackHandler</code> emits a signed, hash-chained record of every model and
+      tool call, the cryptographically verifiable audit log the LangChain community asked for in
+      <a href="https://github.com/langchain-ai/langchain/issues/35691" rel="noopener">issue #35691</a>.</p>
+
+    <h3>Claude Agent SDK (PreToolUse / PostToolUse hooks)</h3>
+    <pre><code>from provenrail.integrations.claude_sdk import provenrail_hooks
+from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
+
+with fr.record(<span class="g">"my-claude-agent"</span>) as rec:
+    options = ClaudeAgentOptions(hooks=provenrail_hooks(rec))
+    <span class="c"># every tool call the agent makes is recorded off-box</span></code></pre>
+
+    <h3>Agno (agent-level tool hooks)</h3>
+    <pre><code>from provenrail.integrations.agno import provenrail_tool_hook
+
+with fr.record(<span class="g">"my-agno-agent"</span>) as rec:
+    agent = Agent(model=..., tools=[...], tool_hooks=[provenrail_tool_hook(rec)])</code></pre>
+    <p>Every tool call an Agno agent makes becomes a signed, hash-chained record, the cryptographic
+      receipt layer the Agno community asked for in
+      <a href="https://github.com/agno-agi/agno/issues/7518" rel="noopener">issue #7518</a>. Failures
+      are recorded as evidence and re-raised unchanged, so Agno's own error handling is untouched.</p>
+
+    <h3>Hermes Agent (observer plugin hooks)</h3>
+    <pre><code>from provenrail.integrations.hermes import register_provenrail
+
+def register(ctx):                       <span class="c"># ~/.hermes/plugins/provenrail/__init__.py</span>
+    register_provenrail(ctx, agent_name=<span class="g">"my-hermes-agent"</span>)</code></pre>
+    <p>Registers on the <code>hermes.observer.v1</code> contract, so every tool dispatch across the
+      CLI, gateway, cron, and subagents is recorded. Hermes closed its in-tree audit-log proposal
+      (<a href="https://github.com/NousResearch/hermes-agent/issues/487" rel="noopener">issue #487</a>)
+      precisely because a hash chain verified only against itself proves nothing against an operator
+      with write access. That is the gap the off-box chain, trusted timestamps, and witnessed
+      transparency log are built to close.</p>
+
+    <h2 id="typescript">TypeScript quickstart</h2>
+    <pre><code>import { record } from <span class="g">"provenrail"</span>;
+
+await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
+  await pr.recordModelCall(<span class="g">"openai"</span>, <span class="g">"gpt-5"</span>, { prompt }, out, { usage });
+});</code></pre>
+    <p>A run recorded in TypeScript is byte-for-byte compatible with one recorded in Python: the same
+      sink accepts it and the same two verifiers prove it. Node 20+ is required (WebCrypto Ed25519).</p>
+
+    <h2 id="verify">Verify a run</h2>
+    <p>Verification trusts neither the agent nor the sink. Anyone can run it, with no account:</p>
+    <pre><code><span class="g">pr verify</span> bundle.json --pin pin.json</code></pre>
+    <p>To verify your <strong>own</strong> recorded run after <code>pr quickstart</code>, export it from the
+      local sink first (this uses the read token quickstart saves), then verify the bundle:</p>
+    <pre><code><span class="g">pr export</span> my-run.json     <span class="c"># pulls your sealed run out of the sink</span>
+<span class="g">pr verify</span> my-run.json     <span class="c"># recompute everything; trust nobody</span></code></pre>
+    <p>Or verify in your browser, with the bundle never leaving your device:
+      <a href="/verify">provenrail.com/verify</a>. Try the
+      <a href="/verify?demo">live verified demo</a> or watch it
+      <a href="/verify?tamper">catch a tampered run</a>.</p>
+
+    <h2 id="policy">Guardrails and instant alerts</h2>
+    <p>By default Provenrail is a <strong>recorder</strong>: it observes and proves, it does not
+      intervene. A policy turns it into an enforcer as well. Rules are evaluated at the dispatch
+      boundary, the action is blocked before it runs, and the decision is written into the same
+      signed chain, so the record proves the guardrail was in force and that the call really was
+      stopped.</p>
+    <p><strong>Nothing is suspicious by default.</strong> There is no built-in threat library and no
+      anomaly detection. If you declare no policy, nothing is ever blocked and no alert can fire.
+      That is deliberate: we would rather you state your own rules than have us guess and be wrong
+      in both directions.</p>
+
+    <h3>Start with the prebuilt packs</h3>
+    <p>You do not have to write rules from a blank page. The catalogue ships packs of prebuilt
+      rules for the things agents actually do damage with, and you enable them by name:</p>
+    <pre><code>{
+  <span class="g">"policy"</span>: { <span class="g">"use"</span>: [<span class="g">"destructive"</span>, <span class="g">"secrets"</span>, <span class="g">"money"</span>] }
+}</code></pre>
+    <table>
+      <caption class="sr-only">Prebuilt guardrail packs</caption>
+      <thead><tr><th scope="col">Pack</th><th scope="col">Covers</th></tr></thead>
+      <tbody>
+        <tr><td><code>destructive</code></td><td>delete/drop/truncate tools, <code>rm -rf</code>, destructive SQL, unbounded DELETE</td></tr>
+        <tr><td><code>secrets</code></td><td>AWS keys, private key blocks, API tokens, JWTs, <code>.env</code> reads</td></tr>
+        <tr><td><code>money</code></td><td>transfers, payments, refunds, charges (human approval, not a hard block)</td></tr>
+        <tr><td><code>production</code></td><td>deploys, migrations, DNS, force push, <code>terraform destroy</code></td></tr>
+        <tr><td><code>access</code></td><td>permission grants, IAM changes, <code>chmod 777</code>, MFA disabling</td></tr>
+        <tr><td><code>exfiltration</code></td><td>unbounded SELECT *, outbound uploads, paste sites</td></tr>
+        <tr><td><code>blast-radius</code></td><td>per-session caps on email, messaging, and total tool calls</td></tr>
+      </tbody>
+    </table>
+    <p>You can enable a whole pack or a single rule by id
+      (<code>"use": ["secrets.aws-access-key"]</code>), mix packs with your own rules, and a
+      misspelled name is rejected rather than skipped. List everything with
+      <code>pr rules</code> (add <code>--verbose</code> for each rule's false-positive note).</p>
+    <p><strong>Enabling a pack is not proof of coverage.</strong> These rules match tool
+      <em>names</em> and argument text, and every codebase names its tools differently: a rule
+      for <code>delete_*</code> does nothing if your tool is called <code>remove_record</code>.
+      Turn the guess into evidence by checking against a real recorded run:</p>
+    <pre><code><span class="g">pr rules</span> --check bundle.json   <span class="c"># which rules would match YOUR tool names</span></code></pre>
+
+    <h3>Or declare your own rules</h3>
+    <p>No code change is needed, so whoever owns the deployment can set the rules even if they did
+      not write the agent:</p>
+    <pre><code>{
+  <span class="g">"policy"</span>: {
+    <span class="g">"rules"</span>: [
+      {<span class="g">"id"</span>: <span class="g">"no-destructive-tools"</span>, <span class="g">"effect"</span>: <span class="g">"deny"</span>,
+       <span class="g">"event_type"</span>: <span class="g">"tool_call"</span>, <span class="g">"tool"</span>: <span class="g">"delete_*"</span>,
+       <span class="g">"reason"</span>: <span class="g">"destructive tool"</span>},
+
+      {<span class="g">"id"</span>: <span class="g">"no-credentials-in-args"</span>, <span class="g">"effect"</span>: <span class="g">"deny"</span>,
+       <span class="g">"arg_contains"</span>: <span class="g">"AKIA[0-9A-Z]{8}"</span>,
+       <span class="g">"reason"</span>: <span class="g">"argument looks like an AWS key"</span>},
+
+      {<span class="g">"id"</span>: <span class="g">"wire-needs-human"</span>, <span class="g">"effect"</span>: <span class="g">"require_oversight"</span>,
+       <span class="g">"tool"</span>: <span class="g">"wire_transfer"</span>},
+
+      {<span class="g">"id"</span>: <span class="g">"email-burst"</span>, <span class="g">"effect"</span>: <span class="g">"limit"</span>,
+       <span class="g">"tool"</span>: <span class="g">"send_email"</span>, <span class="g">"max_per_session"</span>: 20}
+    ],
+    <span class="g">"session_spend_cap_usd"</span>: 5.0
+  }
+}</code></pre>
+    <table>
+      <caption class="sr-only">Policy rule effects</caption>
+      <thead><tr><th scope="col">Effect</th><th scope="col">What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>deny</code></td><td>Blocks the action and records the denial.</td></tr>
+        <tr><td><code>require_oversight</code></td><td>Allows it only if a human-oversight event was recorded in this session first; otherwise blocks.</td></tr>
+        <tr><td><code>limit</code></td><td>Allows up to <code>max_per_session</code> matches, then blocks.</td></tr>
+      </tbody>
+    </table>
+    <p>Rules match on <code>event_type</code>, <code>tool</code>, <code>resource</code> and
+      <code>provider</code> using case-insensitive globs, plus an optional <code>arg_contains</code>
+      regex over the call's arguments. A malformed policy is <strong>rejected loudly</strong> rather
+      than ignored: an unknown field, a bad regex, a duplicate rule id or a <code>limit</code> with
+      no cap all raise at startup. A typo that silently disables a guardrail is the worst possible
+      failure, because you would believe you were protected.</p>
+
+    <h3>Get told the moment something is blocked</h3>
+    <p>Register a webhook for the <code>policy.denied</code> event. It fires <strong>at ingest</strong>,
+      in the same moment the record arrives, not on the anchor schedule:</p>
+    <pre><code>curl -X POST $SINK/v1/webhooks -H <span class="g">"Authorization: Bearer $ACCOUNT_KEY"</span> \
+  -d '{"url":"https://ops.example/hooks/pr","events":["policy.denied"]}'</code></pre>
+    <p>You get one signed POST per blocked action, carrying the rule, the reason, the target, the
+      session and the record hash. Every delivery is HMAC-SHA256 signed with the per-webhook secret
+      in the <code>X-Provenrail-Signature</code> header, so you can confirm it came from your sink.
+      Delivery runs off the ingest path, so a slow or dead endpoint of yours can never slow down or
+      block your agent.</p>
+    <p><strong>Alert endpoints must be publicly reachable.</strong> A webhook pointing at
+      <code>localhost</code>, a private range, or a link-local address is rejected, and the host is
+      re-resolved at delivery time as well, so a name that turns internal later stops being
+      called. This defeats SSRF and DNS rebinding, but it also means you cannot test alerting
+      against a server on your laptop: use a public endpoint or a tunnel.</p>
+    <p>The other events are about the record rather than the behaviour:
+      <code>integrity.tampered</code>, <code>integrity.recovered</code> and
+      <code>integrity.first_anchor</code>, evaluated after each anchor.</p>
+
+    <h3>Review what was blocked</h3>
+    <pre><code><span class="g">pr risk</span> bundle.json          <span class="c"># every denial, grouped by rule; exit 1 if any</span>
+<span class="g">pr risk</span> bundle.json --json   <span class="c"># same, machine-readable for CI</span></code></pre>
+    <p>It exits non-zero when anything was blocked, so CI can fail a run in which the agent tried
+      something forbidden. In the dashboard, denials appear as a red <em>Blocked</em> tile and as red
+      rows in the session timeline. In the SIEM export
+      (<code>/v1/streams/{id}/export.ndjson</code>) each denial is one line with the rule and reason,
+      ready for Splunk, Elastic or Datadog.</p>
+    <p>Because the decisions live inside the signed chain, <code>pr verify</code> proves they were
+      recorded at the time and have not been edited since. That is the part a log file cannot do.</p>
+
+    <div class="note"><strong>Honest scope.</strong> Enforcement covers the dispatch points the SDK
+      wraps. An agent that bypasses the SDK entirely is not constrained by a policy, and we never
+      claim otherwise. What a clean record does prove is that, for every call that went through the
+      recorder, the stated policy was applied and the recorded decisions match it. For capture that
+      an agent cannot skip, put <code>pr sidecar</code> in front of the model API and lock egress
+      to it.</div>
+
+    <h2 id="cli">CLI reference</h2>
+    <pre><code><span class="g">pr quickstart</span>        <span class="c"># local sink + config, zero tokens</span>
+<span class="g">pr demo</span>              <span class="c"># records a session, anchors it, writes bundle.json + pin.json</span>
+<span class="g">pr export</span> my-run.json  <span class="c"># export your own recorded run from the local sink</span>
+<span class="g">pr verify</span> bundle.json --pin pin.json     <span class="c"># verify, trusting nobody</span>
+<span class="g">pr rules</span>             <span class="c"># list prebuilt guardrail packs; --check bundle.json for coverage</span>
+<span class="g">pr risk</span> bundle.json    <span class="c"># every action a policy blocked (exit 1 if any)</span>
+<span class="g">pr report</span> --regime eu-ai-act bundle.json --md   <span class="c"># regulatory attestation</span>
+<span class="g">pr pack</span> bundle.json    <span class="c"># self-contained evidence pack (zip) for auditors</span>
+<span class="g">pr diff</span> run-a.json run-b.json            <span class="c"># diff two runs with provable fidelity</span>
+<span class="g">pr ots-verify</span> proof.ots --data-sha256 H  <span class="c"># verify a Bitcoin (OpenTimestamps) proof</span>
+<span class="g">pr serve</span> --anchor rfc3161               <span class="c"># run the sink yourself (real trusted time)</span>
+<span class="g">pr sidecar</span> --upstream https://api.openai.com   <span class="c"># out-of-process capture proxy</span>
+<span class="g">pr witness</span> --log &lt;origin&gt;=&lt;pubkey&gt;        <span class="c"># independent witness on separate infra</span></code></pre>
+
+    <h2 id="selfhost">Self-host the sink</h2>
+    <p>The sink is the append-only server that receives records. You run it; your records never reach
+      us. For real third-party trusted time, anchor with RFC 3161:</p>
+    <pre><code><span class="g">pr serve</span> --anchor rfc3161 --tsa https://freetsa.org/tsr</code></pre>
+    <p>Or with Docker:</p>
+    <pre><code><span class="g">docker compose up</span></code></pre>
+    <div class="note"><strong>Harder to skip.</strong> Run <code>pr sidecar</code> as an outbound proxy and
+      lock model egress to it, so capture is mandatory rather than a default. Add <code>--fail-closed</code>
+      to refuse any call that cannot be recorded.</div>
+
+    <h2 id="team">Team and SSO</h2>
+    <p>On the <a href="/#pricing">Team plan</a> you can invite up to 10 teammates with role-based
+      access and connect your identity provider, so staff sign in with the IdP you already use.
+      Everything is account-authenticated against your own sink; the integrity guarantee is unchanged
+      on every plan.</p>
+
+    <h3>Members and roles</h3>
+    <p>Invite a teammate and they get their own key (shown once). Four least-privilege roles:
+      <strong>owner</strong> (billing and everything), <strong>admin</strong> (manage streams,
+      members, webhooks), <strong>member</strong> (run agents, export their own streams), and
+      <strong>viewer</strong> (read only). An actor can only grant roles at or below its own.</p>
+    <pre><code><span class="g">curl</span> -X POST $URL/v1/members -H <span class="g">"Authorization: Bearer $ACCOUNT_KEY"</span> \
+  -d '{"role":"admin","email":"dana@acme.com"}'
+{
+  "member_id": "mbr_9cf5...",
+  "role": "admin",
+  "api_key": "pr_mk_rPk8...",          <span class="c"># shown once, store it now</span>
+  "note": "store this key now; it is shown only once"
+}</code></pre>
+
+    <h3>Single sign-on (OIDC)</h3>
+    <p>SSO is API-first: you configure your IdP once, then your staff present an ID token from that
+      IdP to receive a session key. Provenrail makes no network call (the JWKS is pinned out of band),
+      and validation is strict, only RS256 and EdDSA are accepted, with issuer, audience and expiry
+      all checked. New users are provisioned just-in-time at the default role.</p>
+    <pre><code><span class="c"># 1. Owner configures the org IdP once (issuer, audience, pinned JWKS, default role)</span>
+<span class="g">curl</span> -X PUT $URL/v1/sso/config -H <span class="g">"Authorization: Bearer $ACCOUNT_KEY"</span> \
+  -d '{"issuer":"https://acme.okta.com","audience":"provenrail",
+       "jwks":{ ... },"default_role":"member","email_domain":"acme.com"}'
+
+<span class="c"># 2. A teammate authenticates with your IdP, then exchanges the ID token for a member key</span>
+<span class="g">curl</span> -X POST $URL/v1/sso/login -d '{"id_token":"eyJhbGciOiJSUzI1Ni..."}'
+{
+  "member_id": "mbr_9ca5...",
+  "role": "member",                    <span class="c"># JIT-provisioned at the default role</span>
+  "api_key": "pr_mk_lAFz..."
+}</code></pre>
+    <div class="note"><strong>Strict by design.</strong> The IdP signing key is selected from your
+      pinned JWKS by <code>kid</code>; <code>alg: none</code> and HMAC algorithms are rejected, so
+      there is no algorithm-confusion bypass. An optional <code>email_domain</code> restricts which
+      addresses may provision. Every login is written to the tamper-evident audit log.</div>
+
+    <h2 id="licensing">Licensing</h2>
+    <p>Provenrail is open-core and dual-licensed:</p>
+    <ul>
+      <li><strong>MIT</strong> covers the client SDKs, the <code>pr verify</code> verifier, the
+        in-browser verifier, and the spec. Use them anywhere, including commercially.</li>
+      <li><strong>AGPL-3.0-or-later</strong> covers the server (the sink). If you run a modified sink as
+        a network service, AGPL applies. A <strong>commercial license</strong> removes that obligation
+        and is included with a paid plan.</li>
+    </ul>
+    <p>Get a commercial license key from your <a href="/account">account</a>, then activate it on your
+      server:</p>
+    <pre><code><span class="g">pr activate</span> prl_live_...        <span class="c"># verifies offline, stores the key</span>
+<span class="g">pr serve</span>                       <span class="c"># now runs at your licensed tier</span></code></pre>
+    <p>Verification is fully offline: the package ships the Ed25519 public key and checks the signed
+      key locally, so nothing phones home and a licensed build works air-gapped. The license is a
+      commercial control, not DRM; the open-source integrity guarantee is identical on every tier.</p>
+
+    <h2 id="source">Source and spec</h2>
+    <p>The wire format and verification steps are a frozen, public specification, so a third party can
+      write an independent verifier and check the same bundles. The in-browser verifier at
+      <a href="/verify">/verify</a> is a second, independent implementation of that spec, kept in
+      lockstep with the Python one. Source code is open under the licenses above.</p>
+
+    <div class="next">
+      <a href="/verify?demo">Verify a live proof yourself <span>/verify</span></a>
+      <a href="/account">Create an account and subscribe <span>/account</span></a>
+      <a href="/#pricing">See pricing <span>/#pricing</span></a>
+    </div>
+  </div>
+  <footer class="footer" aria-label="Site footer">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block">
+        </div>
+        <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Observability you can take to court.</p>
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="/docs">Documentation</a>
+          <a href="/#pricing">Pricing</a>
+          <a href="/#faq">FAQ</a>
+          <a href="/verify">Verify a record</a>
+          <a href="mailto:support@provenrail.com">support@provenrail.com</a>
+        </nav>
+      </div>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Product</div>
+          <div class="footer-nav-links">
+            <a href="/#how-it-works">How it works</a>
+            <a href="/#see-it">Watch it work</a>
+            <a href="/#differentiators">Why Provenrail</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/start">Start here (beginners)</a>
+            <a href="/docs">Quickstart</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Legal</div>
+          <div class="footer-nav-links">
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+            <a href="/disclaimer">Disclaimer</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+    <div class="footer-copy container">
+      <p>Copyright 2026 Provenrail. All rights reserved.</p>
+      <p><span style="color:var(--accent)">pr-verify</span>, the SDK and the spec are open-source under MIT; the server under AGPL-3.0</p>
+    </div>
+    <div class="footer-copy container" style="margin-top:0;border-top:0;padding-top:0">
+      <p style="max-width:64ch;color:var(--text-lo);font-family:var(--font-body)">Provenrail is evidence tooling, not legal advice or a compliance guarantee. It makes recorded events tamper-evident and independently verifiable; it never claims completeness. Compliance references describe technical evidence mapping, not certification. Software provided as-is, without warranty.</p>
+    </div>
+  </footer>
+  <script src="/main.js" defer></script>
+</body>
+</html>

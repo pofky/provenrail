@@ -1,0 +1,6 @@
+{
+  "name": "provenrail-web",
+  "private": true,
+  "type": "module",
+  "description": "Browser assets for Provenrail, including the standalone JS verifier (verify.js)."
+}

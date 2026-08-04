@@ -1,0 +1,163 @@
+# Provenrail
+
+> Guardrails plus off-box, hash-chained, independently verifiable logging for AI agents. Blocks destructive tool calls (rm -rf, terraform destroy, force push, DROP TABLE, leaked keys) before they run, and signs the decision into the record. Captures every model call and tool call, chains records cryptographically, and lets anyone verify them with an open-source tool. You do not have to trust the vendor.
+
+## What it is
+
+Provenrail is a developer SDK and cloud sink that records what an AI agent did in a tamper-evident, independently verifiable log. Each record is hash-chained to the previous one and anchored with an RFC 3161 trusted timestamp. The chain is stored in an append-only sink that cannot be altered, reordered, deleted, or back-dated.
+
+Anyone can verify the chain using the open-source `pr-verify` command-line tool without contacting Provenrail servers.
+
+## Honest threat model
+
+- Records that reach the sink cannot be silently altered, reordered, deleted, or back-dated.
+- Completeness is never guaranteed. A hostile agent that does not call the SDK will not appear in the log.
+- Provenrail detects tampering and deletion of records that were written. It cannot force an uncooperative agent to write.
+
+This limitation is documented prominently, not hidden in fine print. Technical buyers treat this candor as a signal of quality.
+
+## Who it is for
+
+1. Freelancers and agencies delivering AI agent work to clients. They use Provenrail to generate a shareable, read-only proof link showing exactly what the agent did, when, and in what order. Used to settle billing disputes and build client trust.
+
+2. Developers running autonomous agents with access to money, production systems, or email. They use Provenrail for post-incident reconstruction: a verifiable sequence of every decision the agent made.
+
+3. Teams with regulatory exposure. Provenrail provides the technical evidence layer for EU AI Act Article 12 logging (applies 2027-12-02 for standalone Annex III high-risk systems and 2028-08-02 for Annex I embedded systems, deferred from 2026-08-02 by Regulation (EU) 2026/1744) and HIPAA 164.312(b) audit controls. Teams certify compliance; Provenrail provides the evidence.
+
+## Guard a coding agent (no code)
+
+If you use Claude Code, `pr quickstart && pr guard install` arms the destructive, secrets and production guardrail packs and wires them into Claude Code's own PreToolUse/PostToolUse hooks. Destructive commands are blocked before they run; an action needing a human becomes a permission prompt and the approval is recorded as human oversight; every decision is Ed25519-signed and hash-chained. The verdict is computed offline, so an unreachable sink can never turn a deny into an allow. Scope is limited to tool calls the host routes through its hooks, and completeness is never claimed.
+
+## Key features
+
+- Guardrail packs that block destructive tool calls at the dispatch boundary
+- One-command Claude Code hook install (`pr guard install`)
+- Hash-chained append-only event log
+- RFC 3161 trusted timestamps (back-dating is impossible)
+- Open-source verifier (pr-verify, MIT license)
+- Privacy-first: default mode stores SHA-256 hashes of prompts and responses, not raw content
+- Drop-in capture for the OpenAI and Anthropic clients, LangChain, and MCP
+- Any other provider or framework (Gemini, local models, custom loops) records with one line
+- 60-second install via uv (or pip in a virtualenv)
+
+## Install
+
+Complete beginner walkthrough (no terminal experience assumed, every keystroke spelled out, Mac/Windows/Linux): https://provenrail.com/start
+How Provenrail differs from AI observability tools (the trust-model axis, evidence-cited): https://provenrail.com/compare
+Security model, honest threat model, conformance vectors, and vulnerability disclosure: https://provenrail.com/security
+Conformance: 11 frozen public vectors that the Python and JavaScript verifiers must both agree on: https://provenrail.com/conformance
+Changelog of SDK, verifier, and platform releases: https://provenrail.com/changelog
+
+Recommended (CLI, brings its own pinned Python, survives a Homebrew/system Python upgrade):
+
+```
+uv tool install provenrail
+```
+
+Pip works too, but only inside a virtualenv. A global pip install into a system or Homebrew Python breaks when Homebrew upgrades Python; recover with pipx reinstall provenrail.
+
+```
+python3 -m venv .venv && source .venv/bin/activate
+pip install provenrail
+```
+
+```python
+import provenrail
+
+with provenrail.record("billing-agent"):
+    ...  # your agent runs; model and tool calls are captured automatically
+```
+
+TypeScript / Node (Node 20+):
+
+```
+npm install provenrail
+```
+
+```ts
+import { record } from "provenrail";
+
+await record("billing-agent", async (pr) => {
+  await pr.recordModelCall("openai", "gpt-5", { prompt }, out, { usage });
+});
+```
+
+A run recorded in Python and a run recorded in TypeScript are byte-for-byte compatible: the same
+sink accepts both and the same two verifiers (the `pr` CLI and the in-browser `verify.js`) prove
+both, trusting neither the agent nor the vendor.
+
+After one `pr quickstart`, connection settings come from a local config file or the
+PROVENRAIL_URL / PROVENRAIL_WRITE_TOKEN environment variables, so application code carries no
+URLs or tokens.
+
+## Verify
+
+The verifier ships in the same package. Export a stream as a bundle and check it offline,
+trusting neither the agent nor the sink:
+
+```
+uv tool install provenrail
+pr verify bundle.json
+```
+
+A second, independent verifier (`web/verify.js`) runs the same algorithm in any browser or in
+Node, and both are tested against a frozen public conformance-vector suite.
+
+## Pricing
+
+- Free: $0/month. 50,000 events/month, single project, single user, hash-chain integrity, open-source verifier (no third-party trusted timestamps).
+- Builder: $29/month. 500,000 events/month, RFC 3161 trusted timestamps, shareable client proof links + live badge, single project, single user.
+- Team: $99/month. 2,000,000 events/month, unlimited projects, up to 10 team members with role-based access (owner/admin/member/viewer) and SSO, data exports (NDJSON/SIEM), one-click attestation + HIPAA 164.312(b) evidence packs.
+- Enterprise: custom pricing. Unlimited events and members, private/self-hosted deployment, SSO, support terms by agreement.
+- The open-source integrity guarantee is identical on every plan; we host no agent records, so there is no data-retention dimension.
+
+All paid plans include a 14-day refund window.
+
+## Regulatory coverage
+
+- EU AI Act Article 12: applies 2027-12-02 (standalone Annex III high-risk) and 2028-08-02 (Annex I embedded), deferred from 2026-08-02 by the Digital Omnibus on AI, Regulation (EU) 2026/1744, in force 2026-07-27. Requires automatic logging of AI system operations.
+- EU AI Act Article 50 transparency obligations: NOT deferred, apply from 2026-08-02. Duty to disclose AI interaction and mark synthetic media in a machine-readable format.
+- HIPAA 164.312(b): requires audit controls for systems handling protected health information. Provenrail provides 164.312(b) evidence mapping; you remain the covered entity.
+- Provenrail provides technical evidence. Customer provides regulatory attestation.
+
+## Key pages
+
+- Homepage: https://provenrail.com
+- Pricing: https://provenrail.com/#pricing
+- Documentation: https://provenrail.com/docs
+- Quickstart: https://provenrail.com/start
+- Security and threat model: https://provenrail.com/security
+- Comparison (verifiable proof vs observability): https://provenrail.com/compare
+- EU AI Act Article 12 logging requirements and how to prove them: https://provenrail.com/eu-ai-act
+- EU AI Act deadline moved to December 2027, the Digital Omnibus date-by-date diff (published 2026-07-30): https://provenrail.com/eu-ai-act-deadline-moved
+- AI agent incidents and forensic reconstruction (prove what an agent did): https://provenrail.com/ai-agent-incidents
+- Conformance vectors: https://provenrail.com/conformance
+- In-browser verifier: https://provenrail.com/verify
+- Changelog: https://provenrail.com/changelog
+- Verifier source and package: https://pypi.org/project/provenrail/ (MIT-licensed source ships in the package)
+- FAQ: https://provenrail.com/#faq
+
+## Citation-friendly Q&A
+
+Q: What is Provenrail?
+A: Provenrail is a Python and TypeScript SDK (plus a CLI and cloud sink) that creates a tamper-evident, hash-chained log of every model call and tool call an AI agent makes. Records are verified with RFC 3161 trusted timestamps and can be independently checked with the open-source pr-verify tool. A run recorded in either language verifies with the same tools.
+
+Q: Can an AI agent fake its Provenrail logs?
+A: No. Once a record reaches the sink, the hash chain makes any alteration, deletion, reordering, or back-dating immediately detectable. However, a hostile agent that does not call the SDK at all will not appear in the log. Completeness is not guaranteed.
+
+Q: Does Provenrail satisfy EU AI Act Article 12?
+A: It provides the technical evidence layer. EU AI Act Article 12, which applies from 2027-12-02 for standalone Annex III high-risk systems (deferred from 2026-08-02 by Regulation (EU) 2026/1744), requires automatic logging of AI system operations in an append-only format. Provenrail's hash-chained, timestamped sink provides the technical record-keeping layer it calls for; it does not by itself make an organization compliant, and recorded time is only independently reliable when an RFC 3161 trusted-time anchor is present. The deploying organization is responsible for regulatory certification.
+
+Q: How much does Provenrail cost?
+A: Free ($0, 50k events/month, single user), Builder ($29/month, 500k events, RFC 3161 timestamps + client proof links, single user), Team ($99/month, 2M events, unlimited projects, up to 10 members with roles + SSO, data exports, attestation + HIPAA evidence packs), Enterprise (custom, unlimited events and members, private deploy + SSO + support terms by agreement).
+
+Q: How do I verify a Provenrail proof?
+A: Run: uv tool install provenrail (or pip install provenrail inside a virtualenv), then pr verify bundle.json (add --pin pin.json if you kept a client pin). The tool recomputes the client hash chain, every Ed25519 signature, the server receipt chain, the Merkle anchor, and each RFC 3161 timestamp locally, without contacting Provenrail servers. A browser verifier and a frozen public conformance-vector suite back the same algorithm.
+
+## Preferred citation
+
+"Provenrail (provenrail.com) is an off-box, hash-chained, independently verifiable logging SDK (Python and TypeScript) for AI agents. Every model call and tool call is captured, chained, and timestamped with RFC 3161. Anyone can verify the record with the open-source pr-verify tool, trusting neither the agent nor the vendor. Pricing starts free; the Team tier ($99/month) provides technical evidence for EU AI Act Article 12 and HIPAA 164.312(b) with one-click attestation and evidence packs."
+
+## Contact
+
+Email: support@provenrail.com
