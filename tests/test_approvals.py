@@ -148,7 +148,7 @@ def test_the_review_page_leads_with_the_action_not_the_product(tmp_path):
     page = client.get(body["approve_url"].replace("http://testserver", "")).text
     assert "Send $9,000 to ACME Corp" in page
     assert "wire_transfer(amount=9000)" in page
-    assert "Nothing has been decided yet" in page
+    assert "nothing has been decided yet" in page
     assert "<form method=\"post\"" in page
     # the deny link renders its own review page, and also decides nothing on GET
     deny = client.get(body["deny_url"].replace("http://testserver", "")).text
@@ -337,3 +337,55 @@ def test_the_out_of_band_approval_names_its_rule():
     t.join(timeout=5)
     assert fr._session_state.oversight_rules == {"money.wire"}
     assert fr._session_state.had_oversight is False
+
+
+def test_the_approve_page_offers_deny_so_refusing_is_not_the_harder_path():
+    """A reviewer who reads the target and decides it is wrong must be able to say so on the
+    page in front of them. Sending them back through a Slack thread to find the other link is
+    what makes approval the path of least resistance under time pressure."""
+    import re as _re
+    client, prov = _wired()
+    body = client.post("/v1/approvals",
+                       json={"stream_id": prov["stream_id"], "rule": "money.wire",
+                             "target": "wire_transfer(amount=9000)",
+                             "reason": "Send $9,000 to ACME Corp"},
+                       headers={"Authorization": f"Bearer {prov['write_token']}"}).json()
+    approve_path = body["approve_url"].replace("http://testserver", "")
+    page = client.get(approve_path).text
+    assert "Approve</button>" in page and "Deny</button>" in page
+    # and the deny button on the approve page really denies
+    deny_action = _re.search(r'action="(/deny/[^"]+)"', page).group(1)
+    assert client.post(deny_action).status_code == 200
+    assert "Already denied" in client.get(approve_path).text
+
+
+def test_the_deny_link_cannot_be_turned_back_into_an_approval():
+    """The deny token is derived from the approve token by a one-way hash. Holding approve and
+    gaining deny is a downgrade; the reverse would be an escalation, so it must not work."""
+    from provenrail.server import approvals as approvals_mod
+
+    approve = "some-approve-token"
+    deny = approvals_mod.deny_token_for(approve)
+    assert deny != approve
+    assert approvals_mod.deny_token_for(deny) != approve
+    client, prov = _wired()
+    body = client.post("/v1/approvals",
+                       json={"stream_id": prov["stream_id"], "target": "x"},
+                       headers={"Authorization": f"Bearer {prov['write_token']}"}).json()
+    deny_token = body["deny_url"].rsplit("/", 1)[-1]
+    # nothing derived from the deny token approves anything
+    assert client.post(f"/approve/{deny_token}").status_code in (200, 404)
+    assert client.post(f"/approve/{approvals_mod.deny_token_for(deny_token)}").status_code in (200, 404)
+    status = client.get(f"/v1/approvals/{body['request_id']}",
+                        headers={"Authorization": f"Bearer {prov['write_token']}"}).json()
+    assert status["status"] == "pending"
+
+
+def test_the_expiry_is_shown_as_a_deadline_a_human_can_act_on():
+    client, prov = _wired()
+    body = client.post("/v1/approvals",
+                       json={"stream_id": prov["stream_id"], "target": "x"},
+                       headers={"Authorization": f"Bearer {prov['write_token']}"}).json()
+    page = client.get(body["approve_url"].replace("http://testserver", "")).text
+    assert "minutes" in page or "hours" in page
+    assert body["expires_at"] not in page       # not the raw ISO 8601 stamp

@@ -53,7 +53,8 @@ Articles 12 and 19 require high-risk AI systems to automatically record events o
 retained at least six months, to enable post-market monitoring and authority review. The text does
 **not** specify a format or mandate the word "tamper-evident" -- but logs that can be silently altered
 have no evidentiary value, so integrity is implicit in the purpose. Enforcement for Annex III
-high-risk systems was moved to **2 December 2027** by the Digital Omnibus (May 2026); the logging
+high-risk systems was moved to **2 December 2027** by Regulation (EU) 2026/1744 (the Digital Omnibus on AI),
+published in the Official Journal on 24 July 2026 and in force from 27 July 2026; the logging
 obligations themselves were not weakened, and harmonized standards (CEN-CENELEC `prEN ISO/IEC 24970`
 on AI logging) are **still unpublished**.
 - **Truthful claim:** "Provides the automatic, tamper-evident, retained event log required as

@@ -30,7 +30,9 @@ request exactly once. A replayed link shows the decision that was already made r
 making a second one.
 
 **Approve and deny are different tokens**, so the deny link cannot be turned into an approval
-by editing a query parameter, and a leaked deny link grants nothing.
+by editing a query parameter, and a leaked deny link grants nothing. The deny token is derived
+from the approve token by a one-way hash, so the approve page can offer both answers (holding
+approve and gaining deny is a downgrade) while the deny link still yields no way back.
 
 **The decision is recorded by the agent, not by the sink.** The sink stores the answer; the
 agent's own recorder writes the `human_oversight` record into its chain and signs it.
@@ -45,6 +47,7 @@ exactly like every other server-mediated control here. Self-host the sink if tha
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import secrets
 import sqlite3
@@ -88,6 +91,25 @@ def _hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def deny_token_for(approve_token: str) -> str:
+    """The deny link that belongs to an approve link, derived one way only.
+
+    A reviewer who opens the approve link and decides the action is wrong should be able to
+    say so on the page in front of them. Making them hunt back through a Slack thread for the
+    other link is how "approve" becomes the default under time pressure, which is the opposite
+    of what an approval gate is for. So the approve page needs the deny token.
+
+    It is derived rather than stored, because storing raw tokens would mean a leaked database
+    could approve anything, and that property is worth keeping. The derivation runs one way:
+    holding the approve token yields the deny token, which is a strict DOWNGRADE of capability
+    (the holder could already approve, and denying is the fail-safe answer). Holding the deny
+    token yields nothing, because inverting SHA-256 is the whole point of SHA-256. A deny link
+    forwarded to a wider audience therefore still cannot approve.
+    """
+    digest = hashlib.sha256(("provenrail.deny.v1:" + approve_token).encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
 def _now() -> datetime:
     return datetime.now(UTC)
 
@@ -117,7 +139,7 @@ class ApprovalStore:
         """
         stamp = now or _now()
         approve_token = secrets.token_urlsafe(32)
-        deny_token = secrets.token_urlsafe(32)
+        deny_token = deny_token_for(approve_token)
         request_id = secrets.token_urlsafe(12)
         expires = stamp + timedelta(seconds=max(1, int(ttl_seconds)))
         with self._lock:
@@ -262,11 +284,11 @@ _PAGE = """<!doctype html>
 <title>{{headline}} | Provenrail human oversight</title>
 <style>
 :root{--bg:#0a0b0e;--bg-3:#14171c;--border:#20242c;--accent:#2ee6a6;--red:#f06a5d;
---text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#5a626e;
+--accent-text:#2ee6a6;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#858f9c;
 --font-mono:'DM Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
 --font-body:system-ui,-apple-system,'Segoe UI',sans-serif}
 @media(prefers-color-scheme:light){:root{--bg:#fbfcfd;--bg-3:#ffffff;--border:#e4e8ee;
---accent:#07a06a;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#97a0ab}}
+--accent:#07a06a;--accent-text:#087a4e;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#656d78}}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.55;
 min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.25rem}
@@ -276,7 +298,7 @@ border-radius:14px;padding:clamp(1.5rem,5vw,2.25rem)}
 text-transform:uppercase;color:var(--text-lo);margin-bottom:.9rem}
 h1{font-family:var(--font-mono);font-size:clamp(1.5rem,6vw,2rem);font-weight:500;
 letter-spacing:-.02em;margin-bottom:.6rem}
-h1.ok{color:var(--accent)}
+h1.ok{color:var(--accent-text)}
 h1.no{color:var(--red)}
 p{color:var(--text-mid);margin-bottom:1.1rem}
 /* The request itself is the headline. On a phone at an awkward hour the question is "what am
@@ -290,6 +312,10 @@ word-break:break-word;white-space:pre-wrap}
 border:1px solid transparent;border-radius:10px;cursor:pointer;padding:.9rem 1rem}
 .decide .go{background:var(--accent);color:#04130d}
 .decide .stop{background:var(--red);color:#1a0705}
+/* The second answer is available but visually secondary: both decisions reachable,
+   neither one the accidental default. */
+.decide.alt{margin-top:.6rem}
+.decide.alt button{background:transparent;color:var(--text-hi);border:1px solid var(--red)}
 .decide button:focus-visible{outline:2px solid var(--text-hi);outline-offset:3px}
 table{width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:1.1rem}
 th,td{text-align:left;padding:.5rem .25rem;border-bottom:1px solid var(--border);

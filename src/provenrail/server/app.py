@@ -585,13 +585,35 @@ def create_app(
     def deny_submit(token: str = Path(...)):
         return _decision_page(token, approvals_mod.DENIED)
 
+    def _humanize_deadline(stamp: str) -> str:
+        """"Expires in 54 minutes", not an ISO 8601 timestamp.
+
+        The reader is deciding on a phone at an awkward hour. "2026-08-04T18:47:53.745637Z"
+        does not tell them how long they have; a duration does, and how long they have is the
+        only reason the field is on the page.
+        """
+        from datetime import UTC, datetime
+        try:
+            when = datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=UTC)
+        except (TypeError, ValueError):
+            return stamp
+        seconds = (when - datetime.now(UTC)).total_seconds()
+        if seconds <= 0:
+            return "expired"
+        if seconds < 90:
+            return f"in {int(seconds)} seconds"
+        if seconds < 5400:
+            return f"in {round(seconds / 60)} minutes"
+        return f"in {round(seconds / 3600, 1)} hours"
+
     def _detail_rows(req: dict[str, Any], keys: tuple[str, ...]) -> str:
         labels = {"rule": "Policy rule", "event_type": "Action type", "target": "Target",
-                  "status": "Status", "decided_at": "Decided", "expires_at": "Link expires",
+                  "status": "Status", "decided_at": "Decided", "expires_at": "Expires",
                   "session_id": "Session"}
+        values = {"expires_at": _humanize_deadline(str(req.get("expires_at") or ""))}
         return "".join(
             f"<tr><th>{html.escape(labels.get(k, k))}</th>"
-            f"<td>{html.escape(str(req.get(k) or ''))}</td></tr>"
+            f"<td>{html.escape(str(values.get(k, req.get(k)) or ''))}</td></tr>"
             for k in keys if req.get(k))
 
     def _review_page(token: str, decision: str) -> HTMLResponse:
@@ -617,7 +639,18 @@ def create_app(
         reason = str(req.get("reason") or "An agent is waiting for your decision.")
         target = str(req.get("target") or "")
         verb = "Allow this action?" if wants_approval else "Block this action?"
-        other = ("deny" if wants_approval else "approve")
+        # Both answers on one page, when the page is the approve link. A reviewer who reads the
+        # target and decides it is wrong should be able to say so here. Sending them back to a
+        # Slack thread to find the other link is what makes "approve" the path of least
+        # resistance under time pressure, which is the opposite of what the gate is for. The
+        # deny token is derived from the approve token one way, so this hands out no capability
+        # the reader did not already hold; the deny page cannot offer the reverse.
+        deny_form = ""
+        if wants_approval:
+            counterpart = approvals_mod.deny_token_for(token)
+            deny_form = (f'<form method="post" action="/deny/{html.escape(counterpart)}" '
+                         f'class="decide alt"><button type="submit" class="stop">Deny</button>'
+                         f'</form>')
         body = f"""<main>
   <h1>{html.escape(verb)}</h1>
   <p class="lede">{html.escape(reason)}</p>
@@ -626,11 +659,12 @@ def create_app(
     <button type="submit" class="{'go' if wants_approval else 'stop'}">
       {'Approve' if wants_approval else 'Deny'}</button>
   </form>
+  {deny_form}
   <table>{_detail_rows(req, ("rule", "event_type", "session_id", "expires_at"))}</table>
-  <p class="fine">An agent is paused waiting for this. Nothing has been decided yet: opening
-  this link changed nothing, and only the button above does. The link works once. If you did
-  not expect this, close the page and the request expires on its own, which leaves the action
-  blocked. To {other} instead, use the other link from the same notification.</p>
+  <p class="fine">An agent is paused waiting for this, and nothing has been decided yet.
+  Opening this page changes nothing; only a button above does, and your decision is recorded
+  once. If you did not expect this, close the page. The request then expires on its own and
+  the action stays blocked.</p>
 </main>"""
         return HTMLResponse(app.state.approvals.decision_page(verb, body))
 

@@ -32,9 +32,9 @@
   <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"></noscript>
   <link rel="stylesheet" href="/styles.css">
   <style>
-    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#5a626e;
-      --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;--yes:#6fcf86;--no:#c2502f}
-    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#8a6c2c;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#97a0ab;--yes:#2f8f4e;--no:#b1442a}}
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#858f9c;
+      --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;--yes:#6fcf86;--no:#e06040}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#8a6c2c;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#656d78;--yes:#1f7038;--no:#a13c22}}
     *{box-sizing:border-box;margin:0;padding:0}
     html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
     body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
@@ -153,7 +153,7 @@
         <tr><td class="feat">Public transparency log with witness cosignatures</td><td class="no">No</td><td class="yes">Yes (Builder and higher)</td></tr>
         <tr><td class="feat">Open-source offline verifier, no account needed</td><td class="no">No</td><td class="yes">Yes</td></tr>
         <tr><td class="feat">Regulatory evidence packs (EU AI Act, HIPAA)<span class="sub">structured for an audit, not a screenshot</span></td><td class="no">No</td><td class="yes">Yes</td></tr>
-        <tr><td class="feat">Built and positioned for legal defensibility</td><td class="no">No</td><td class="yes">Yes</td></tr>
+        <tr><td class="feat">Built for audit-grade evidence and third-party verification</td><td class="no">No</td><td class="yes">Yes</td></tr>
       </tbody>
     </table>
     <p class="src">We built Provenrail to fill a gap we did not find filled in the observability category as we understood it: a record that a third party can verify independently, with no account, using open-source tools that travel with the record. If you know of a tool in this space that ships cryptographic signing, hash-chaining, RFC 3161 trusted timestamps, a public transparency log, and an offline verifier as built-in features, we would genuinely like to know. Email <a href="mailto:support@provenrail.com">support@provenrail.com</a>. We update this page when the category changes.</p>

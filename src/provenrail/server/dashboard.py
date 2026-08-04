@@ -25,7 +25,11 @@ DASHBOARD_HTML = r"""<!doctype html>
   --bg:#0a0b0e;--bg-2:#0f1115;--bg-3:#14171c;--bg-4:#1b1f26;
   --border:#20242c;--border-hi:#2e333d;
   --accent:#2ee6a6;--accent-dim:#16c489;--accent-glow:rgba(46,230,166,.16);--accent-glow-sm:rgba(46,230,166,.07);
-  --text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#5a626e;--text-mono:#c9d0d9;
+  /* --accent is a SURFACE colour (button fills, borders, focus rings). --accent-text is the
+     text-role twin: the same brand green fails 4.5:1 as light-mode text, and the figure it
+     was used for is the cost, which is the number a buyer most needs to read. */
+  --accent-text:#2ee6a6;
+  --text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#858f9c;--text-mono:#c9d0d9;
   --green:#2ee6a6;--green-glow:rgba(46,230,166,.14);--red:#f06a5d;--red-glow:rgba(240,106,93,.14);
   --amber:#f0b23a;--amber-glow:rgba(240,178,58,.14);--blue:#2ee6a6;
   --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;
@@ -36,8 +40,9 @@ DASHBOARD_HTML = r"""<!doctype html>
 @media (prefers-color-scheme:light){:root{
   --bg:#fbfcfd;--bg-2:#f5f7f9;--bg-3:#ffffff;--bg-4:#eef1f4;--border:#e4e8ee;--border-hi:#d2d8e0;
   --accent:#07a06a;--accent-dim:#058a5b;--accent-glow:rgba(7,160,106,.14);--accent-glow-sm:rgba(7,160,106,.06);
+  --accent-text:#087a4e;
   --green:#07a06a;--green-glow:rgba(7,160,106,.14);
-  --text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#97a0ab;--text-mono:#1b2430;}}
+  --text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#656d78;--text-mono:#1b2430;}}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:16px;-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
 body{font-family:var(--font-body);line-height:1.55;color:var(--text-hi);background:var(--bg);min-height:100vh;overflow-x:hidden}
@@ -86,7 +91,7 @@ button{cursor:pointer;font-family:inherit;color:inherit;background:none;border:n
 .crumb a{color:var(--text-mid);transition:color .15s}.crumb a:hover{color:var(--accent)}
 .crumb .sep{color:var(--text-lo)}
 .page-head{margin-bottom:1.75rem}
-.eyebrow{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+.eyebrow{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-text);
   display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem}
 .eyebrow::before{content:'';width:16px;height:1px;background:var(--accent)}
 .h1{font-family:var(--font-mono);font-size:clamp(1.5rem,3.5vw,2.1rem);font-weight:500;letter-spacing:-.02em;line-height:1.15}
@@ -101,7 +106,7 @@ button{cursor:pointer;font-family:inherit;color:inherit;background:none;border:n
 .tile .v{font-family:var(--font-mono);font-size:1.55rem;font-weight:500;color:var(--text-hi);line-height:1;letter-spacing:-.01em}
 .tile .v small{font-size:.8rem;color:var(--text-lo);font-weight:400}
 .tile .x{font-size:.72rem;color:var(--text-mid);margin-top:.4rem}
-.tile.accent .v{color:var(--accent)}
+.tile.accent .v{color:var(--accent-text)}
 
 /* ---- stream cards ---- */
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem}
@@ -201,13 +206,16 @@ button{cursor:pointer;font-family:inherit;color:inherit;background:none;border:n
 .tl-body{display:none;padding:0 .9rem .85rem 4.9rem;font-family:var(--font-mono);font-size:.74rem;color:var(--text-mid);line-height:1.7}
 .tl-card.open .tl-body{display:block}
 .tl-kv{display:flex;gap:.6rem}.tl-kv .k{color:var(--text-lo);min-width:5.5rem}.tl-kv .v{color:var(--text-mono);word-break:break-all}
-@media(max-width:640px){.tl-sum{display:none}.tl-body{padding-left:1rem}}
+@media(max-width:640px){/* The summary is the only human-readable part of a timeline row. Hiding it at mobile
+   left four consecutive rows all reading 'Tool call 17:54:33' with nothing to tell
+   them apart, so the time goes instead and the summary truncates. */
+.tl-time{display:none}.tl-body{padding-left:1rem}}
 /* Replay scrubber: step through a run one action at a time. The reason this exists rather
    than a scrolling list alone is that "what did the agent do at step 14, and how does that
    differ from the run that worked" is the question a debugger actually has. */
 .scrub{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--r-md);padding:.85rem .9rem;margin-bottom:.9rem}
 .scrub-top{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.65rem}
-.scrub-btn{font-family:var(--font-mono);font-size:.78rem;padding:.35rem .6rem;border:1px solid var(--border-hi);
+.scrub-btn{font-family:var(--font-mono);font-size:.78rem;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:.35rem .6rem;border:1px solid var(--border-hi);
   border-radius:var(--r-sm);color:var(--text-hi);background:var(--bg-3);cursor:pointer}
 .scrub-btn:hover{border-color:var(--accent);color:var(--accent)}
 .scrub-btn[disabled]{opacity:.4;cursor:not-allowed;border-color:var(--border)}
@@ -292,7 +300,7 @@ button{cursor:pointer;font-family:inherit;color:inherit;background:none;border:n
       <circle cx="9" cy="17" r="1.8" fill="var(--accent)"/>
       <circle cx="23" cy="11" r="1.8" fill="var(--accent)"/>
     </svg>
-    <span>proven<span style="color:var(--accent)">rail</span> <span class="sub">Run Explorer</span></span>
+    <span>proven<span style="color:var(--accent-text)">rail</span> <span class="sub">Run Explorer</span></span>
   </a>
   <div class="topbar-spacer"></div>
   <div class="conn" id="conn" hidden><span class="dot" id="conn-dot"></span><span id="conn-txt">connecting</span></div>
@@ -420,7 +428,7 @@ async function renderOverview(){
           <div class="cm"><span class="k">Sessions</span><span class="v">${fmtNum(tt.sessions||0)}</span></div>
           <div class="cm"><span class="k">Events</span><span class="v">${fmtNum(s.records||0)}</span></div>
           <div class="cm"><span class="k">Tokens</span><span class="v">${fmtTokens((tt.tokens_in||0)+(tt.tokens_out||0))}</span></div>
-          <div class="cm"><span class="k">Est. cost</span><span class="v" style="color:var(--accent)">${fmtCost(tt.cost_usd)}</span></div>
+          <div class="cm"><span class="k">Est. cost</span><span class="v" style="color:var(--accent-text)">${fmtCost(tt.cost_usd)}</span></div>
         </div>
         <div class="card-foot"><span class="when">${s.last_activity?ago(s.last_activity):'no activity'}</span>${live?'':badge(s.verdict)}</div>
       </a>`;
@@ -429,8 +437,8 @@ async function renderOverview(){
   $('#root').innerHTML=`
     <div class="page-head fade">
       <div class="eyebrow">Overview</div>
-      <h1 class="h1">Everything your agents did</h1>
-      <p class="lede">A live, court-grade record across every stream. Each badge is the standalone verifier run against the off-box receipt chain, not a status we assert.</p>
+      <h1 class="h1">What your agents recorded</h1>
+      <p class="lede">A signed, hash-chained record of every run, across every stream. Each badge below is the standalone verifier's own verdict, not a status this page asserts.</p>
     </div>
     ${tiles(t)}
     ${cards}`;
@@ -441,7 +449,7 @@ async function renderStream(id){
   const v=d.verdict||{state:'empty'}; const st=d.stream||{};
   const sessions=d.sessions||[];
   const bx={verified:'Every record is signed, chained, and bound to a trusted external timestamp. Verify it yourself below.',
-    amber:'Records are signed and chained with no detected tampering, but no third-party trusted timestamp covers them yet. Anchor with RFC 3161 for court-grade time proof.',
+    amber:'Records are signed and chained with no detected tampering, but no third-party trusted timestamp covers them yet, so nothing here proves WHEN they were written. Anchor with RFC 3161 to add that.',
     tampered:'The standalone verifier found '+ (v.fails||0) +' integrity failure(s). This record set has been altered, reordered, or truncated.',
     empty:'No records on this stream yet.'}[v.state]||'';
   const rows = sessions.length? sessions.map(s=>{
@@ -454,7 +462,7 @@ async function renderStream(id){
       <div class="cell hide-sm"><span class="ck">events</span>${fmtNum(s.events)}</div>
       <div class="cell hide-sm"><span class="ck">calls</span>${fmtNum(s.model_calls)}</div>
       <div class="cell hide-sm"><span class="ck">tokens</span>${fmtTokens((s.tokens_in||0)+(s.tokens_out||0))}</div>
-      <div class="cell"><span class="ck">est. cost</span><span style="color:var(--accent)">${fmtCost(s.cost_usd)}</span></div>
+      <div class="cell"><span class="ck">est. cost</span><span style="color:var(--accent-text)">${fmtCost(s.cost_usd)}</span></div>
       <div>${live?'<span class="badge live"><span class="bd"></span>Live</span>':`<span class="badge ${s.outcome==='failure'?'tampered':'verified'}"><span class="bd"></span>${esc(s.outcome||'sealed')}</span>`}</div>
     </button>`;
   }).join('') : `<div class="empty-state"><div class="ic">[ ]</div><div class="t">No sessions recorded</div></div>`;
@@ -726,7 +734,7 @@ async function render(silent){
   }catch(e){
     if(e.code===401){ renderGate(silent?'Session expired, reconnect.':''); return; }
     setConn(false);
-    if(!silent) $('#root').innerHTML=`<div class="empty-state fade"><div class="ic">!</div><div class="t">Could not load</div><div class="d">${esc(e.message)}. <a href="#/" style="color:var(--accent)">Back to overview</a></div></div>`;
+    if(!silent) $('#root').innerHTML=`<div class="empty-state fade"><div class="ic">!</div><div class="t">Could not load</div><div class="d">${esc(e.message)}. <a href="#/" style="color:var(--accent-text)">Back to overview</a></div></div>`;
   }
 }
 async function boot(){

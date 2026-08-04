@@ -303,7 +303,7 @@ The evidence format and the exact verification algorithm are in `SPEC.md`. A cle
 scratch; it never trusts a derived field in the bundle.
 
 ## Status
-244 tests passing including hermetic real-RFC-3161 verification with tamper cases
+The test suite covers hermetic real-RFC-3161 verification with tamper cases
 (content edit, deletion, coherent malicious re-chain, backdating, tail truncation),
 accounts/auth, token revocation and expiry, rate limiting, auto-anchoring, async transport,
 Unicode NFC canonicalization, the Run Explorer dashboard and analytics, cost estimation,
@@ -455,7 +455,8 @@ billing surface (`server/plans.py`), a standalone **out-of-process witness** (`p
 `server/witness.py`) that speaks the C2SP add-checkpoint protocol so a hosted sink can earn the
 witnessed-green path against a witness on independent infrastructure, and the **capture sidecar**
 (`pr sidecar`, `sidecar.py`) that records model calls from a process the agent does not control.
-333 tests, ruff clean, zero em/en glyphs.
+Run `pytest -q` for the current count; a number written into prose here goes stale within a
+day and two stale numbers disagreeing with each other is worse than none.
 
 Not yet shipped: cross-account WORM storage, a Go verifier (no toolchain here yet), SAML and a
 browser SSO redirect flow, multi-TSA trust roots, and the actual cloud deployment plus payment
