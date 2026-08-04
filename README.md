@@ -36,7 +36,7 @@ Anyone can verify the record with the open-source `pr-verify` tool.
 
 This is the self-serve **Provenrail** SKU. It is a forensic black box, not a
 compliance certifier. The regulated **Audit Trail** SKU (cross-account WORM, witnessed
-anchors, TEE-backed keys, regime attestation reports) is a separate, sales-assisted tier.
+anchors, TEE-backed keys, regime evidence reports) is a separate, sales-assisted tier.
 
 ## What it guarantees, and what it does not
 
@@ -188,7 +188,7 @@ Other entry points:
 ```bash
 pr demo              # self-contained: records a session, anchors it, writes bundle.json + pin.json
 pr verify bundle.json --pin pin.json     # verify, trusting neither agent nor sink
-pr report --regime eu-ai-act bundle.json --md   # regulatory attestation
+pr report --regime eu-ai-act bundle.json --md   # map the record to a regime
 pr diff run-a.json run-b.json            # diff two runs with provable fidelity
 fr serve --anchor rfc3161                # run the sink yourself (real trusted timestamps)
 pr sidecar --upstream https://api.openai.com   # out-of-process capture proxy (point base_url here)
@@ -289,7 +289,7 @@ Trust and compliance surface
 - Embeddable live badge: `<img src=".../badge/<share_token>.svg">` re-verifies on every load
   and turns amber or red if the record ever stops verifying.
 - One-click evidence pack (`fr pack`, or `/v1/streams/{id}/evidence`): a self-contained,
-  reproducible ZIP with the bundle, a regime attestation (EU AI Act Art. 12 / HIPAA
+  reproducible ZIP with the bundle, a regime evidence report (EU AI Act Art. 12 / HIPAA
   164.312(b) / generic), a verification guide, and a SHA-256 manifest, for an auditor.
 - SIEM export (`/v1/streams/{id}/export.ndjson`): one flattened, hash-linked record per line
   for Splunk / Elastic / Datadog, content-hashed by default so it does not leak prompts.

@@ -178,9 +178,9 @@
 
     <h2 id="liability">Why tamper-evidence, not just logging</h2>
     <p>Article 12 says the log must exist. It is the revised <strong>Product Liability Directive (EU) 2024/2853</strong> that makes the log's integrity matter in court. Recital 46 states that where a product is not equipped with the means to log information that Union law requires, defectiveness can be <strong>presumed</strong>. The burden then shifts to you to prove the system was not defective, using the very records you failed to keep defensibly.</p>
-    <p>The trap is subtle: a log you control is a log you could have edited, so a claimant can argue your own export is self-serving. An independently verifiable record cannot be argued away the same way. It was signed and chained at the moment of the event, and any auditor, regulator, or court can recompute it without trusting you. One tamper-evident record satisfies the evidence layer of several regimes at once:</p>
+    <p>The trap is subtle: a log you control is a log you could have edited, so a claimant can argue your own export is self-serving. An independently verifiable record cannot be argued away the same way. It was signed and chained at the moment of the event, and any auditor, regulator, or court can recompute it without trusting you. One tamper-evident record can serve the evidence layer of several regimes at once:</p>
     <table>
-      <caption class="sr-only">Compliance regimes whose evidence requirements one tamper-evident record satisfies</caption>
+      <caption class="sr-only">Regimes whose evidence requirements one tamper-evident record can help address. Whether it does is your auditor's determination, not ours.</caption>
       <thead><tr><th scope="col">Regime</th><th scope="col">Provision</th><th scope="col">What it needs</th></tr></thead>
       <tbody>
         <tr><td>EU AI Act</td><td>Art. 12, 19, 26</td><td>Automatic event logging plus 6-month retention</td></tr>
@@ -213,7 +213,7 @@
     </div>
 
     <h2 id="good">What "good" logging evidence looks like</h2>
-    <p>A log satisfies the spirit of Article 12 only if it can be trusted after the fact. Three properties separate a defensible record from a text file anyone could edit:</p>
+    <p>A log is only useful under Article 12 if it can be trusted after the fact. Three properties separate a defensible record from a text file anyone could edit:</p>
     <ul>
       <li><strong>Tamper-evident.</strong> Any alteration, deletion, reordering, or insertion after the fact is detectable. A plain database row or log line is not: whoever controls the store can change it silently.</li>
       <li><strong>Independently verifiable.</strong> An auditor can confirm the record is intact <em>without trusting you</em>, ideally with open tools and no account. "Trust our dashboard" is not evidence.</li>
@@ -236,7 +236,7 @@
     </table>
     <p>Generate the mapped report yourself, free and on your own machine:</p>
     <p><code>pr report --regime eu-ai-act my-run.json --md</code></p>
-    <p>It produces a plain-English attestation: what was recorded, whether integrity verified, the events breakdown, and how each maps to Article 12, with an honest note wherever trusted time is absent.</p>
+    <p>It produces a plain-English evidence summary: what was recorded, whether integrity verified, the events breakdown, and how each maps to Article 12, with an honest note wherever trusted time is absent.</p>
 
     <div class="cta">
       <a href="/start" class="primary">Produce your first record</a>

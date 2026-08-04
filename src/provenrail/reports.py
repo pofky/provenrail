@@ -1,4 +1,10 @@
-"""Attestation reports: map a verified evidence bundle to a regulatory regime.
+"""Regime evidence reports: map a verified evidence bundle to a regulatory regime.
+
+Deliberately NOT called an attestation report in anything a customer reads. In assurance
+that phrase names a formal opinion issued by a licensed practitioner under a standard such
+as ISAE 3000, and nobody here is one. This states which recorded evidence exists and which
+requirement it corresponds to. Drawing a conclusion from that is the regulated entity's
+job, and their auditor's.
 
 Positioning is load-bearing and legally deliberate: this produces EVIDENCE, it does not
 certify compliance. The regulated entity (provider/deployer/covered entity) certifies
@@ -7,7 +13,7 @@ compliance using this evidence. Every report states this plainly.
 Supported regimes:
   - eu-ai-act : Article 12 record-keeping (automatic logging of events over the lifetime)
   - hipaa     : 45 CFR 164.312(b) audit controls
-  - generic   : a plain integrity attestation with no regime mapping
+  - generic   : a plain integrity summary with no regime mapping
 """
 
 from __future__ import annotations
@@ -38,9 +44,11 @@ _TIME_GAP = "gap: time is self-asserted (no RFC 3161 trusted timestamp)"
 _INTEGRITY_FAIL = "FAILED: integrity check did not pass (possible tampering)"
 
 _RETENTION = {
-    "eu-ai-act": "at least 6 months (Art. 19/26), or longer where Union or national law requires",
-    "hipaa": "at least 6 years from creation or last-in-effect date (45 CFR 164.316(b)(2)(i))",
-    "generic": "per the customer's applicable retention policy",
+    "eu-ai-act": ("Art. 19/26 state at least 6 months, or longer where Union or national law "
+                  "requires. Whether and how it applies to you is your determination"),
+    "hipaa": ("45 CFR 164.316(b)(2)(i) states 6 years from creation or last-in-effect date. "
+              "Whether and how it applies to you is your determination"),
+    "generic": "whatever your own retention policy requires; nothing is asserted here",
 }
 
 

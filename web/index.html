@@ -98,9 +98,9 @@
           "HIPAA 164.312(b) audit log evidence"
         ],
         "offers": [
-          { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "description": "50k events/month, single project, hash-chain integrity, open-source verifier, regulatory attestation reports and evidence packs via the CLI on a bundle you export yourself, and content authentication (pr verify-content)" },
+          { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "description": "50k events/month, single project, hash-chain integrity, open-source verifier, regime mapping reports and evidence packs via the CLI on a bundle you export yourself, and content authentication (pr verify-content)" },
           { "@type": "Offer", "name": "Builder", "price": "29", "priceCurrency": "USD", "description": "500k events/month, RFC 3161 trusted timestamps, shareable client proof links and live badge" },
-          { "@type": "Offer", "name": "Team", "price": "99", "priceCurrency": "USD", "description": "2M events/month, unlimited projects, up to 10 team members with roles and SSO, data exports, attestation and HIPAA evidence packs" }
+          { "@type": "Offer", "name": "Team", "price": "99", "priceCurrency": "USD", "description": "2M events/month, unlimited projects, up to 10 team members with roles and SSO, data exports, and evidence packs mapped to EU AI Act Article 12 and HIPAA audit-control requirements" }
         ],
         "datePublished": "2026-01-01",
         "dateModified": "2026-08-04"
@@ -112,7 +112,7 @@
           { "@type": "Question", "name": "Do I have to trust Provenrail?", "acceptedAnswer": { "@type": "Answer", "text": "No. The verifier (pr-verify) is open-source and verifies the hash chain locally without contacting our servers. On Builder and higher plans it also checks RFC 3161 timestamps from an external time authority. You can run it yourself, or export a portable bundle and share it with any third party who can run the open-source verifier; on Builder and higher a hosted read-only proof link is also available. You do not need to trust us or the agent; you need to trust standard cryptography and, on paid plans, the third-party time authority." } },
           { "@type": "Question", "name": "What about PII and privacy?", "acceptedAnswer": { "@type": "Answer", "text": "The default mode is store-hash-not-content: we record a SHA-256 hash of each prompt and response, not the raw text. The hash proves the content existed and has not changed; the raw text stays on your infrastructure. Selective-disclosure redaction lets you commit sensitive fields as salted hashes and reveal or erase them later. Full-content storage is opt-in and requires explicit configuration." } },
           { "@type": "Question", "name": "Does this satisfy the EU AI Act Article 12 logging requirement?", "acceptedAnswer": { "@type": "Answer", "text": "Provenrail provides the technical evidence layer: an append-only, timestamped, tamper-evident log of AI system operations of the kind EU AI Act Article 12 calls for. Article 12 applies from 2027-12-02 for standalone Annex III high-risk systems and 2028-08-02 for Annex I embedded systems, deferred from 2026-08-02 by Regulation (EU) 2026/1744. Article 50 transparency obligations were not deferred and apply from 2026-08-02. Your team is responsible for regulatory certification. We provide the evidence; you provide the attestation. The Team plan includes one-click attestation evidence packs and HIPAA 164.312(b) evidence mapping." } },
-          { "@type": "Question", "name": "What does it cost?", "acceptedAnswer": { "@type": "Answer", "text": "Free: $0, 50k events/month, single project, hash-chain integrity. Builder: $29/month, 500k events, RFC 3161 trusted timestamps, shareable proof links. Team: $99/month, 2M events, unlimited projects, data exports, attestation and HIPAA evidence packs. Enterprise: custom pricing, private deployment, support terms by agreement. Limits apply to the licensed build you run; the integrity guarantee is open-source and identical on every plan." } },
+          { "@type": "Question", "name": "What does it cost?", "acceptedAnswer": { "@type": "Answer", "text": "Free: $0, 50k events/month, single project, hash-chain integrity. Builder: $29/month, 500k events, RFC 3161 trusted timestamps, shareable proof links. Team: $99/month, 2M events, unlimited projects, data exports, and evidence packs mapped to EU AI Act Article 12 and HIPAA audit-control requirements. Enterprise: custom pricing, private deployment, support terms by agreement. Limits apply to the licensed build you run; the integrity guarantee is open-source and identical on every plan." } },
           { "@type": "Question", "name": "How do I verify a proof?", "acceptedAnswer": { "@type": "Answer", "text": "Install the verifier with: uv tool install provenrail (or pip install provenrail inside a virtualenv). Export your stream as a bundle, then run: pr verify bundle.json --pin pin.json. The tool recomputes the client hash chain, every Ed25519 signature, the independent server receipt chain, and every anchor locally, trusting neither the agent nor the sink. On Builder and higher plans each anchor carries an RFC 3161 trusted timestamp, which the tool verifies against the external time authority. It exits 0 if intact and non-zero with a detailed error if any record is missing, reordered, altered, or back-dated." } }
         ]
       }
@@ -164,7 +164,7 @@
         </h1>
 
         <p class="hero-claim">
-          Provenrail stops it, and hands you a receipt nobody can forge. One command puts
+          Provenrail stops it, and writes a receipt that cannot be altered without the change showing. One command puts
           guardrails at your agent's own tool boundary, so <code>rm -rf</code>, <code>terraform
           destroy</code>, force pushes and leaked keys are blocked before they run. Every
           decision is signed and hash-chained off-box, verifiable by anyone with an open-source
@@ -526,7 +526,7 @@
               systems, deferred from 2026-08-02 by Regulation (EU) 2026/1744. HIPAA 164.312(b)
               requires audit controls for systems handling protected health information. Provenrail provides
               an append-only, timestamped, tamper-evident event log designed to serve as technical evidence
-              in regulatory contexts. Certification and attestation remain your responsibility.
+              in regulatory contexts. Certification and any formal attestation remain your responsibility, and we issue neither.
             </p>
             <div class="audience-benefit">Append-only log; RFC 3161 trusted timestamps on Builder and higher.</div>
             <div class="audience-benefit">Attestation report templates for auditors and regulators.</div>
@@ -628,7 +628,7 @@
               <li class="plan-feature">Single project, single user</li>
               <li class="plan-feature">Hash-chain integrity (local timestamps)</li>
               <li class="plan-feature">Open-source verifier, offline or hosted</li>
-              <li class="plan-feature">Regulatory attestation reports via CLI (<code>pr report</code>), run on a bundle you export yourself</li>
+              <li class="plan-feature">Regime mapping reports via CLI (<code>pr report</code>), run on a bundle you export yourself</li>
               <li class="plan-feature">Self-contained evidence packs via CLI (<code>pr pack</code>), the same way</li>
               <li class="plan-feature">Prove a transcript is authentic (<code>pr verify-content</code>)</li>
               <li class="plan-feature">Community support</li>
@@ -661,7 +661,7 @@
               <li class="plan-feature">Up to 10 team members, roles + SSO</li>
               <li class="plan-feature">Unlimited projects</li>
               <li class="plan-feature">Data exports (NDJSON / SIEM)</li>
-              <li class="plan-feature">Attestation + HIPAA evidence packs from the dashboard in one click, no export step first (the CLI versions are on every plan)</li>
+              <li class="plan-feature">Evidence packs mapped to EU AI Act Article 12 and HIPAA audit-control requirements, from the dashboard in one click, no export step first (the CLI versions are on every plan)</li>
               <li class="plan-feature">Priority email support</li>
             </ul>
             <a href="/account" class="btn-plan">Start Team</a>
@@ -686,7 +686,7 @@
           Every plan includes full hash-chain integrity and the open-source verifier, identical on
           every tier. Paid plans add RFC 3161 trusted timestamps, shareable proof links and a live
           badge (Builder); then up to 10 team members with roles and SSO, data exports, and
-          attestation plus HIPAA evidence packs (Team).
+          evidence packs mapped to EU AI Act Article 12 and HIPAA audit-control requirements (Team).
           Limits apply to the licensed build you run. We host no agent records. 14-day refund on paid plans.
         </p>
       </div>
@@ -720,7 +720,7 @@
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false" aria-controls="faq-a-5">What does it cost?<span class="faq-q-icon" aria-hidden="true"></span></button>
-            <div class="faq-a" id="faq-a-5" role="region">Free: $0, 50k events/month, single project, single user, hash-chain integrity, open-source verifier. Builder: $29/month, 500k events, RFC 3161 trusted timestamps, shareable client proof links and live badge, single user. Team: $99/month, 2M events, unlimited projects, up to 10 team members with role-based access and SSO, data exports, and one-click attestation plus HIPAA evidence packs. Enterprise: custom pricing, unlimited members, private deployment, support terms by agreement, contact us. Limits apply to the licensed build you run; the open-source integrity guarantee is identical on every plan, and we host no agent records. All paid plans include a 14-day refund window.</div>
+            <div class="faq-a" id="faq-a-5" role="region">Free: $0, 50k events/month, single project, single user, hash-chain integrity, open-source verifier. Builder: $29/month, 500k events, RFC 3161 trusted timestamps, shareable client proof links and live badge, single user. Team: $99/month, 2M events, unlimited projects, up to 10 team members with role-based access and SSO, data exports, and one-click evidence packs mapped to EU AI Act Article 12 and HIPAA audit-control requirements. Enterprise: custom pricing, unlimited members, private deployment, support terms by agreement, contact us. Limits apply to the licensed build you run; the open-source integrity guarantee is identical on every plan, and we host no agent records. All paid plans include a 14-day refund window.</div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false" aria-controls="faq-a-6">How do I verify a proof?<span class="faq-q-icon" aria-hidden="true"></span></button>

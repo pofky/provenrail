@@ -19,7 +19,7 @@ Honesty notes, load-bearing:
 Tiers (must match web/index.html pricing and the Polar product mapping exactly):
   free       integrity + local/hosted verify, single project, single user, hash-chain only (no trusted time)
   builder    + RFC 3161 trusted timestamps, + shareable proof links/badge (still single user)
-  team       + unlimited projects, + up to 10 members with roles + SSO, + data exports, + attestation/HIPAA
+  team       + unlimited projects, + up to 10 members with roles + SSO, + data exports, + evidence packs
   enterprise unlimited volume + unlimited members, everything on, sold by contact (custom deploy + SLA)
 """
 
@@ -36,7 +36,7 @@ from typing import Any
 #   trusted_time = anchors carry an RFC 3161 trusted timestamp (else hash-chain time only)
 #   proof_links  = shareable client proof pages + live integrity badge
 #   exports      = bulk data exports (NDJSON / SIEM)
-#   reports      = one-click attestation + regime evidence packs (EU AI Act, HIPAA)
+#   reports      = one-click regime evidence packs (EU AI Act Article 12, HIPAA audit controls)
 #   witnessed    = the independently witnessed (green) transparency-log path is included
 #   members      = invite teammates with role-based access (owner/admin/member/viewer)
 #   sso          = configure org SSO (OIDC) for member login

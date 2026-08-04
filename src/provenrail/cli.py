@@ -953,7 +953,7 @@ def build_parser() -> argparse.ArgumentParser:
     rc.add_argument("--json", action="store_true", help="machine-readable output")
     rc.set_defaults(func=_cmd_reconcile)
 
-    r = sub.add_parser("report", help="generate a regulatory attestation from a bundle")
+    r = sub.add_parser("report", help="map a bundle's evidence to a regime's requirements")
     r.add_argument("bundle")
     r.add_argument("--regime", choices=["eu-ai-act", "hipaa", "generic"], default="generic")
     r.add_argument("--pin")

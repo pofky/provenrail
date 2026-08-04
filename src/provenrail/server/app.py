@@ -829,7 +829,7 @@ def create_app(
     def evidence_pack(stream_id: str = Path(...), regime: str = "generic",
                       authorization: str | None = Header(default=None)):
         """Account-authenticated one-click evidence pack: a self-contained, self-verifying ZIP
-        (bundle + regime attestation + verification guide + manifest) for an auditor."""
+        (bundle + regime evidence report + verification guide + manifest) for an auditor."""
         from ..pack import build_pack
         principal = _require(authorization, "evidence.export")
         _owned(authorization, stream_id)

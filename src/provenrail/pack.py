@@ -1,7 +1,7 @@
 """One-click evidence pack.
 
 Produces a single self-contained ZIP a compliance owner can hand to an auditor or regulator
-with no engineering involvement: the verifiable bundle, a regime attestation in JSON and
+with no engineering involvement: the verifiable bundle, a regime evidence report in JSON and
 Markdown, the optional client pin, a plain-text verification guide, and a manifest listing the
 SHA-256 of every file. The pack is self-verifying: the auditor reruns `pr verify` (or the
 hosted verifier) on the enclosed bundle and gets the same result, trusting neither the agent,
@@ -22,7 +22,7 @@ from .reports import DISCLAIMER, generate_attestation, render_markdown
 _GUIDE = """How to verify this evidence pack
 =================================
 
-This pack contains a tamper-evident record of what an AI agent did, plus an attestation
+This pack contains a tamper-evident record of what an AI agent did, plus an evidence report
 mapping it to a regulatory regime. You do not have to trust the party who produced it.
 
 1. Install the open-source verifier:
@@ -130,7 +130,7 @@ ul li{{display:flex;justify-content:space-between;border-bottom:1px solid #f0f0f
 <table><tbody>{rows}</tbody></table>
 <h2>Integrity method</h2><p class="method">{html.escape(attestation['integrity']['method'])}</p>
 <p class="fine">{html.escape(attestation['integrity']['completeness_caveat'])}</p>
-<p class="fine">Retention requirement: {html.escape(attestation['retention_requirement'])}</p>
+<p class="fine">Retention, as the cited provision states: {html.escape(attestation['retention_requirement'])}</p>
 <div class="disc">{html.escape(DISCLAIMER)}</div>
 </body></html>"""
 
@@ -153,9 +153,9 @@ def build_pack(bundle: dict[str, Any], regime: str = "generic",
 
     files: dict[str, bytes] = {
         "bundle.json": json.dumps(bundle, indent=2, ensure_ascii=False).encode("utf-8"),
-        f"attestation-{regime}.json": json.dumps(attestation, indent=2,
+        f"evidence-report-{regime}.json": json.dumps(attestation, indent=2,
                                                  ensure_ascii=False).encode("utf-8"),
-        f"attestation-{regime}.md": markdown.encode("utf-8"),
+        f"evidence-report-{regime}.md": markdown.encode("utf-8"),
         "cover.html": cover.encode("utf-8"),
         "report.html": report.encode("utf-8"),
         "VERIFY.txt": guide.encode("utf-8"),

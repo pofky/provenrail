@@ -289,8 +289,8 @@ print(<span class="g">"Done. The run was captured and sealed off-box."</span>)</
       <p><strong>A self-contained evidence package for an auditor:</strong></p>
       <pre><code><span class="p">$ </span><span class="g">pr pack my-run.json --out evidence.zip</span>
 <span class="c">Wrote 12893 byte evidence pack to evidence.zip (regime=generic)   # exact size varies by run</span>
-<span class="c">Contents: bundle.json, attestation, VERIFY.txt, MANIFEST.json</span></code></pre>
-      <p>Hand over <code>evidence.zip</code>. It carries the run, a written attestation, and a <code>VERIFY.txt</code> that tells the recipient exactly how to check it themselves with the open-source verifier, trusting nothing you say. That is the whole pitch: you do not ask them to trust you, you hand them proof they can verify.</p>
+<span class="c">Contents: bundle.json, evidence summary, VERIFY.txt, MANIFEST.json</span></code></pre>
+      <p>Hand over <code>evidence.zip</code>. It carries the run, a written evidence summary, and a <code>VERIFY.txt</code> that tells the recipient exactly how to check it themselves with the open-source verifier, trusting nothing you say. That is the whole pitch: you do not ask them to trust you, you hand them proof they can verify.</p>
     </div></div>
 
     <div class="step"><div class="n">7</div><div class="b">

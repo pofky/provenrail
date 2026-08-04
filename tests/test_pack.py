@@ -33,7 +33,7 @@ def test_pack_contains_expected_files_and_valid_manifest():
     data = build_pack(bundle, regime="eu-ai-act")
     z = zipfile.ZipFile(io.BytesIO(data))
     names = set(z.namelist())
-    assert {"bundle.json", "attestation-eu-ai-act.json", "attestation-eu-ai-act.md",
+    assert {"bundle.json", "evidence-report-eu-ai-act.json", "evidence-report-eu-ai-act.md",
             "cover.html", "VERIFY.txt", "MANIFEST.json"} <= names
     cover = z.read("cover.html").decode()
     assert "Integrity:" in cover and "Art. 12" in cover
@@ -63,7 +63,7 @@ def test_pack_disclaimer_present():
     _, _, bundle = _bundle()
     z = zipfile.ZipFile(io.BytesIO(build_pack(bundle, regime="eu-ai-act")))
     assert "NOT a certification" in z.read("VERIFY.txt").decode()
-    att = json.loads(z.read("attestation-eu-ai-act.json"))
+    att = json.loads(z.read("evidence-report-eu-ai-act.json"))
     assert "Art. 12" in json.dumps(att)
 
 
@@ -84,7 +84,7 @@ def test_evidence_endpoint_returns_zip():
     assert r.headers["content-type"] == "application/zip"
     assert "attachment" in r.headers["content-disposition"]
     z = zipfile.ZipFile(io.BytesIO(r.content))
-    assert "attestation-hipaa.md" in z.namelist()
+    assert "evidence-report-hipaa.md" in z.namelist()
 
 
 def test_evidence_endpoint_rejects_bad_regime():

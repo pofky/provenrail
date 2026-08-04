@@ -388,7 +388,7 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
 <span class="g">pr verify</span> bundle.json --pin pin.json     <span class="c"># verify, trusting nobody</span>
 <span class="g">pr rules</span>             <span class="c"># list prebuilt guardrail packs; --check bundle.json for coverage</span>
 <span class="g">pr risk</span> bundle.json    <span class="c"># every action a policy blocked (exit 1 if any)</span>
-<span class="g">pr report</span> --regime eu-ai-act bundle.json --md   <span class="c"># regulatory attestation</span>
+<span class="g">pr report</span> --regime eu-ai-act bundle.json --md   <span class="c"># map the record to a regime</span>
 <span class="g">pr pack</span> bundle.json    <span class="c"># self-contained evidence pack (zip) for auditors</span>
 <span class="g">pr diff</span> run-a.json run-b.json            <span class="c"># diff two runs with provable fidelity</span>
 <span class="g">pr ots-verify</span> proof.ots --data-sha256 H  <span class="c"># verify a Bitcoin (OpenTimestamps) proof</span>
