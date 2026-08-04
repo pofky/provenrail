@@ -163,7 +163,8 @@ button{cursor:pointer;font-family:inherit;color:inherit;background:none;border:n
 .panel{border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;background:var(--bg-2)}
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem 1.15rem;border-bottom:1px solid var(--border);background:var(--bg-3)}
 .panel-head .t{font-family:var(--font-mono);font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-mid)}
-.rows{display:flex;flex-direction:column}
+.rows{display:flex;flex-direction:column;list-style:none}
+.rows>li{display:contents}
 .row{display:grid;grid-template-columns:1.4fr .9fr .7fr .7fr .9fr auto;gap:.75rem;align-items:center;
   padding:.85rem 1.15rem;border-bottom:1px solid var(--border);transition:background .15s;cursor:pointer;text-align:left;width:100%}
 .row:last-child{border-bottom:0}
@@ -233,6 +234,23 @@ button{cursor:pointer;font-family:inherit;color:inherit;background:none;border:n
   font-family:var(--font-mono);font-size:.76rem;color:var(--text-mid);line-height:1.7}
 .scrub-frame .h{color:var(--text-hi);font-size:.85rem;margin-bottom:.3rem}
 .scrub-frame .d{color:var(--red)}
+/* Two-column step diff. Stacks at mobile, where side by side would give each column 160px
+   and truncate the summary that is the whole point of the comparison. */
+.fr-head{color:var(--text-hi);font-size:.85rem;margin-bottom:.5rem}
+.fr-head .same{color:var(--text-lo)}
+.fr-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+@media(max-width:640px){.fr-grid{grid-template-columns:1fr}}
+.fr-col{border:1px solid var(--border);border-radius:var(--r-sm);padding:.55rem .65rem;min-width:0}
+.fr-col.b{background:var(--bg-2)}
+.fr-t{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-lo);margin-bottom:.4rem}
+.fr-row{display:flex;gap:.5rem;padding:.18rem 0;min-width:0}
+.fr-row.ch{background:var(--red-glow);border-radius:2px;margin:0 -.2rem;padding-left:.2rem;padding-right:.2rem}
+.fr-row.ch .fr-v{color:var(--text-hi)}
+.fr-k{font-family:var(--font-mono);font-size:.64rem;color:var(--text-lo);width:3.1rem;flex:0 0 auto;
+  text-transform:uppercase;letter-spacing:.06em;padding-top:.15rem}
+.fr-v{font-size:.78rem;color:var(--text-mid);min-width:0;overflow-wrap:anywhere}
+.fr-none{font-size:.78rem;color:var(--text-lo)}
 .tl-item.cursor .tl-card{border-color:var(--accent)}
 .tl-item.diff .tl-dot{border-color:var(--red)}
 @media(max-width:640px){.scrub-pos{min-width:0}}
@@ -311,7 +329,7 @@ button{cursor:pointer;font-family:inherit;color:inherit;background:none;border:n
   <button class="tbtn" id="refresh-btn" title="Refresh" hidden>
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     <span class="lbl">Refresh</span></button>
-  <button class="tbtn" id="logout-btn" title="Disconnect" hidden>Disconnect</button>
+  <button class="tbtn" id="logout-btn" title="Disconnect" hidden><span aria-hidden="true">&#9099;</span><span class="lbl">Disconnect</span></button>
 </header>
 <main id="root" class="wrap"></main>
 <div class="toast" id="toast"></div>
@@ -454,7 +472,7 @@ async function renderStream(id){
     empty:'No records on this stream yet.'}[v.state]||'';
   const rows = sessions.length? sessions.map(s=>{
     const live=!s.sealed;
-    return `<button class="row" onclick="location.hash='#/s/${encodeURIComponent(id)}/${encodeURIComponent(s.session_id)}'">
+    return `<li><button class="row" onclick="location.hash='#/s/${encodeURIComponent(id)}/${encodeURIComponent(s.session_id)}'">
       <div class="c-main">
         <span class="pri">${esc(shortId(s.session_id))}${s.models&&s.models.length?' &middot; '+esc(s.models[0]):''}</span>
         <span class="sec">${esc(s.started_at?s.started_at.slice(0,19).replace('T',' '):'')} UTC</span>
@@ -464,7 +482,7 @@ async function renderStream(id){
       <div class="cell hide-sm"><span class="ck">tokens</span>${fmtTokens((s.tokens_in||0)+(s.tokens_out||0))}</div>
       <div class="cell"><span class="ck">est. cost</span><span style="color:var(--accent-text)">${fmtCost(s.cost_usd)}</span></div>
       <div>${live?'<span class="badge live"><span class="bd"></span>Live</span>':`<span class="badge ${s.outcome==='failure'?'tampered':'verified'}"><span class="bd"></span>${esc(s.outcome||'sealed')}</span>`}</div>
-    </button>`;
+    </button></li>`;
   }).join('') : `<div class="empty-state"><div class="ic">[ ]</div><div class="t">No sessions recorded</div></div>`;
 
   $('#root').innerHTML=`
@@ -492,7 +510,7 @@ async function renderStream(id){
     ${tiles({...d.totals, streams:1})}
     <div class="panel fade">
       <div class="panel-head"><span class="t">Sessions</span><span class="t" style="color:var(--text-lo)">${sessions.length} total</span></div>
-      <div class="rows">${rows}</div>
+      <ul class="rows">${rows}</ul>
     </div>`;
   // bundle download needs the auth header; intercept the link
   $('#dl').onclick=async(e)=>{ e.preventDefault(); try{ const b=await api('/v1/streams/'+encodeURIComponent(id)+'/bundle');
@@ -545,7 +563,11 @@ async function renderSession(id,sid){
     <div class="crumb fade"><a href="#/">Overview</a><span class="sep">/</span><a href="#/s/${encodeURIComponent(id)}">${esc(shortId(id))}</a><span class="sep">/</span><span>session ${esc(shortId(sid))}</span></div>
     <div class="page-head fade">
       <div class="eyebrow">Session</div>
-      <h1 class="h1">${esc(shortId(sid))}</h1>
+      <!-- A raw id fragment identifies nothing a human can act on: twenty runs of the same
+           agent on the same day all read as eight hex characters. Lead with who ran and when,
+           and keep the id underneath for the person who came here to match one. -->
+      <h1 class="h1">${esc(((s.meta||{}).agent)||((s.meta||{}).agent_name)||'Session')}${s.started_at?' · '+esc(s.started_at.slice(11,16))+' UTC':''}</h1>
+      <div class="card-id">${esc(sid)}</div>
       <div class="chips">
         ${live?'<span class="badge live"><span class="bd"></span>Live, unsealed</span>':`<span class="badge ${s.outcome==='failure'?'tampered':'verified'}"><span class="bd"></span>${esc(s.outcome||'sealed')}</span>`}
         <span class="chip">started ${esc(s.started_at?s.started_at.slice(11,19):'')} UTC</span>
@@ -592,11 +614,33 @@ function scrubberHTML(ev,sessions,sid){
     </div>
     <input type="range" id="sc-range" min="0" max="${ev.length-1}" value="0" aria-label="replay position">
     <div class="scrub-track" id="sc-track"></div>
-    <div class="scrub-frame" id="sc-frame"></div>
+    <div class="scrub-frame" id="sc-frame" role="status" aria-live="polite" aria-atomic="true"></div>
   </div>`;
 }
+/* One side of the comparison, as label/value rows so the two columns line up field by field
+   and the eye can run down them. Returns rows, not a whole panel, so both sides share one
+   row order even when one run is shorter than the other. */
+function frameFields(e){
+  if(!e) return null;
+  const cost = e.cost && e.cost.priced ? `${fmtCost(e.cost.cost_usd)} est.` : '';
+  return [['step', '#'+e.seq+' '+(e.label||'')], ['what', e.summary||''],
+          ['cost', cost], ['at', e.ts_utc||''], ['hash', (e.record_hash||'').slice(0,16)+'...']];
+}
+function framePanel(title,fields,other,cls){
+  if(!fields) return `<div class="fr-col ${cls}"><div class="fr-t">${esc(title)}</div>
+    <div class="fr-none">this run has no step here</div></div>`;
+  const rows=fields.map(([k,v],n)=>{
+    // Highlight only the fields that actually differ. Timestamps and hashes differ on every
+    // run by definition, so marking them would make every row red and mean nothing.
+    const cmp = other ? other[n][1] : null;
+    const changed = other && n<=1 && cmp!==v;
+    return `<div class="fr-row${changed?' ch':''}"><span class="fr-k">${esc(k)}</span>
+      <span class="fr-v">${esc(v||'-')}</span></div>`;
+  }).join('');
+  return `<div class="fr-col ${cls}"><div class="fr-t">${esc(title)}</div>${rows}</div>`;
+}
 function initScrubber(streamId,sid,ev){
-  let i=0, diffs=new Set(), firstDiff=-1;
+  let i=0, diffs=new Set(), firstDiff=-1, otherEvents=null, otherLabel='';
   const pos=$('#sc-pos'), range=$('#sc-range'), track=$('#sc-track'), frame=$('#sc-frame');
   function paint(){
     pos.textContent=`step ${i+1} / ${ev.length}`;
@@ -604,10 +648,19 @@ function initScrubber(streamId,sid,ev){
     track.innerHTML=ev.map((_,n)=>`<span class="scrub-tick${n<=i?' on':''}${diffs.has(n)?' diff':''}"></span>`).join('');
     const e=ev[i];
     const cost = e.cost && e.cost.priced ? ` · ${fmtCost(e.cost.cost_usd)} est.` : '';
+    if(otherEvents){
+      // Both runs, at the same step, side by side. A single panel showing only the current run
+      // could not answer "what changed here", which is the entire reason to compare two runs:
+      // you had to open one, memorise it, navigate away and open the other.
+      const mine=frameFields(e), theirs=frameFields(otherEvents[i]);
+      frame.innerHTML=`<div class="fr-head">Step ${i+1}${diffs.has(i)?' <span class="d">differs</span>':' <span class="same">same in both</span>'}</div>
+        <div class="fr-grid">${framePanel('this run',mine,theirs,'a')}${framePanel(otherLabel,theirs,mine,'b')}</div>`;
+    } else {
     frame.innerHTML=`<div class="h">#${e.seq} ${esc(e.label)}${diffs.has(i)?' <span class="d">(differs)</span>':''}</div>
       <div>${esc(e.summary||'')}${cost}</div>
       <div>${esc(e.ts_utc||'')}</div>
       <div>${esc((e.record_hash||'').slice(0,32))}...</div>`;
+    }
     document.querySelectorAll('.tl-item').forEach(el=>{
       const n=Number(el.dataset.i);
       el.classList.toggle('cursor',n===i);
@@ -632,11 +685,15 @@ function initScrubber(streamId,sid,ev){
   document.addEventListener('keydown', state.scrubKeys);
   const cmp=$('#sc-cmp');
   if(cmp) cmp.onchange=async()=>{
-    diffs=new Set(); firstDiff=-1; $('#sc-jump').disabled=true;
+    diffs=new Set(); firstDiff=-1; otherEvents=null; $('#sc-jump').disabled=true;
     if(!cmp.value){ paint(); return; }
     try{
       const other=await api('/v1/streams/'+encodeURIComponent(streamId)+'/sessions/'+encodeURIComponent(cmp.value));
-      const a=ev.map(stepSig), b=(other.events||[]).map(stepSig);
+      otherEvents=other.events||[];
+      // The label a human picked from the dropdown, not the raw id: they chose the run by
+      // its start time, so that is how it should be named back to them.
+      otherLabel=(cmp.options[cmp.selectedIndex]||{}).text||shortId(cmp.value);
+      const a=ev.map(stepSig), b=otherEvents.map(stepSig);
       for(let n=0;n<a.length;n++){
         if(a[n]!==b[n]){ diffs.add(n); if(firstDiff<0) firstDiff=n; }
       }
