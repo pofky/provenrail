@@ -169,7 +169,7 @@ def test_check_records_emits_one_event_per_denial_with_full_context():
                                 "target": "delete_database"}}},
     ]
     out = engine.check_records("stream-1", records, None)
-    assert out == {"denials": 2, "fired": 2}
+    assert out == {"denials": 2, "budget_events": 0, "fired": 2}
     # One event per denial: collapsing them would lose the rule/target detail that makes
     # the alert actionable.
     assert len(sink.events) == 2

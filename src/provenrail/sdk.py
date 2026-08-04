@@ -258,6 +258,7 @@ class FlightRecorder:
         if self.policy is not None:
             from .policy import SessionState
             self._session_state = SessionState()
+            self._seed_prior_spend()
             # Commit the active policy into the session-start record (signed + hash-chained), so a
             # verifier can prove which guardrails were in force and detect any later edit to them.
             meta = {**(meta or {}), "policy": self.policy.to_dict(),
@@ -265,6 +266,28 @@ class FlightRecorder:
         with self._lock:
             rec = self.chain.start(meta)
         self._push(rec)
+
+    def _cross_session_budgets(self) -> bool:
+        """True when the active policy has a budget that must outlive this process."""
+        from .policy import SESSION
+        return bool(self.policy is not None
+                    and any(b.scope != SESSION for b in self.policy.effective_budgets()))
+
+    def _spend_agent_id(self) -> str:
+        """Ledger key. Agent identity if one was set, else the stream, else a shared default."""
+        return str(getattr(self, "agent_id", None) or getattr(self, "stream_id", None) or "default")
+
+    def _seed_prior_spend(self) -> None:
+        """Carry spend recorded before this session into the session state, so a day or total
+        budget binds across the many sessions an overnight run produces. Only touched when such
+        a budget exists: a session-only policy never pays for ledger I/O."""
+        if self._session_state is None or not self._cross_session_budgets():
+            return
+        from . import spend as spend_ledger
+        day, total, known = spend_ledger.prior_spend(self._spend_agent_id())
+        self._session_state.prior_day_usd = day
+        self._session_state.prior_total_usd = total
+        self._session_state.prior_known = known
 
     def _enforce(self, event_type: str, ctx: dict[str, Any]) -> None:
         """Evaluate the active policy at a dispatch point. Records the decision into the chain
@@ -277,15 +300,20 @@ class FlightRecorder:
         if self._session_state is None:
             self._session_state = SessionState()
         decision = self.policy.decide(event_type, ctx, self._session_state)
-        # Record an explicit decision only when a rule fired (deny, or an oversight-gated allow);
-        # a default no-rule allow is left silent to avoid doubling every event.
-        if decision.rule_id is not None or decision.effect != ALLOW:
-            self.record(POLICY_DECISION, {
+        # Record an explicit decision only when a rule fired (deny, an oversight-gated allow, or
+        # a budget warning); a default no-rule allow is left silent to avoid doubling every event.
+        if decision.rule_id is not None or decision.effect != ALLOW or decision.warning:
+            payload = {
                 "effect": decision.effect, "rule": decision.rule_id, "reason": decision.reason,
                 "event_type": event_type,
                 "target": ctx.get("tool") or ctx.get("resource") or ctx.get("model") or "",
                 "enforced": self.enforce,
-            })
+            }
+            if decision.warning:
+                # Written into the signed chain so the alert the operator receives before an
+                # overrun is itself evidence, not a transient notification.
+                payload["warning"] = decision.warning
+            self.record(POLICY_DECISION, payload)
         if decision.effect != ALLOW and self.enforce:
             raise PolicyViolation(decision.rule_id or "policy", decision.reason)
 
@@ -332,10 +360,15 @@ class FlightRecorder:
         if extra:
             payload["extra"] = extra
         rec = self.record(MODEL_CALL, payload)
-        # Track estimated spend so a session spend cap can be enforced across calls.
+        # Track estimated spend so a spend cap can be enforced across calls, and persist it when
+        # a budget has to outlive this process.
         if self._session_state is not None:
             from .pricing import cost_for
-            self._session_state.spend_usd += cost_for(model, usage).get("cost_usd", 0.0)
+            cost = cost_for(model, usage).get("cost_usd", 0.0)
+            self._session_state.spend_usd += cost
+            if cost and self._cross_session_budgets():
+                from . import spend as spend_ledger
+                spend_ledger.add_spend(cost, self._spend_agent_id())
         return rec
 
     def record_tool_call(self, name: str, args: Any, result: Any,

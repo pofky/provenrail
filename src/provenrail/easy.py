@@ -200,6 +200,7 @@ def load_policy(spec: Any) -> Any:
         except (TypeError, ValueError) as e:
             raise PolicyConfigError(
                 f"session_spend_cap_usd must be a number, got {cap!r}") from e
+    _validate_budgets(spec.get("budgets"), seen_ids)
     if prebuilt:
         # Catalogue rules are already validated by construction; user rules were validated
         # above. Custom rules come last so a user rule can shadow nothing by accident but
@@ -215,6 +216,56 @@ def write_config(path: str | Path, **cfg: Any) -> Path:
     p.write_text(json.dumps({k: v for k, v in cfg.items() if v is not None}, indent=2),
                  encoding="utf-8")
     return p
+
+
+def _validate_budgets(budgets: Any, seen_ids: set[str]) -> None:
+    """Reject a budget that cannot bind before it is trusted to.
+
+    A misspelled scope or a missing limit would produce a config that reads like a spend
+    control and enforces nothing, which is the single worst failure mode this feature has.
+    """
+    from .policy import BUDGET_SCOPES, Budget
+
+    if budgets is None:
+        return
+    if not isinstance(budgets, list):
+        raise PolicyConfigError('policy "budgets" must be a list')
+    for i, budget in enumerate(budgets):
+        if not isinstance(budget, dict):
+            raise PolicyConfigError(f"policy budget {i} must be an object")
+        unknown = set(budget) - set(Budget._FIELDS)
+        if unknown:
+            raise PolicyConfigError(
+                f"policy budget {i} has unknown field(s) {sorted(unknown)}. A misspelled field "
+                "would silently disable the cap, so it is rejected rather than ignored.")
+        scope = budget.get("scope", "session")
+        if scope not in BUDGET_SCOPES:
+            raise PolicyConfigError(
+                f"policy budget {i} has scope {scope!r}; expected one of {sorted(BUDGET_SCOPES)}")
+        try:
+            limit_usd = float(budget["limit_usd"])
+        except (KeyError, TypeError, ValueError) as e:
+            raise PolicyConfigError(
+                f'policy budget {i} needs a numeric "limit_usd" (without one it would never '
+                "cap anything)") from e
+        if limit_usd <= 0:
+            raise PolicyConfigError(
+                f"policy budget {i} has limit_usd {limit_usd}; a cap must be greater than zero")
+        if "warn_at" in budget:
+            try:
+                warn_at = float(budget["warn_at"])
+            except (TypeError, ValueError) as e:
+                raise PolicyConfigError(
+                    f"policy budget {i} warn_at must be a number between 0 and 1") from e
+            if not 0.0 <= warn_at <= 1.0:
+                raise PolicyConfigError(
+                    f"policy budget {i} warn_at is {warn_at}; it is a fraction of the limit and "
+                    "must be between 0 and 1")
+        bid = budget.get("id") or f"budget.{scope}"
+        if bid in seen_ids:
+            raise PolicyConfigError(f'duplicate policy id "{bid}": budget and rule ids share one '
+                                    "namespace so an alert names exactly one control")
+        seen_ids.add(bid)
 
 
 def _auto_instrument(client: Any, fr: FlightRecorder) -> None:

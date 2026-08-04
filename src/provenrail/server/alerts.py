@@ -35,7 +35,10 @@ from typing import Any
 from . import analytics
 
 POLICY_DENIED = "policy.denied"
-EVENTS = ("integrity.tampered", "integrity.recovered", "integrity.first_anchor", POLICY_DENIED)
+BUDGET_WARNING = "budget.warning"
+BUDGET_EXCEEDED = "budget.exceeded"
+EVENTS = ("integrity.tampered", "integrity.recovered", "integrity.first_anchor", POLICY_DENIED,
+          BUDGET_WARNING, BUDGET_EXCEEDED)
 
 # The record action_type the SDK writes for every policy evaluation.
 _POLICY_DECISION = "policy.decision"
@@ -113,9 +116,45 @@ class AlertEngine:
             })
         return out
 
+    @staticmethod
+    def budget_events_in(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Pick budget warnings and budget denials out of a just-ingested batch.
+
+        A budget warning is the alert that actually saves money: it arrives while the run is
+        still under the cap and can be stopped, whereas a denial reports work that has already
+        been blocked. Both are read from the recorded decision rather than recomputed, for the
+        same reason as `denials_in`: the recorder is the single source of truth for what was
+        enforced.
+        """
+        out = []
+        for r in records or []:
+            rec = r.get("record", r) or {}
+            if rec.get("action_type") != _POLICY_DECISION:
+                continue
+            payload = rec.get("payload") or {}
+            rule = str(payload.get("rule") or "")
+            is_budget = rule.startswith("budget.") or rule == "session_spend_cap"
+            denied = str(payload.get("effect", "")).lower() == "deny"
+            warning = payload.get("warning")
+            if not (warning or (is_budget and denied)):
+                continue
+            out.append({
+                "type": BUDGET_EXCEEDED if (is_budget and denied) else BUDGET_WARNING,
+                "rule": payload.get("rule"),
+                "detail": warning or payload.get("reason"),
+                "target": payload.get("target"),
+                "session_id": rec.get("session_id"),
+                "seq": rec.get("seq"),
+                "ts_utc": rec.get("ts_utc"),
+                "record_hash": rec.get("record_hash"),
+                "estimated": True,
+            })
+        return out
+
     def check_records(self, stream_id: str, records: list[dict[str, Any]],
                       account_id: str | None) -> dict[str, Any]:
-        """Fire a policy.denied alert for each blocked action in a just-ingested batch.
+        """Fire a policy.denied alert for each blocked action in a just-ingested batch, and a
+        budget alert for each spend warning or budget denial.
 
         Called on the ingest path so the notification is immediate. One event per denial
         rather than one per batch: an operator needs to see which rule fired on what, and
@@ -126,7 +165,10 @@ class AlertEngine:
         fired = 0
         for d in denials:
             fired += self._emit_payload(account_id, POLICY_DENIED, stream_id, {"denial": d})
-        return {"denials": len(denials), "fired": fired}
+        budget_events = self.budget_events_in(records)
+        for b in budget_events:
+            fired += self._emit_payload(account_id, b["type"], stream_id, {"budget": b})
+        return {"denials": len(denials), "budget_events": len(budget_events), "fired": fired}
 
     def check_stream(self, stream_id: str, bundle: dict[str, Any],
                      account_id: str | None) -> dict[str, Any]:

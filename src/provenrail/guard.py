@@ -128,6 +128,50 @@ def _rule_effect(policy: Any, rule_id: str | None) -> str:
     return ""
 
 
+def _seed_prior_spend(policy: Any, state: Any) -> None:
+    """Load recorded spend into the state a hook process rebuilds from scratch.
+
+    A hook fires in a fresh process every time, so a `SessionState` built here starts at zero
+    spend and a budget evaluated against it can never bind: it would report as armed while
+    capping nothing. Seeding from the local ledger is what makes a budget honest in hook mode.
+    Model calls do not pass through a tool hook, so this is for reporting and for future
+    tool-side budget gates; it is deliberately skipped when no cross-session budget exists.
+    """
+    from .policy import SESSION
+
+    try:
+        budgets = policy.effective_budgets()
+    except AttributeError:
+        return
+    if not any(b.scope != SESSION for b in budgets):
+        return
+    from . import spend as spend_ledger
+    day, total, known = spend_ledger.prior_spend(spend_agent_id())
+    state.prior_day_usd, state.prior_total_usd, state.prior_known = day, total, known
+
+
+def spend_agent_id() -> str:
+    """Ledger key for guard mode: the configured stream, else a shared default."""
+    from .easy import _load_config_file
+    try:
+        cfg = _load_config_file()
+    except Exception:
+        return "default"
+    return str(cfg.get("stream_id") or cfg.get("agent_id") or "default")
+
+
+def budget_status(policy: Any) -> list[dict[str, Any]]:
+    """Budget headroom for `pr guard status`, read from the local ledger."""
+    from .policy import SessionState
+    from .policy import budget_status as _status
+
+    if policy is None:
+        return []
+    state = SessionState()
+    _seed_prior_spend(policy, state)
+    return _status(policy, state)
+
+
 def decide(policy: Any, tool: str, tool_input: Any,
            session_id: str | None = None) -> dict[str, Any]:
     """Evaluate the policy for one attempted tool call. Offline, no network.
@@ -148,6 +192,7 @@ def decide(policy: Any, tool: str, tool_input: Any,
                 "effect": ALLOW}
     ctx = {"tool": tool, "match_text": match_text(tool_input)}
     state = SessionState(counts=load_counts(session_id) if session_id else {})
+    _seed_prior_spend(policy, state)
     before = dict(state.counts)
     decision = policy.decide("tool_call", ctx, state)
     if session_id and state.counts != before:

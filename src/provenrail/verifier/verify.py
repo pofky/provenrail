@@ -494,8 +494,16 @@ def _verify_policy(ordered: list[dict[str, Any]], rep: Report) -> None:
                 "guardrails were altered after the session started)")
         return
 
-    # A verifier-only policy with content gates removed, since arg text is not in the bundle.
+    # A verifier-only policy with content gates removed, since arg text is not in the bundle,
+    # and with cross-session budgets removed: a `day` or `total` cap was evaluated against spend
+    # recorded in *other* sessions, which this bundle does not contain. Replaying it here would
+    # manufacture false "policy not enforced" findings out of missing history, so it is reported
+    # as enforced-but-not-offline-reverifiable, the same treatment content gates get.
+    from ..policy import SESSION
+    session_budgets = [b for b in policy.budgets if b.scope == SESSION]
+    cross_session_budgets = len(policy.budgets) - len(session_budgets)
     reverifiable = Policy(rules=[r for r in policy.rules if not r.content_based],
+                          budgets=session_budgets,
                           session_spend_cap_usd=policy.session_spend_cap_usd)
     content_rules = sum(1 for r in policy.rules if r.content_based)
 
@@ -538,6 +546,9 @@ def _verify_policy(ordered: list[dict[str, Any]], rep: Report) -> None:
         if content_rules:
             detail += (f"; {content_rules} content-gate rule(s) were enforced but cannot be "
                        f"re-checked offline because arguments are hashed")
+        if cross_session_budgets:
+            detail += (f"; {cross_session_budgets} cross-session budget(s) were enforced but "
+                       f"cannot be re-checked from this bundle alone, which covers one session")
         rep.add("info", "policy_verified", detail)
 
 

@@ -343,7 +343,7 @@ changes, privilege escalation, exfiltration shapes, and per-session blast-radius
 them with `pr rules`, check which would match your actual tool names with
 `pr rules --check bundle.json`), or declare a
 `policy` block in `.provenrail.json` (deny / require_oversight / limit rules with glob and regex
-matching, plus a session spend cap) and the deployment owner sets the rules even if someone else
+matching, plus spend budgets) and the deployment owner sets the rules even if someone else
 wrote the agent. A malformed policy is rejected loudly rather than ignored, because a typo that
 silently disables a guardrail leaves you believing you are protected when you are not. When a rule
 blocks an action, a `policy.denied` webhook fires **at ingest**, in the same moment the record
@@ -352,6 +352,33 @@ endpoint of yours can never slow the agent. Review afterwards with `pr risk bund
 non-zero if anything was blocked, so CI can gate on it), the dashboard's Blocked tile and red
 timeline rows, or the NDJSON SIEM export. Nothing is suspicious by default: there is no built-in
 threat library and no anomaly detection, so with no policy declared nothing is ever blocked.
+
+**Spend budgets** stop the failure everyone actually has: an agent that runs all night across
+hundreds of short sessions and is discovered when the invoice arrives. A budget denies the model
+call that would cross it, at one of three scopes:
+
+```json
+{"policy": {"budgets": [
+  {"scope": "session", "limit_usd": 5,   "warn_at": 0.8},
+  {"scope": "day",     "limit_usd": 50},
+  {"scope": "total",   "limit_usd": 500}
+]}}
+```
+
+`day` and `total` survive process exit via a local ledger, so they bind across runs where a
+session cap cannot. Crossing `warn_at` does not block; it writes a warning into the signed chain
+and fires a `budget.warning` webhook while the run can still be stopped, with `budget.exceeded`
+when a cap actually bites. The budgets are part of the committed policy hash, so an auditor can
+prove which cap was in force. Check spend with `pr spend` (per run from a bundle, per agent from
+the ledger) and headroom with `pr guard status`.
+
+Costs are **estimates** from reported token usage and a dated public price table, never a
+substitute for your provider's invoice, and they are labelled that way everywhere. The estimator
+handles what naive ones get wrong: cached tokens priced at the cache rate and not double-counted
+(providers disagree about whether the prompt total already includes them), and reasoning tokens
+reported but never billed twice. Negotiated or committed-use rates go in
+`.provenrail-prices.json` and override the list price. A model with no verified rate is reported
+as unpriced rather than silently counted as free.
 
 The active policy / guardrail layer is deeper now: the policy is committed into the signed
 session-start record (so a verifier proves which guardrails were in force and that no executed

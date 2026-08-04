@@ -610,6 +610,80 @@ def _cmd_risk(args) -> int:
     return 1  # non-zero so CI can gate on "the agent tried something forbidden"
 
 
+def _cmd_spend(args) -> int:
+    """Estimated spend: from a bundle (one run) or the local ledger (across runs).
+
+    Deliberately two sources, because they answer two different questions. A bundle answers
+    "what did this run cost, and can I prove the record it was computed from is unaltered?".
+    The ledger answers "what has this agent cost me today, this week, in total?", which is
+    the question that gets asked after an overnight run and which no single bundle can
+    answer.
+
+    Every number here is an ESTIMATE from reported token usage and a public price table.
+    It is labelled as such in the output, because a finance team acting on a number that
+    quietly disagrees with the provider's invoice is worse off than one with no number.
+    """
+    from . import pricing
+    from . import spend as spend_ledger
+
+    table = pricing.load_price_table()
+    stale = pricing.is_stale(table)
+    as_of = pricing.table_as_of(table)
+    overrides = sum(1 for p in table.values() if p.source == "override")
+
+    if args.bundle:
+        from .server import analytics
+        bundle = json.loads(open(args.bundle, encoding="utf-8").read())
+        records = [r.get("record", r) for r in bundle.get("records", [])]
+        summary = analytics.summarize([{"record": r} for r in records])
+        if args.json:
+            print(json.dumps({**summary, "estimated": True, "prices_as_of": as_of,
+                              "prices_stale": stale}, indent=2))
+            return 0
+        totals = summary.get("totals", summary)
+        print(f"Estimated spend for {args.bundle}")
+        print(f"  cost        ${totals.get('cost_usd', 0.0):.4f}")
+        print(f"  tokens      {totals.get('tokens_in', 0):,} in / "
+              f"{totals.get('tokens_out', 0):,} out")
+        if totals.get("unpriced_calls"):
+            print(f"  unpriced    {totals['unpriced_calls']} model call(s) had no known price "
+                  f"and contribute $0.00, so this total is a FLOOR, not the full cost")
+    else:
+        rep = spend_ledger.report(agent_id=args.agent)
+        if args.json:
+            print(json.dumps({**rep, "prices_as_of": as_of, "prices_stale": stale}, indent=2))
+            return 0
+        if not rep["agents"]:
+            print("No local spend recorded yet.")
+            print(f"The ledger ({spend_ledger.ledger_path()}) is written only when a policy "
+                  "declares a")
+            print("cross-session budget (scope \"day\" or \"total\"). Add one to track spend "
+                  "between runs:")
+            print('  {"policy": {"budgets": [{"scope": "day", "limit_usd": 25}]}}')
+            return 0
+        def money(value: float) -> str:
+            return f"${value:,.4f}".rjust(13)
+
+        print(f"{'agent':<28}{'today':>13}{'7d':>13}{'30d':>13}{'total':>13}")
+        for row in rep["agents"]:
+            print(f"{row['agent_id'][:27]:<28}{money(row['today_usd'])}"
+                  f"{money(row['last_7d_usd'])}{money(row['last_30d_usd'])}"
+                  f"{money(row['total_usd'])}")
+        print(f"{'all agents':<28}{'':>13}{'':>13}{'':>13}{money(rep['total_usd'])}")
+
+    note = f"prices verified {as_of}" if as_of else "prices undated"
+    if overrides:
+        note += f", {overrides} overridden from {pricing.PRICES_FILENAME}"
+    print(f"\nEstimate only ({note}). Reconcile against your provider invoice before "
+          f"billing anyone.")
+    if stale:
+        print("WARNING: the price table has not been verified recently, so these figures may "
+              "be wrong.")
+        print(f"Set current rates in {pricing.PRICES_FILENAME} (also the right place for "
+              "negotiated rates).")
+    return 0
+
+
 def _cmd_report(args) -> int:
     from .reports import generate_attestation, render_markdown
     bundle = json.loads(open(args.bundle, encoding="utf-8").read())
@@ -707,7 +781,8 @@ def _cmd_guard(args) -> int:
     # needs to know which file to edit.
     print(f"Policy file       : {source if source else 'none found'}")
     print(f"Sink              : {cfg.get('endpoint') or 'not configured'}")
-    if policy is None or not policy.rules:
+    budgets = guard.budget_status(policy)
+    if policy is None or (not policy.rules and not budgets):
         print("Guardrails        : NONE ARMED. Nothing is being blocked.")
         print("\nRun `pr guard install` to arm "
               f"{', '.join(guard.DEFAULT_PACKS)} and install the hooks.")
@@ -716,6 +791,18 @@ def _cmd_guard(args) -> int:
     print(f"Guardrails        : {len(policy.rules)} rules armed"
           f"{' (' + ', '.join(use) + ')' if use else ''}")
     print(f"Policy hash       : {policy.policy_id()[:16]} (committed into every session)")
+    if budgets:
+        print("\nSpend budgets (estimated, from reported token usage):")
+        for b in budgets:
+            flag = "OVER" if b["exceeded"] else ("WARN" if b["warning"] else "ok  ")
+            print(f"  {flag}  {b['id']:<22} ${b['spent_usd']:,.4f} of ${b['limit_usd']:,.2f} "
+                  f"({b['pct']:.0f}%), ${b['remaining_usd']:,.4f} left")
+            if not b["prior_known"]:
+                # Saying "0% used" for a day budget whose history was never written would be a
+                # lie of exactly the kind this feature exists to prevent.
+                print("        no cross-run history available, so this figure counts only the "
+                      "current run")
+        print("  Budgets bind model calls made through the SDK; tool hooks carry no model spend.")
     if pending:
         print(f"\n{len(pending)} decision(s) in the local journal: the sink was unreachable when")
         print(f"they were made, so they are UNSIGNED and are not evidence ({guard.JOURNAL_FILENAME}).")
@@ -825,6 +912,13 @@ def build_parser() -> argparse.ArgumentParser:
     rk.add_argument("bundle")
     rk.add_argument("--json", action="store_true", help="machine-readable output")
     rk.set_defaults(func=_cmd_risk)
+
+    sp = sub.add_parser("spend", help="estimated spend, per run (from a bundle) or per agent "
+                                      "(from the local ledger)")
+    sp.add_argument("bundle", nargs="?", help="a run bundle; omit to read the cross-run ledger")
+    sp.add_argument("--agent", help="limit the ledger view to one agent id")
+    sp.add_argument("--json", action="store_true", help="machine-readable output")
+    sp.set_defaults(func=_cmd_spend)
 
     r = sub.add_parser("report", help="generate a regulatory attestation from a bundle")
     r.add_argument("bundle")

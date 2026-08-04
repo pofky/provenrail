@@ -403,13 +403,24 @@ the committed guardrails breaks the record signature AND the `policy_sha256` mat
 ### 13.2 Policy object
 
 ```
-policy = {rules: [rule, ...], session_spend_cap_usd: <decimal string|null>}
+policy = {rules: [rule, ...], session_spend_cap_usd: <decimal string|null>,
+          budgets?: [budget, ...]}
 rule   = {id, effect, event_type, tool, resource, provider, arg_contains, max_per_session, reason}
+budget = {id, scope, limit_usd: <decimal string>, warn_at: <decimal string>}
 effect in {deny, require_oversight, limit}
+scope  in {session, day, total}
 ```
 
 `arg_contains` is a regex over the call's argument text and is a CONTENT gate. `max_per_session`
 bounds how many matching events a `limit` rule permits per session.
+
+`budgets` is OMITTED when empty, so a policy written before budgets existed hashes identically.
+A budget denies a `model_call` whose estimated cost would push spend past `limit_usd` at its
+scope; `session_spend_cap_usd` is the legacy shorthand for a session-scoped budget. `warn_at` is
+a fraction of the limit at which an allowed call additionally carries a `warning` (recorded in
+the `policy.decision` payload); it never changes the verdict. Costs are estimates derived from
+recorded `usage` and a price table, and are display values only: they are never inputs to a hash
+or a signature.
 
 ### 13.3 Verification (step 10)
 
@@ -418,14 +429,17 @@ If no `meta.policy` is present, the step is skipped. Otherwise:
 a. Recompute `sha256_hex(canonicalize(meta.policy))`. If it differs from `meta.policy_sha256`,
    fail with `policy_commit_mismatch`.
 b. Build a re-verifiable policy by dropping rules with a non-empty `arg_contains` (their input,
-   the argument text, is hashed out of the bundle). Replay the committed deny/limit/spend rules
+   the argument text, is hashed out of the bundle) AND budgets whose scope is not `session` (a
+   `day` or `total` budget was evaluated against spend recorded in other sessions, which this
+   bundle does not contain; replaying it here would manufacture false findings out of missing
+   history). Replay the committed deny/limit/spend rules
    over the recorded events in emission order, maintaining spend and per-rule counts and treating
    a `human_oversight` record as satisfying `require_oversight`.
 c. For each EXECUTED enforceable record (`model_call`, `tool_call`, `mcp_call`, `data_access`)
    that the re-verifiable policy would have denied, report `policy_not_enforced` (warn): a stated
    guardrail did not actually block a recorded action.
 d. With zero such violations, report `policy_verified` (info), noting the count of content-gate
-   rules that were enforced live but cannot be re-checked offline.
+   rules and cross-session budgets that were enforced live but cannot be re-checked offline.
 
 ### 13.4 Boundary
 
