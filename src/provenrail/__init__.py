@@ -9,7 +9,7 @@ Honest guarantee (B2C / single-machine deployment):
 """
 
 # Kept in lockstep with pyproject.toml by test_version_matches_pyproject.
-__version__ = "0.2.18"
+__version__ = "0.2.19"
 
 GENESIS_PREV_HASH = "0" * 64
 
