@@ -494,3 +494,25 @@ def test_python_m_provenrail_works_when_pr_is_shadowed():
                          capture_output=True, text=True)
     assert out.returncode == 0, out.stderr
     assert __version__ in out.stdout + out.stderr
+
+
+def test_quickstart_offers_a_zero_code_first_step(tmp_path, monkeypatch, capsys):
+    """The first thing quickstart tells you to do must be a command, not a code sample.
+
+    It used to open with a Python snippet: a new user arriving from the "never touched a
+    terminal" guide had to create a file and author code before anything had demonstrated the
+    tool works at all. `pr demo` produces a real signed run in one line, so success comes first
+    and writing code comes second.
+    """
+    import inspect
+    import re
+
+    from provenrail import cli
+    src = inspect.getsource(cli._cmd_quickstart)
+    # Only what the command actually prints. Reading the raw source counted the explanatory
+    # comment above the code, which mentions `pr demo`, so the check passed with the fix
+    # reverted: a vacuous test that proved nothing.
+    printed = "\n".join(re.findall(r'print\((?:f?"([^"]*)")\)', src))
+    assert "pr demo" in printed, "quickstart never offers the zero-code demo"
+    assert printed.index("pr demo") < printed.index("import provenrail as fr"), (
+        "quickstart must lead with the zero-code demo, not a code sample")

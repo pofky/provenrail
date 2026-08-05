@@ -227,10 +227,22 @@
       <pre><code><span class="p">$ </span><span class="g">pr quickstart</span>
 <span class="c">started a local sink (pid 12345) and wrote .provenrail.json</span>
 
-<span class="c">Now your whole setup is two lines:</span>
+<span class="c">See it work right now, without writing any code:</span>
+<span class="c">    pr demo                   # records a real run and writes bundle.json</span>
+<span class="c">    pr verify bundle.json     # recomputes everything, trusts nobody</span>
+
+<span class="c">Then record your own agent. The whole setup is two lines:</span>
 <span class="c">    import provenrail as fr</span>
 <span class="c">    with fr.record('my-agent'):</span>
 <span class="c">        ...   # your agent runs; calls are captured automatically</span></code></pre>
+      <p>Do the two lines it just offered you, in that order. You get a real, signed record and
+        a verdict on it before you write a single line of code, which is the fastest way to know
+        the install worked:</p>
+      <pre><code><span class="p">$ </span><span class="g">pr demo</span>
+<span class="p">$ </span><span class="g">pr verify bundle.json</span>
+<span class="c">RESULT: VERIFIED</span></code></pre>
+      <p>That is the whole product in two commands. Everything below is about recording
+        <em>your</em> agent instead of the demo one.</p>
     </div></div>
 
     <div class="step"><div class="n">3</div><div class="b">

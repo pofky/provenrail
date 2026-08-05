@@ -31,7 +31,7 @@ export const steps: Step[] = [
     lines: [
       { kind: "cmd", text: "vi bundle.json      # change one character, then save" },
       { kind: "cmd", text: "pr verify bundle.json --pin pin.json" },
-      { kind: "out", text: "[FAIL] recv_hash_mismatch: recv_seq 0: stored bytes do not match recv_hash", tone: "err" },
+      { kind: "out", text: "[FAIL] recv_hash_mismatch: recv_seq 0: stored record bytes do not match recv_hash", tone: "err" },
       { kind: "out", text: "[FAIL] client_hash_mismatch: seq=0: record_hash does not match content", tone: "err" },
       { kind: "blank" },
       { kind: "out", text: "RESULT: TAMPERING DETECTED", tone: "err" },

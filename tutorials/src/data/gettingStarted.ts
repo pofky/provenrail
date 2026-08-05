@@ -8,8 +8,8 @@ export const steps: Step[] = [
     caption: "Install Provenrail",
     note: "One pip install. Works on Python 3.11+, no account needed.",
     lines: [
-      { kind: "cmd", text: "pip install provenrail" },
-      { kind: "out", text: "Successfully installed provenrail-0.2.0", tone: "ok" },
+      { kind: "cmd", text: "uv tool install provenrail" },
+      { kind: "out", text: "Installed 1 executable: pr", tone: "ok" },
     ],
   },
   {

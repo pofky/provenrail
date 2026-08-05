@@ -92,6 +92,14 @@
     <p class="updated">Last updated <time datetime="2026-08-05">5 August 2026</time></p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.30</span><span class="date">August 5, 2026</span><span class="tag">Onboarding</span></div>
+      <ul>
+        <li><b><code>pr quickstart</code> now leads with a zero-code proof.</b> It used to hand you a Python snippet to paste into a file you had to create, so the first thing a new user did was author code, before anything had shown the tool works. It now offers <code>pr demo</code> and <code>pr verify bundle.json</code> first: a real signed run and a verdict on it, in two commands, before you write a line.</li>
+        <li><b>Tutorial videos re-recorded against 0.2.29.</b> Five of the six were captured from 0.2.0 and had drifted. The licensing tutorial promised a key with <em>no expiry</em>, which we no longer issue: keys are bounded to the subscription period. The evidence-pack tutorial listed a file the archive has not contained for several releases. The guardrail tutorial named three armed packs when the default arms four, and the install tutorial taught <code>pip</code> while every other page teaches <code>uv</code>.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.2.29</span><span class="date">August 5, 2026</span><span class="tag">Concurrency</span></div>
       <ul>
         <li><b>Two agents recording into one stream reported tampering on every record.</b> Each client keeps the receipt head the sink last issued it and expected the next receipt to link to exactly that, which stops being true the moment a second agent appends. One project running two agents at once is an ordinary setup, and under sustained load it raised a sink-integrity error on 13,136 of 13,470 records. The client now asks the sink for the links it missed and walks them, so continuity across the gap is proven rather than assumed. A sink that reorders, forks or rolls back still cannot produce that walk, and is still refused.</li>

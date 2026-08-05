@@ -344,7 +344,15 @@ def _cmd_quickstart(args) -> int:
                            read_token=prov.get("read_token"), share_token=prov.get("share_token"))
         print(f"started a local sink (pid {proc.pid}) and wrote {cfg}")
 
-    print("\nNow your whole setup is two lines:\n")
+    # First instruction is a command, not a code sample. Quickstart used to hand a new user a
+    # Python snippet to paste into a file they had to create, which is a real wall for someone
+    # who arrived from the "never touched a terminal" guide: their first act is authoring code,
+    # and nothing has proved the tool works yet. `pr demo` produces a real, signed, verifiable
+    # run in one line, so the first thing that happens is success.
+    print("\nSee it work right now, without writing any code:\n")
+    print("    pr demo                   # records a real run and writes bundle.json")
+    print("    pr verify bundle.json     # recomputes everything, trusts nobody\n")
+    print("Then record your own agent. The whole setup is two lines:\n")
     print("    import provenrail as fr")
     print("    with fr.record('my-agent'):")
     print("        ...   # your agent runs; calls are captured automatically\n")

@@ -45,8 +45,10 @@ export const steps: Step[] = [
     note: "One zip an auditor can open and verify themselves, offline.",
     lines: [
       { kind: "cmd", text: "pr pack bundle.json --pin pin.json" },
-      { kind: "out", text: "Wrote 14357 byte evidence pack to evidence.zip", tone: "ok" },
-      { kind: "out", text: "Contents: bundle.json, attestation, VERIFY.txt, MANIFEST.json, pin.json", tone: "dim" },
+      { kind: "out", text: "Wrote 14652 byte evidence pack to evidence.zip (regime=generic)", tone: "ok" },
+      { kind: "out", text: "Contents: MANIFEST.json, VERIFY.txt, bundle.json, cover.html,", tone: "dim" },
+      { kind: "out", text: "          evidence-report-generic.json, evidence-report-generic.md,", tone: "dim" },
+      { kind: "out", text: "          pin.json, report.html", tone: "dim" },
     ],
   },
 ];

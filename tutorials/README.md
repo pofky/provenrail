@@ -1,7 +1,7 @@
 # Provenrail tutorial videos (Remotion)
 
 Motion-graphic, step-by-step tutorials for the landing page / docs / social. Every command and
-program output shown is **verbatim real output** captured from `provenrail 0.2.0` (not mocked).
+program output shown is **verbatim real output** captured from `provenrail 0.2.29` (not mocked).
 
 ## Compositions
 

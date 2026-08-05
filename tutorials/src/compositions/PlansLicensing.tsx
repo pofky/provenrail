@@ -141,7 +141,7 @@ const activateSteps = buildTimeline([
     caption: "",
     lines: [
       { kind: "cmd", text: "pr activate prl_live_eyJhY2NvdW50Ijoi..." },
-      { kind: "out", text: "License valid: builder tier (no expiry).", tone: "ok" },
+      { kind: "out", text: "License valid: builder tier (expires 2026-09-12).", tone: "ok" },
       { kind: "out", text: "Verified offline, nothing was sent anywhere.", tone: "dim" },
       { kind: "out", text: "`pr serve` now runs at the builder tier.", tone: "default" },
     ],
