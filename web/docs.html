@@ -436,6 +436,12 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
     <pre><code><span class="g">pr disclose</span> my-run.json --openings keys.json</code></pre>
 
     <h2 id="cli">CLI reference</h2>
+    <div class="note"><strong>If <code>pr</code> runs the wrong program.</strong> <code>pr</code>
+      is also the POSIX paginator from coreutils. On most systems the install directory comes
+      first on <code>PATH</code> and ours wins; on Windows under Git Bash it does not, and
+      <code>pr --version</code> answers <code>pr (GNU coreutils) 8.32</code>. Use the module
+      entry point instead, which nothing can shadow:
+      <code>python -m provenrail verify bundle.json</code>. Every subcommand is identical.</div>
     <pre><code><span class="g">pr quickstart</span>        <span class="c"># local sink + config, zero tokens</span>
 <span class="g">pr demo</span>              <span class="c"># records a session, anchors it, writes bundle.json + pin.json</span>
 <span class="g">pr export</span> my-run.json  <span class="c"># export your own recorded run from the local sink</span>

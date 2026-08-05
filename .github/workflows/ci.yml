@@ -34,15 +34,24 @@ jobs:
       - name: Test
         run: python -m pytest -q -W ignore::DeprecationWarning
       - name: CLI smoke test
-        # The unit tests import the package; this proves the installed console script runs
-        # and closes the loop a real user follows on the platform under test.
+        # Closes the loop a real user follows, on the platform under test.
+        #
+        # Invoked as `python -m provenrail`, not `pr`: on Windows under Git Bash the `pr` on
+        # PATH is GNU coreutils' paginator, which answers `pr --version` with "pr (GNU
+        # coreutils) 8.32" and fails on `--pin`. That collision is worth knowing about and is
+        # documented for users, but a smoke test should exercise our code, not PATH order.
         shell: bash
         run: |
-          pr --version
-          pr demo --out b.json --pin pin.json
-          pr verify b.json --pin pin.json
-          pr spend b.json
-          pr report b.json --md --out r.md
+          python -m provenrail --version
+          python -m provenrail demo --out b.json --pin pin.json
+          python -m provenrail verify b.json --pin pin.json
+          python -m provenrail spend b.json
+          python -m provenrail report b.json --md --out r.md
           test -s r.md
-          pr pack b.json --out p.zip
+          python -m provenrail pack b.json --out p.zip
           test -s p.zip
+      - name: The console script is installed and is ours
+        # Separate step, and not on Windows, where Git Bash's coreutils legitimately wins.
+        if: runner.os != 'Windows'
+        shell: bash
+        run: pr --version | grep -q '^provenrail '

@@ -479,3 +479,18 @@ def test_concurrent_ingest_never_returns_a_spurious_auth_or_missing_stream(tmp_p
     assert set(codes) == {200}, (
         f"a valid writer was refused under concurrency: {dict(codes)}. 401/404 here are "
         f"spurious (the token and stream are fine) and 500 is a crash on a None row.")
+
+
+def test_python_m_provenrail_works_when_pr_is_shadowed():
+    """`pr` is also GNU coreutils' paginator. On Windows under Git Bash that one wins on PATH,
+    so `pr --version` prints "pr (GNU coreutils) 8.32" and `pr verify --pin` dies on an unknown
+    option. Anyone who hits that needs an entry point PATH cannot shadow."""
+    import subprocess
+    import sys
+
+    from provenrail import __version__
+
+    out = subprocess.run([sys.executable, "-m", "provenrail", "--version"],
+                         capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert __version__ in out.stdout + out.stderr
