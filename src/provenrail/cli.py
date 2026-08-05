@@ -783,6 +783,25 @@ def _cmd_report(args) -> int:
     return 0 if att["integrity"]["verified"] else 1
 
 
+def _selected_packs(raw: str) -> list[str]:
+    """Turn a `--use` value into known pack ids, or raise ValueError naming the problem.
+
+    An empty result is a failure, not a default. Someone who typed `--use` asked for specific
+    packs, so falling back to whatever the config file happens to say would arm something they
+    did not choose, under a flag that reads as if it chose it.
+    """
+    from . import rulesets
+
+    packs = [p.strip() for p in raw.split(",") if p.strip()]
+    if not packs:
+        raise ValueError(f"--use names no guardrail pack; available: {', '.join(rulesets.CATALOG)}")
+    unknown = [p for p in packs if p not in rulesets.CATALOG]
+    if unknown:
+        raise ValueError(f"unknown guardrail pack{'s' if len(unknown) > 1 else ''} "
+                         f"{', '.join(unknown)}; available: {', '.join(rulesets.CATALOG)}")
+    return packs
+
+
 def _cmd_guard(args) -> int:
     """Guardrails for a coding agent, at its own tool boundary, with a signed receipt."""
     from . import guard
@@ -792,17 +811,13 @@ def _cmd_guard(args) -> int:
 
     if action == "hook":
         use = None
-        if args.use:
-            from . import rulesets
-            use = [p.strip() for p in args.use.split(",") if p.strip()]
-            unknown = [p for p in use if p not in rulesets.CATALOG]
-            if unknown:
+        if args.use is not None:
+            try:
+                use = _selected_packs(args.use)
+            except ValueError as e:
                 # Exit 0: a hook that exits non-zero on a typo blocks the user's agent. Refusing
                 # to enforce is the safe half; saying so loudly is the other half.
-                sys.stderr.write(
-                    f"provenrail: unknown guardrail pack{'s' if len(unknown) > 1 else ''} "
-                    f"{', '.join(unknown)}; available: {', '.join(rulesets.CATALOG)}. "
-                    f"NOT enforcing.\n")
+                sys.stderr.write(f"provenrail: {e}. NOT enforcing.\n")
                 return 0
         code, out, err = guard.run_hook(sys.stdin.read(), default_event=args.event, use=use)
         if out:
@@ -817,7 +832,14 @@ def _cmd_guard(args) -> int:
             print("enforced but not recorded. Run `pr quickstart` first (it starts a local")
             print("sink and writes .provenrail.json), then `pr guard install`.")
             return 1
-        packs = guard.arm_default_policy(args.use.split(",") if args.use else None)
+        chosen = None
+        if args.use is not None:
+            try:
+                chosen = _selected_packs(args.use)
+            except ValueError as e:
+                print(f"error: {e}")
+                return 2
+        packs = guard.arm_default_policy(chosen)
         path = guard.install_claude_hooks()
         print(f"Armed guardrails in {CONFIG_FILENAME}: {', '.join(packs)}")
         print(f"Installed Claude Code hooks in {path}\n")
@@ -938,7 +960,9 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--tsa", default="https://freetsa.org/tsr")
     d.set_defaults(func=_cmd_demo)
 
-    v = sub.add_parser("verify", help="verify a bundle (trusts nobody)")
+    from .verifier.verify import EXIT_CODES
+    v = sub.add_parser("verify", help="verify a bundle (trusts nobody)", epilog=EXIT_CODES,
+                       formatter_class=argparse.RawDescriptionHelpFormatter)
     v.add_argument("bundle")
     v.add_argument("--pin")
     v.add_argument("--openings", help="redaction openings keystore, to check disclosed fields")

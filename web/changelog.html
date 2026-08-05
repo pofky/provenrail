@@ -91,6 +91,14 @@
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.22</span><span class="date">August 5, 2026</span><span class="tag">Guardrails and CI</span></div>
+      <ul>
+        <li><b>A <code>--use</code> that names no pack now refuses, instead of arming something you did not choose.</b> <code>pr guard hook --use "  "</code> parsed to an empty list and fell back to whatever the configuration file said, under a flag that reads as if it selected those packs. Both <code>pr guard hook</code> and <code>pr guard install</code> now refuse and say so, and a refused <code>install</code> writes nothing to disk.</li>
+        <li><b>The exit codes are documented where a script author looks.</b> <code>pr verify</code> exits 2 when it could not read the file at all and 1 when it reached a verdict that is not a pass. A CI job that treats every non-zero result alike turns a mistyped path into a tampering alert. Both meanings are now in <code>--help</code> and the README.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.2.21</span><span class="date">August 5, 2026</span><span class="tag">Costs and CLI</span></div>
       <ul>
         <li><b>A model that was missing from the price table can no longer switch a budget off.</b> Claude Mythos 5 is live at $10/$50 per million tokens and was in neither price table, so every call to it estimated at $0.00 and a spend cap silently stopped binding. It is now priced in both the CLI and the browser verifier, and the two agree call for call.</li>

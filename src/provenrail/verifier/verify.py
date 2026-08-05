@@ -1038,6 +1038,19 @@ def _verify_anchor_receipt(receipt: dict[str, Any], rep: Report, seq: Any) -> st
     return "fail"
 
 
+#: What each exit code means, for the scripts that gate on it. The split that needs saying out
+#: loud: 2 is "I never got as far as a verdict" (the file could not be read as JSON at all), while
+#: 1 is a real verdict that is not a pass, which includes a valid JSON file that is not a bundle.
+#: A CI job that treats every non-zero alike will call a mistyped path a tampering incident.
+EXIT_CODES = """exit codes:
+  0  VERIFIED: the record's integrity is proven.
+  1  a verdict, and it is not a pass: TAMPERING DETECTED, NOT CONFIRMED, NO RECORDS, or
+     NOT A PROVENRAIL BUNDLE (valid JSON, but not in a format this verifier recognizes).
+  2  no verdict was reached: the file could not be read as JSON at all (not UTF-8, empty,
+     truncated, or not JSON), or the arguments were wrong. Prints RESULT: NOT A BUNDLE.
+Treat 2 as "check the path you passed", and only 1 as a finding about the record."""
+
+
 def say_not_json(e: json.JSONDecodeError) -> None:
     """Explain an unparseable bundle, in one place.
 
@@ -1061,7 +1074,9 @@ def say_not_utf8() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="pr-verify", description="Verify a Provenrail bundle.")
+    p = argparse.ArgumentParser(prog="pr-verify", description="Verify a Provenrail bundle.",
+                                epilog=EXIT_CODES,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("bundle", help="path to exported bundle JSON, or '-' for stdin")
     p.add_argument("--pin", help="path to a client-held pin file to detect tail-truncation")
     p.add_argument("--json", action="store_true", help="emit machine-readable JSON")

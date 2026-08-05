@@ -240,6 +240,55 @@ def test_the_hook_arms_the_packs_it_was_asked_for(tmp_path, monkeypatch, capsys)
     assert "unknown guardrail pack" in err and "NOT enforcing" in err
 
 
+def test_a_use_flag_that_names_no_pack_refuses_rather_than_falling_back(tmp_path, monkeypatch,
+                                                                       capsys):
+    """`--use "  "` and `--use ,,` parse to an empty list, which is falsy, which used to mean
+    "no --use given" and quietly armed whatever the config file said. The flag then reads as if
+    the user chose those packs. Same class of lie as the typo case: refuse, and say so."""
+    import json as _json
+
+    from provenrail.cli import main as cli_main
+
+    monkeypatch.chdir(tmp_path)
+    payload = _json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Bash",
+                           "tool_input": {"command": "rm -rf /"}})
+    for empty in ("   ", ",,", ""):
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        capsys.readouterr()
+        assert cli_main(["guard", "hook", "--use", empty]) == 0   # never block on our own error
+        err = capsys.readouterr().err
+        assert "names no guardrail pack" in err and "NOT enforcing" in err, err
+
+    # `pr guard install` writes the packs to disk, so the same value must not be persisted.
+    (tmp_path / ".provenrail.json").write_text('{"endpoint": "http://localhost:8787"}\n')
+    capsys.readouterr()
+    assert cli_main(["guard", "install", "--use", "  "]) == 2
+    cfg = _json.loads((tmp_path / ".provenrail.json").read_text())
+    assert "policy" not in cfg, f"a refused --use must arm nothing on disk: {cfg}"
+
+
+def test_the_exit_code_contract_is_documented_where_a_script_author_looks():
+    """A CI job gates on the exit code. 2 (could not read the file) and 1 (a real verdict that is
+    not a pass) mean opposite things, and conflating them turns a mistyped path into a tampering
+    incident. It has to be in --help, not only in our heads."""
+    import contextlib
+
+    from provenrail.cli import build_parser
+    from provenrail.verifier.verify import main as verify_main
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), pytest.raises(SystemExit):
+        verify_main(["--help"])
+    help_text = buf.getvalue()
+    assert "exit codes" in help_text
+    assert "NOT A PROVENRAIL BUNDLE" in help_text and "NOT A BUNDLE" in help_text
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), pytest.raises(SystemExit):
+        build_parser().parse_args(["verify", "--help"])
+    assert "exit codes" in buf.getvalue()
+
+
 def test_pr_reports_its_own_version(capsys):
     """The first line of any bug report."""
     from provenrail import __version__
