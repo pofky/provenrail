@@ -184,6 +184,71 @@ class FlightRecorder:
                 time.sleep(delay)
                 delay *= 2
 
+    #: How far the client will walk to close a gap another writer opened, per receipt. Generous
+    #: for real interleaving (measured gaps under 24 concurrent writers were single digits) and
+    #: still bounded, so a sink cannot make a client fetch forever.
+    MAX_GAP_RECEIPTS = 5000
+
+    #: One request's worth, matching the sink's own per-request ceiling.
+    GAP_PAGE = 1000
+
+    def _close_gap(self, prev: str, receipt: dict[str, Any]) -> None:
+        """Another writer appended between our last receipt and this one. Prove it, or raise.
+
+        The client is issued a head and expects the next receipt to link to it. That assumption
+        only holds while it is the only writer on the stream, and one project with two agents
+        breaks it immediately: every record reports tampering when nothing is wrong.
+
+        Not looking would be worse than the false alarm, so instead of assuming adjacency the
+        client asks the sink for the links it missed and walks them. The chain must run
+        unbroken from the head we were issued to the record we are now being told about. A sink
+        that reordered, forked or rolled back cannot produce that walk, so the check it was
+        doing before is still being done, just over a span instead of a single step.
+
+        Caller holds self._lock.
+        """
+        want = self.head["server_record_hash"]
+        after = self.head["recv_seq"]
+        target = receipt.get("recv_seq")
+        cursor = want
+        walked = 0
+        while cursor != prev and walked < self.MAX_GAP_RECEIPTS:
+            try:
+                page = self.client.receipts_after(self.stream_id, after, self.GAP_PAGE)
+            except Exception as e:
+                raise SinkIntegrityError(
+                    f"sink receipt links to {prev!r} but last issued head was {want!r}, and the "
+                    f"sink would not show the receipts in between, so the gap cannot be checked "
+                    f"({e})"
+                ) from e
+            progressed = False
+            for link in page:
+                # Stop at our own record: the walk only has to reach the one before it.
+                if target is not None and link.get("recv_seq", -1) >= target:
+                    break
+                if link.get("server_prev_hash") != cursor:
+                    raise SinkIntegrityError(
+                        f"sink receipt chain does not join up: receipt {link.get('recv_seq')} "
+                        f"links to {link.get('server_prev_hash')!r}, expected {cursor!r} "
+                        f"(reorder/fork/rollback)"
+                    )
+                cursor = link.get("server_record_hash")
+                after = link.get("recv_seq", after)
+                walked += 1
+                progressed = True
+                if cursor == prev:
+                    break
+            # A page that moved us nowhere would otherwise be fetched forever.
+            if not progressed:
+                break
+        if cursor != prev:
+            raise SinkIntegrityError(
+                f"sink receipt links to {prev!r} but the receipts it showed us reach only "
+                f"{cursor!r} from our last head {want!r} (reorder/fork/rollback, or more than "
+                f"{self.MAX_GAP_RECEIPTS} records arrived from other writers between two of "
+                f"ours)"
+            )
+
     def _send(self, batch: list[dict[str, Any]]) -> None:
         resp = self.client.ingest(batch)
         for receipt in resp.get("receipts", []):
@@ -202,10 +267,7 @@ class FlightRecorder:
                     # forks are what `pr verify` and the signed pin exist to catch.
                     self.head["server_record_hash"] = prev
                 if prev is not None and prev != self.head["server_record_hash"]:
-                    raise SinkIntegrityError(
-                        f"sink receipt links to {prev!r} but last issued head was "
-                        f"{self.head['server_record_hash']!r} (reorder/fork/rollback)"
-                    )
+                    self._close_gap(prev, receipt)
                 self.head = {
                     "recv_seq": receipt.get("recv_seq", self.head["recv_seq"]),
                     "server_record_hash": receipt.get("server_record_hash",

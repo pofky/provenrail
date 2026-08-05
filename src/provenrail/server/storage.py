@@ -531,6 +531,17 @@ class Storage:
             )
         return out
 
+    def receipts_after(self, stream_id: str, after_seq: int, limit: int) -> list[dict[str, Any]]:
+        """Receipt-chain links after `after_seq`, oldest first. Link material only, never the
+        records themselves: this answers "does your chain still join up across the part I did
+        not write?" and must not become a way to read other writers' payloads."""
+        cur = self._db.execute(
+            "SELECT recv_seq, recv_ts, server_prev_hash, server_record_hash FROM records "
+            "WHERE stream_id=? AND recv_seq>? ORDER BY recv_seq ASC LIMIT ?",
+            (stream_id, after_seq, limit),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
     def head(self, stream_id: str) -> dict[str, Any]:
         cur = self._db.execute(
             "SELECT recv_seq, server_record_hash FROM records "

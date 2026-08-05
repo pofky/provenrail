@@ -17,7 +17,7 @@ import secrets
 import threading
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException, Path, Request
+from fastapi import FastAPI, Header, HTTPException, Path, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
@@ -829,6 +829,29 @@ def create_app(
                            "outcome": s.get("outcome"), "events": s.get("events")}
                           for s in analytics.summarize(records)["sessions"]]
         return tl
+
+    @app.get("/v1/streams/{stream_id}/receipts")
+    def stream_receipts(stream_id: str = Path(...), after_seq: int = Query(-1),
+                        limit: int = Query(500, ge=1, le=1000),
+                        authorization: str | None = Header(default=None)):
+        """The receipt-chain links after `after_seq`, so a writer can close a gap another
+        writer opened instead of guessing.
+
+        A client holds the head it was last issued and expects the next receipt to link to it.
+        That only holds while it is the sole writer. Two agents recording into one stream, which
+        is the ordinary shape of a project with more than one agent, interleave, and the second
+        receipt legitimately links to something the first client never saw. Refusing to look is
+        how a normal setup ends up reporting tampering on every single record.
+
+        Link material only: recv_seq and the two hashes, never a record body. A write token is
+        enough, because the holder can already append to this stream; what it must not gain is a
+        way to read what other writers put in it.
+        """
+        _auth(authorization, tok.WRITE, stream_id)
+        if not store.stream_exists(stream_id):
+            raise HTTPException(404, "unknown stream")
+        return {"stream_id": stream_id,
+                "receipts": store.receipts_after(stream_id, after_seq, limit)}
 
     @app.get("/v1/streams/{stream_id}/bundle")
     def account_bundle(stream_id: str = Path(...), authorization: str | None = Header(default=None)):

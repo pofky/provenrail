@@ -37,6 +37,21 @@ class IngestClient:
             raise RuntimeError(f"ingest failed {resp.status_code}: {resp.text}")
         return resp.json()
 
+    def receipts_after(self, stream_id: str, after_seq: int,
+                       limit: int = 500) -> list[dict[str, Any]]:
+        """The sink's receipt-chain links after `after_seq`, oldest first.
+
+        Used to close a gap opened by another writer on the same stream: the client walks the
+        segment and checks it actually links, instead of assuming the next receipt it sees is
+        adjacent to the last one it was issued."""
+        resp = self._http.get(
+            self._url(f"/v1/streams/{stream_id}/receipts"),
+            params={"after_seq": after_seq, "limit": limit},
+            headers={"Authorization": f"Bearer {self.write_token}"})
+        if resp.status_code >= 400:
+            raise RuntimeError(f"receipt fetch failed {resp.status_code}: {resp.text}")
+        return resp.json().get("receipts", [])
+
     def request_approval(self, body: dict[str, Any]) -> dict[str, Any]:
         """Open an out-of-band approval request for one pending action."""
         resp = self._http.post(

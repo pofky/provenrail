@@ -348,3 +348,101 @@ def test_proof_page_shows_verified_badge():
     assert r.status_code == 200
     assert "Integrity verified" in r.text
     assert "pr verify" in r.text
+
+
+# ---- more than one agent writing the same stream ----
+
+def test_two_agents_on_one_stream_do_not_report_tampering():
+    """One project with two agents running at once is an ordinary setup, and it used to fail.
+
+    Each client keeps the receipt head the sink last issued it and expects the next receipt to
+    link to exactly that. The moment a second writer appends, the assumption is false through no
+    fault of the sink. Measured against a real 0.2.28 server: eight streams with three agents
+    each raised SinkIntegrityError on 13,136 of 13,470 records, so a correct deployment reported
+    tampering on essentially everything it wrote.
+
+    The client now asks the sink for the links it missed and walks them, so continuity is proven
+    across the gap rather than assumed adjacent.
+    """
+    import concurrent.futures as cf
+
+    from provenrail.keys import SigningKey
+    _, c, prov = _run()
+    agents = [FlightRecorder("http://t", prov["write_token"], prov["stream_id"],
+                             http=c, key=SigningKey.generate()) for _ in range(3)]
+
+    def work(a):
+        with a.session({"agent": id(a)}):
+            for i in range(10):
+                a.record_decision(f"step {i}")
+        return True
+
+    with cf.ThreadPoolExecutor(max_workers=3) as ex:
+        assert all(ex.map(work, agents))  # no SinkIntegrityError from any of them
+
+    bundle = _export(c, prov)
+    assert len(bundle["records"]) >= 30
+    assert verify_bundle(bundle).ok, "a stream written by three agents must still verify"
+
+
+def test_closing_a_gap_still_catches_a_sink_that_does_not_join_up():
+    """The gap walk must not become a way to wave through any receipt at all.
+
+    A sink that reorders, forks or rolls back cannot produce a run of receipts leading from the
+    head it issued us to the record it now claims, so the walk has to fail. This forces exactly
+    that: the sink answers the gap query with a segment that does not link.
+    """
+    import pytest
+
+    from provenrail.sdk import SinkIntegrityError
+    _, c, prov = _run()
+    fr = _session(c, prov)
+    fr.start()
+    fr.record_decision("real")
+
+    # The sink now lies about the part of the chain the client did not write.
+    fr.client.receipts_after = lambda *a, **k: [
+        {"recv_seq": 99, "server_prev_hash": "00" * 32, "server_record_hash": "11" * 32}]
+    fr.head["server_record_hash"] = "de" * 32  # our head is no longer what the sink will claim
+    with pytest.raises(SinkIntegrityError):
+        fr.record_decision("x")
+
+    # And a sink that refuses to show the gap at all is not given the benefit of the doubt.
+    def _refuse(*a, **k):
+        raise RuntimeError("nope")
+    fr.client.receipts_after = _refuse
+    fr.head["server_record_hash"] = "ad" * 32
+    with pytest.raises(SinkIntegrityError):
+        fr.record_decision("y")
+
+
+def test_the_gap_query_returns_links_only_and_needs_a_write_token():
+    """The endpoint answers "does your chain join up", not "what did the other agent record".
+
+    It is reachable with a write token, because the holder can already append here. It must not
+    hand back record bodies, or a write token would quietly become a read token.
+    """
+    _, c, prov = _run()
+    fr = _session(c, prov)
+    with fr.session({"agent": "a"}):
+        fr.record_decision("secret payload marker")
+
+    r = c.get(f"/v1/streams/{prov['stream_id']}/receipts",
+              params={"after_seq": -1},
+              headers={"Authorization": f"Bearer {prov['write_token']}"})
+    assert r.status_code == 200
+    receipts = r.json()["receipts"]
+    assert receipts and receipts[0]["recv_seq"] == 0
+    assert set(receipts[0]) == {"recv_seq", "recv_ts", "server_prev_hash", "server_record_hash"}
+    assert "secret payload marker" not in r.text
+
+    # The chain it returns is the real one: each link points at the one before it.
+    prev = receipts[0]["server_prev_hash"]
+    for link in receipts:
+        assert link["server_prev_hash"] == prev
+        prev = link["server_record_hash"]
+
+    # No token, and a read token, are both refused: this is a writer's continuity check.
+    assert c.get(f"/v1/streams/{prov['stream_id']}/receipts").status_code == 401
+    assert c.get(f"/v1/streams/{prov['stream_id']}/receipts",
+                 headers={"Authorization": f"Bearer {prov['read_token']}"}).status_code == 403
