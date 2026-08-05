@@ -1,6 +1,7 @@
 # Sign-in emails are being tracked, and Brevo cannot turn it off
 
-**Status:** open. Needs an owner decision, see "The fix" below.
+**Status:** partially mitigated 2026-08-05 (anonymous tracking on). Still needs an
+owner decision on moving provider, see "The fix" below.
 **Found:** 2026-08-05, by receiving a real sign-in email in a disposable inbox and reading it.
 
 ## What is happening
@@ -44,6 +45,22 @@ So anonymising fixes problem 1 and leaves problems 2 and 3 exactly where they ar
 
 Brevo's per-message `X-Mailin-Track` header is not a way out either: Supabase Auth gives no
 control over SMTP headers, so we cannot set it.
+
+## Measured after anonymous tracking was switched on (2026-08-05)
+
+Sent a real sign-in link to a disposable inbox and read the raw message.
+
+- The wrapping host changed from `bbbcebjd.r.af.d.sendibt2.com` to
+  `bbbcebjd.r.bh.d.sendibt3.com`, presumably the anonymised cluster.
+- The open-tracking pixel is **still present**.
+- The sign-in link is **still rewritten**: 4 links in the message, all on the tracker host,
+  and no direct `supabase.co` or `provenrail.com` URL anywhere in the email.
+- Sign-in still works: 302 tracker -> 303 `supabase.co/auth/v1/verify` -> 200
+  `provenrail.com/account`, signed in.
+
+So anonymising removed the link between tracking and the individual, which was worth doing,
+and left the auth token still transiting a third-party redirect and the phishing-signal
+rewrite untouched. Those only go away by changing provider.
 
 ## The fix
 
