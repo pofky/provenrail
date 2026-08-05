@@ -64,12 +64,17 @@
     .badge{display:inline-block;font-family:var(--font-mono);font-size:.74rem;font-weight:500;padding:.2rem .6rem;border-radius:999px;background:var(--bg-3);color:var(--text-mid);border:1px solid var(--border);text-transform:capitalize}
     .badge.on{background:rgba(211, 169, 87,.12);color:var(--accent);border-color:rgba(211, 169, 87,.35)}
     .key{font-family:var(--font-mono);font-size:.82rem;word-break:break-all;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:.7rem .8rem;color:var(--text-hi);display:flex;align-items:center;gap:.6rem;justify-content:space-between}
-    .key button{width:auto;min-height:auto;padding:.35rem .7rem;font-size:.78rem;background:var(--bg-3);color:var(--text-mid);border:1px solid var(--border)}
+    .key button{width:auto;min-height:44px;padding:.5rem .9rem;font-size:.78rem;background:var(--bg-3);color:var(--text-mid);border:1px solid var(--border)}
     .plans{display:grid;gap:.7rem}
     .plan{display:flex;align-items:center;justify-content:space-between;gap:1rem;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:.85rem 1rem}
     .plan .pn{font-weight:700}
     .plan .pp{color:var(--text-mid);font-size:.85rem}
-    .plan button{width:auto;min-height:42px;padding:.5rem 1rem;font-size:.9rem}
+    .plan button{width:auto;min-height:48px;padding:.6rem 1.1rem;font-size:.9rem}
+    @media (prefers-reduced-motion: reduce){
+      button:active{transform:none}
+      button{transition:opacity .01ms}
+      .toast{transition:opacity .2s}
+    }
     .toast{position:fixed;left:50%;bottom:1.5rem;transform:translateX(-50%);background:var(--bg-3);border:1px solid var(--border);color:var(--text-hi);padding:.7rem 1.1rem;border-radius:12px;font-size:.9rem;box-shadow:0 8px 30px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:90vw}
     .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
     .toast.err{border-color:rgba(255,107,107,.5);color:var(--danger)}
@@ -198,7 +203,7 @@
 
       <button class="signout" id="signout-btn">Sign out</button>
     </section>
-  </div>
+  </main>
 
   <div id="toast" class="toast"></div>
 

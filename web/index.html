@@ -813,7 +813,7 @@
   <script type="module">
     // Live tamper widget: verify a real record in the browser, then let the visitor break it.
     // Reuses the exact open-source verifier that backs /verify and the `pr verify` CLI.
-    import { verifyBundle } from '/verify.js';
+    import { verifyBundle } from '/verify.js?v=20260805a';
     const DEMO_OPTS = { witnessPubkeys: { 'demo-witness': 'f5f6d366ff50408229e0e4717e342a38a2dbd6eb9c7f435ecac55319cf787876' } };
     const card = document.getElementById('prove-card');
     if (card) {

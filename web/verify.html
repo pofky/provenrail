@@ -90,12 +90,21 @@
     .f .sev{font-family:var(--font-mono);font-size:.62rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding:.18rem .45rem;border-radius:5px;flex-shrink:0;margin-top:.15rem}
     .f.fail .sev{color:var(--bad);background:rgba(240,106,93,.12)}.f.warn .sev{color:var(--warn);background:rgba(240,178,58,.12)}.f.info .sev{color:var(--accent);background:var(--accent-glow)}
     .f .code{font-family:var(--font-mono);font-size:.76rem;color:var(--text-hi)}
-    .f .detail{font-size:.8rem;color:var(--text-mid);margin-top:.15rem;word-break:break-word}
+    .f .detail{font-size:.95rem;color:var(--text-mid);margin-top:.15rem;word-break:break-word}
     .foot{margin-top:2.5rem;font-size:.8rem;color:var(--text-lo);line-height:1.6;border-top:1px solid var(--border);padding-top:1.25rem}
     .foot a{color:var(--accent)}
     .foot code{font-family:var(--font-mono);background:var(--bg-3);padding:.1em .4em;border-radius:5px}
     .spin{width:16px;height:16px;border:2px solid var(--border-hi);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;display:inline-block;vertical-align:-2px}
     @keyframes sp{to{transform:rotate(360deg)}}
+    /* This page carries its own class names, so the reduced-motion rules in styles.css never
+       reached the button lift or the spinner. Someone who asked the OS for less motion asked
+       once, for all of it. The spinner still shows, it just stops spinning. */
+    @media (prefers-reduced-motion: reduce){
+      .btn.primary:hover,.btn.ghost:hover{transform:none}
+      .btn{transition:background .01ms,border-color .01ms}
+      .spin{animation:none;border-top-color:var(--accent)}
+      .drop{transition:none}
+    }
   </style>
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
@@ -171,12 +180,12 @@
       frozen public conformance-vector suite, in both Python and JavaScript. Want to record your own
       verifiable runs? <a href="/">Get started</a>. MIT licensed.
     </div>
-  </div>
+  </main>
 
   <script type="module">
     // Versioned so a fresh page never pairs with an edge-cached older verify.js: the verdict
     // logic here (result-based) and the engine must ship together. Bump on any verify.js change.
-    import { verifyBundle } from '/verify.js?v=20260612c';
+    import { verifyBundle } from '/verify.js?v=20260805a';
 
     // The hosted demo log's published keys, so the demo verifies as fully witnessed.
     const DEMO_KEYS = {

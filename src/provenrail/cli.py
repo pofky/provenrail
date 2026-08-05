@@ -491,6 +491,7 @@ def _cmd_export(args) -> int:
 
 def _cmd_pack(args) -> int:
     from .pack import build_pack
+    from .verifier.verify import verify_bundle
     bundle = json.loads(open(args.bundle, encoding="utf-8").read())
     pin = json.loads(open(args.pin, encoding="utf-8").read()) if args.pin else None
     data = build_pack(bundle, regime=args.regime, pin=pin)
@@ -499,6 +500,16 @@ def _cmd_pack(args) -> int:
     print(f"Wrote {len(data)} byte evidence pack to {args.out} (regime={args.regime})")
     print("Contents: bundle.json, attestation, VERIFY.txt, MANIFEST.json"
           + (", pin.json" if pin else ""))
+    # The manifest inside the zip has always recorded the failure, so the recipient learns the
+    # truth. The person who built the pack did not: they saw a success line and exit 0, and an
+    # evidence pack is exactly the artifact you hand over believing it is sound. Say it here,
+    # while they can still find out what happened to the record.
+    rep = verify_bundle(bundle, pin=pin)
+    if not rep.ok:
+        print(f"\nWARNING: this bundle does NOT verify ({rep.result}). The pack was written and "
+              f"its manifest says so plainly, but it is not usable as evidence.", file=sys.stderr)
+        print(f"Run `pr verify {args.bundle}` to see which check failed.", file=sys.stderr)
+        return 1
     return 0
 
 

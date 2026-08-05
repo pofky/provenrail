@@ -113,3 +113,27 @@ def test_cli_pack(tmp_path, capsys):
                      "--out", str(pack)]) == 0
     z = zipfile.ZipFile(pack)
     assert "MANIFEST.json" in z.namelist() and "pin.json" in z.namelist()
+
+
+def test_packing_a_tampered_bundle_warns_the_person_who_built_it(tmp_path, capsys):
+    """The manifest inside the zip has always told the recipient the truth. The operator saw a
+    success line and exit 0, for the one artifact you hand over believing it is sound."""
+    import json as _json
+    import subprocess
+    import sys
+
+    subprocess.run([sys.executable, "-m", "provenrail.cli", "demo", "--out", "b.json",
+                    "--pin", "p.json"], cwd=tmp_path, capture_output=True, check=True)
+    good = subprocess.run([sys.executable, "-m", "provenrail.cli", "pack", "b.json",
+                           "--out", "ok.zip"], cwd=tmp_path, capture_output=True, text=True)
+    assert good.returncode == 0, good.stderr
+
+    b = _json.loads((tmp_path / "b.json").read_text())
+    b["records"][2]["record"]["payload"] = {"tampered": True}
+    (tmp_path / "b.json").write_text(_json.dumps(b))
+
+    bad = subprocess.run([sys.executable, "-m", "provenrail.cli", "pack", "b.json",
+                          "--out", "bad.zip"], cwd=tmp_path, capture_output=True, text=True)
+    assert bad.returncode == 1, bad.stdout
+    assert "does NOT verify" in bad.stderr
+    assert (tmp_path / "bad.zip").is_file(), "the pack is still written; it just is not silent"
