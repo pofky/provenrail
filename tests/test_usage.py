@@ -14,9 +14,14 @@ from provenrail.ingest_client import provision_account, provision_stream
 from provenrail.server import plans
 from provenrail.server.app import create_app
 
+#: Stands in for the payment provider webhook secret. Upgrading is the provider's job, not
+#: the account holder's: without this, a free account could PUT itself to enterprise.
+BILLING_SECRET = "test-billing-secret"
+
 
 def _acct_app():
-    app = create_app(":memory:", anchor=LocalAnchor(), require_account=True)
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=True,
+                     billing_secret=BILLING_SECRET)
     c = TestClient(app)
     acct = provision_account("http://t", http=c)
     return app, c, acct["api_key"]
@@ -113,7 +118,8 @@ def test_anchor_quota_blocks(monkeypatch):
 def test_set_plan_lifts_limits():
     app, c, key = _acct_app()
     r = c.put("/v1/account/plan", json={"plan": "team"},
-              headers={"Authorization": f"Bearer {key}"})
+              headers={"Authorization": f"Bearer {key}",
+                       "X-Provenrail-Billing-Secret": BILLING_SECRET})
     assert r.status_code == 200
     body = c.get("/v1/usage", headers={"Authorization": f"Bearer {key}"}).json()
     assert body["plan"] == "team"
@@ -141,7 +147,8 @@ def test_open_mode_is_unmetered(monkeypatch):
 
 def _set_plan(c, key, plan):
     return c.put("/v1/account/plan", json={"plan": plan},
-                 headers={"Authorization": f"Bearer {key}"})
+                 headers={"Authorization": f"Bearer {key}",
+                          "X-Provenrail-Billing-Secret": BILLING_SECRET})
 
 
 def test_exports_feature_gated():
@@ -193,7 +200,8 @@ class _FakeTrustedAnchor:
 
 
 def test_trusted_time_downgraded_on_free():
-    app = create_app(":memory:", anchor=_FakeTrustedAnchor(), require_account=True)
+    app = create_app(":memory:", anchor=_FakeTrustedAnchor(), require_account=True,
+                     billing_secret=BILLING_SECRET)
     c = TestClient(app)
     acct = provision_account("http://t", http=c)
     key = acct["api_key"]
@@ -217,7 +225,8 @@ def test_trusted_time_downgraded_on_free():
 
 def _set_plan(c, key, plan):
     return c.put("/v1/account/plan", json={"plan": plan},
-                 headers={"Authorization": f"Bearer {key}"})
+                 headers={"Authorization": f"Bearer {key}",
+                          "X-Provenrail-Billing-Secret": BILLING_SECRET})
 
 
 def test_members_seats_and_sso_entitlements():
@@ -260,3 +269,35 @@ def test_sso_config_gated_to_team():
     assert c.put("/v1/sso/config", json=cfg, headers=h).status_code == 402
     assert _set_plan(c, key, "team").status_code == 200
     assert c.put("/v1/sso/config", json=cfg, headers=h).status_code == 200
+
+
+def test_an_account_cannot_upgrade_itself_without_the_billing_provider():
+    """`billing.manage` is owner-only, which sounds sufficient and is not: it means the owner
+    may manage THEIR billing, and this route took the plan value straight from the request. A
+    free account could PUT {"plan": "enterprise"} with its own API key and receive unlimited
+    events, seats, SSO and exports without paying. Every paid limit in the product was one
+    request away from being free."""
+    app, c, key = _acct_app()
+    for target in ("builder", "team", "enterprise"):
+        r = c.put("/v1/account/plan", json={"plan": target},
+                  headers={"Authorization": f"Bearer {key}"})
+        assert r.status_code == 402, target
+    assert c.get("/v1/usage", headers={"Authorization": f"Bearer {key}"}).json()["plan"] == "free"
+    # a wrong secret is no better than none
+    r = c.put("/v1/account/plan", json={"plan": "enterprise"},
+              headers={"Authorization": f"Bearer {key}",
+                       "X-Provenrail-Billing-Secret": "guessed"})
+    assert r.status_code == 402
+    # the billing provider, holding the real secret, can
+    assert _set_plan(c, key, "team").status_code == 200
+
+
+def test_downgrading_stays_self_service():
+    """Nobody defrauds anyone by asking for less, and trapping a user on a plan they are
+    trying to leave is its own kind of problem."""
+    app, c, key = _acct_app()
+    assert _set_plan(c, key, "team").status_code == 200
+    r = c.put("/v1/account/plan", json={"plan": "free"},
+              headers={"Authorization": f"Bearer {key}"})
+    assert r.status_code == 200
+    assert c.get("/v1/usage", headers={"Authorization": f"Bearer {key}"}).json()["plan"] == "free"

@@ -78,6 +78,30 @@ class GuardError(RuntimeError):
 # ---------------------------------------------------------------- hook payload
 
 
+def _coerce_tool_input(value: Any) -> Any:
+    """Whatever the host sent, in a shape the content rules can actually read.
+
+    A dict passes through. A string is the command itself and is the single most important
+    thing to screen, so it is wrapped rather than discarded. A list or any other shape is kept
+    too: an unrecognised payload must fail towards being READ, never towards being ignored,
+    because the alternative is a guard that reports itself armed while matching every rule
+    against an empty object.
+    """
+    if isinstance(value, dict):
+        return value
+    if value is None:
+        return {}
+    if isinstance(value, str):
+        return {"command": value}
+    if isinstance(value, list) and all(isinstance(v, str) for v in value):
+        # An argv array IS a command line, and the content rules are written against command
+        # lines. Serialised as JSON it reads `["rm", "-rf", "/"]`, where the comma between the
+        # program and its flags defeats every `\brm\s+-rf` pattern, so it is joined back into
+        # the string it stands for.
+        return {"command": " ".join(value)}
+    return {"input": value}
+
+
 def parse_hook_input(data: dict[str, Any], default_event: str = "pre") -> dict[str, Any]:
     """Normalize a Claude Code hook payload into the fields the policy engine needs.
 
@@ -98,7 +122,13 @@ def parse_hook_input(data: dict[str, Any], default_event: str = "pre") -> dict[s
     return {
         "event": phase,
         "tool": data.get("tool_name") or "",
-        "input": data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {},
+        # A non-dict tool_input used to become `{}`, which every content rule then matched
+        # against the two characters "{}" and let through. For the Bash tool that is the ENTIRE
+        # protection, because the tool name alone cannot tell `ls` from `rm -rf /`, so one
+        # payload with tool_input as a string silently disarmed the guard. Anything that is not
+        # a dict is now kept and screened as text: a string command is exactly the thing that
+        # most needs reading, and a shape we do not recognise must never mean "allow".
+        "input": _coerce_tool_input(data.get("tool_input")),
         "response": data.get("tool_response"),
         "session_id": data.get("session_id") or "",
         "cwd": data.get("cwd") or "",

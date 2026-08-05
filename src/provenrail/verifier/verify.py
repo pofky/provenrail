@@ -1012,18 +1012,32 @@ def main(argv: list[str] | None = None) -> int:
     raw = sys.stdin.read() if args.bundle == "-" else open(args.bundle, encoding="utf-8").read()
     bundle = json.loads(raw)
     pin = json.loads(open(args.pin, encoding="utf-8").read()) if args.pin else None
+    # A malformed trust flag used to be skipped in silence, and the run then printed VERIFIED
+    # without ever performing the check the flag asked for. That is worse than an error: the
+    # operator believes they checked a witness, or Bitcoin, and they did not. Refuse instead.
     witnesses: dict[str, str] = {}
     if args.witness_pubkeys:
         for pair in args.witness_pubkeys.split(","):
-            if "=" in pair:
-                name, hexkey = pair.split("=", 1)
-                witnesses[name.strip()] = hexkey.strip()
+            if "=" not in pair:
+                print(f"--witness-pubkeys expects name=pubkey_hex, got {pair.strip()!r}. "
+                      f"Nothing was verified against it.", file=sys.stderr)
+                return 2
+            name, hexkey = pair.split("=", 1)
+            witnesses[name.strip()] = hexkey.strip()
     bitcoin_headers: dict[int, str] = {}
     if args.bitcoin_header:
         for pair in args.bitcoin_header:
-            if "=" in pair:
-                height, root = pair.split("=", 1)
+            if "=" not in pair:
+                print(f"--bitcoin-header expects height=merkle_root_hex, got {pair.strip()!r}. "
+                      f"Nothing was verified against it.", file=sys.stderr)
+                return 2
+            height, root = pair.split("=", 1)
+            try:
                 bitcoin_headers[int(height.strip())] = root.strip()
+            except ValueError:
+                print(f"--bitcoin-header height must be a block number, got "
+                      f"{height.strip()!r}.", file=sys.stderr)
+                return 2
     rep = verify_bundle(bundle, pin=pin, tlog_log_key=args.tlog_pubkey,
                         witness_pubkeys=witnesses, max_cosig_age_days=args.max_cosig_age,
                         registry_pubkey=args.registry_pubkey, disclosure_openings=openings,

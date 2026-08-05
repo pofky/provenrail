@@ -7,16 +7,22 @@ from fastapi.testclient import TestClient
 from provenrail.anchor import LocalAnchor
 from provenrail.server.app import create_app
 
+#: Stands in for the payment provider webhook secret. An upgrade is applied by the billing
+#: provider after payment, never by the account holder's own API key.
+BILLING_SECRET = "test-billing-secret"
+
 
 def _app():
-    return TestClient(create_app(":memory:", anchor=LocalAnchor(), require_account=True))
+    return TestClient(create_app(":memory:", anchor=LocalAnchor(), require_account=True,
+                     billing_secret="test-billing-secret"))
 
 
 def _org(c):
     acct = c.post("/v1/accounts", json={}).json()
     # multi-member RBAC is a Team+ feature; run these tests on a Team account.
     c.put("/v1/account/plan", json={"plan": "team"},
-          headers={"Authorization": f"Bearer {acct['api_key']}"})
+          headers={"Authorization": f"Bearer {acct['api_key']}",
+                   "X-Provenrail-Billing-Secret": BILLING_SECRET})
     return acct["account_id"], acct["api_key"]
 
 
@@ -119,7 +125,8 @@ def test_audit_log_records_and_chain_verifies():
     c = _app()
     _, owner_key = _org(c)
     # Evidence packs are a reports-tier feature; upgrade so the export runs and is audited.
-    c.put("/v1/account/plan", json={"plan": "team"}, headers=_h(owner_key))
+    c.put("/v1/account/plan", json={"plan": "team"},
+          headers={**_h(owner_key), "X-Provenrail-Billing-Secret": BILLING_SECRET})
     sid = c.post("/v1/streams", json={}, headers=_h(owner_key)).json()["stream_id"]
     c.get(f"/v1/streams/{sid}/bundle", headers=_h(owner_key))
     c.get(f"/v1/streams/{sid}/evidence", headers=_h(owner_key))

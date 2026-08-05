@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
+import secrets
 import threading
 from typing import Any
 
@@ -112,6 +114,7 @@ def create_app(
     max_records_per_stream: int = 5_000_000,
     auto_anchor_interval: float = 0.0,
     require_account: bool = True,
+    billing_secret: str | None = None,
     signup_per_min: int = 10,
     ingest_per_min: int = 6000,
     anchor_per_min: int = 60,
@@ -247,6 +250,10 @@ def create_app(
     app.state.anchor = anchor_backend
     app.state.scheduler = scheduler
     app.state.require_account = require_account
+    # Only the payment provider's webhook knows this, so only a real payment can raise a plan.
+    # Unset means no upgrade can be applied over the API at all, which is the safe default for
+    # a self-hosted sink that has no billing provider in front of it.
+    app.state.billing_secret = billing_secret or os.environ.get("PROVENRAIL_BILLING_SECRET")
     app.state.signup_limiter = sec.RateLimiter(signup_per_min, 60.0)
     app.state.ingest_limiter = sec.RateLimiter(ingest_per_min, 60.0)
     # Anchor triggers a TSA round-trip and export/share run a full verify; both are far more
@@ -383,9 +390,20 @@ def create_app(
         return plans.describe(plan, store.get_usage(account_id))
 
     @app.put("/v1/account/plan")
-    def set_plan(body: SetPlanIn, authorization: str | None = Header(default=None)):
-        """Change the account plan. Guarded by billing.manage (owner only). In production a
-        payment-provider webhook calls this after a successful subscription change."""
+    def set_plan(body: SetPlanIn, authorization: str | None = Header(default=None),
+                 x_provenrail_billing_secret: str | None = Header(default=None)):
+        """Change the account plan. This is the billing provider's endpoint, not the user's.
+
+        `billing.manage` is owner-only, which sounds like enough and is not: it grants the
+        owner permission to manage THEIR billing, and this route hands them the plan value
+        directly. An owner on the free tier could PUT {"plan": "enterprise"} with their own
+        API key and receive unlimited events, seats, SSO and exports without paying. Every
+        paid limit in the product was one request away from being free.
+
+        An upgrade therefore requires the billing secret, which only the payment provider's
+        webhook holds. Downgrades stay self-service, because nobody defrauds anyone by asking
+        for less, and locking a user into a plan they are trying to leave is its own problem.
+        """
         principal = _require(authorization, "billing.manage")
         if body.plan not in plans.PLANS:
             raise HTTPException(422, f"unknown plan '{body.plan}'; choose one of "
@@ -393,6 +411,14 @@ def create_app(
         account_id = None if principal is None else principal["account_id"]
         if account_id is None:
             raise HTTPException(400, "account required")
+        current_plan = store.account_plan(account_id) or plans.DEFAULT_PLAN
+        if plans.rank(body.plan) > plans.rank(current_plan):
+            expected = app.state.billing_secret
+            if not expected or not secrets.compare_digest(
+                    str(x_provenrail_billing_secret or ""), str(expected)):
+                raise HTTPException(
+                    402, "an upgrade is applied by the billing provider after payment, not by "
+                         "this API. Use the checkout link; a downgrade is self-service.")
         store.set_account_plan(account_id, body.plan)
         _audit(principal, "billing.set_plan", "account", account_id, {"plan": body.plan})
         return {"account_id": account_id, "plan": body.plan,
@@ -434,7 +460,12 @@ def create_app(
                 raise HTTPException(422, "record missing required fields (record_hash:str, seq:int)")
             if len(_json.dumps(rec, separators=(",", ":")).encode("utf-8")) > caps["max_record_bytes"]:
                 raise HTTPException(413, f"record too large (max {caps['max_record_bytes']} bytes)")
-        receipts = [store.append_record(stream_id, rec) for rec in body.records]
+        try:
+            receipts = [store.append_record(stream_id, rec) for rec in body.records]
+        except storage_mod.SeqConflict as exc:
+            # 409, not 400: the request was well formed, it just conflicts with what is
+            # already recorded. Nothing in this batch was stored.
+            raise HTTPException(409, str(exc)) from None
         if owner is not None:
             store.bump_usage(owner, events=len(receipts))
         # Instant behavioural alerting: if the agent just tried something the policy blocked,
@@ -1021,8 +1052,10 @@ def create_app(
         acct = None if principal is None else principal["account_id"]
         if acct is None:
             raise HTTPException(400, "agent registration requires account mode")
-        if not body.pubkey or len(body.pubkey) != 64:
-            raise HTTPException(422, "pubkey must be a 64-char hex Ed25519 key")
+        # Length alone let "z" * 64 register as a device key. It can never be one, and the
+        # verifier that later tries to parse it has no good option left.
+        if not re.fullmatch(r"[0-9a-f]{64}", body.pubkey or ""):
+            raise HTTPException(422, "pubkey must be a 64-character lowercase hex Ed25519 key")
         store.register_agent_key(acct, body.agent_id, body.pubkey)
         _audit(principal, "agent.register", "agent", body.agent_id, {"pubkey": body.pubkey[:16]})
         return {"agent_id": body.agent_id, "pubkey": body.pubkey, "status": "active"}

@@ -55,13 +55,20 @@ CATALOG: dict[str, dict[str, Any]] = {
                      "workflow destroys a disk and cannot be undone."},
             {"id": "destructive.kubectl-delete-namespace", "effect": "deny",
              "event_type": "tool_call",
-             "arg_contains": r"kubectl\s+delete\s+(namespace|ns)\b",
+             # `namespaces` (plural) is equally valid kubectl and equally destructive; the
+             # word boundary after `namespace` refused to match it.
+             "arg_contains": r"kubectl\s+delete\s+(namespaces?|ns)\b",
              "reason": "argument deletes a Kubernetes namespace and everything in it",
              "note": "A namespace delete cascades to every resource inside it. Scope this "
                      "out if your agent legitimately tears down ephemeral namespaces."},
             {"id": "destructive.recursive-force-remove", "effect": "deny",
-             "event_type": "tool_call", "arg_contains": r"\brm\s+(-[a-zA-Z]*[rf][a-zA-Z]*\s+)+",
-             "reason": "argument contains a recursive or forced rm",
+             # Three spellings of the same deletion. Short flags (-rf, -fr, -r -f), GNU long
+             # options (--recursive --force), and `find ... -delete`, which deletes every
+             # matched file and is what an agent asked to "clean up old files" actually emits.
+             "event_type": "tool_call",
+             "arg_contains": r"\brm\s+((-[a-zA-Z]*[rf][a-zA-Z]*|--(recursive|force))\s+)+"
+                             r"|\bfind\s[^\n]*\s-delete\b",
+             "reason": "argument contains a recursive or forced delete",
              "note": "Matches shell text in ANY tool's arguments, so it also covers a generic "
                      "`terminal` or `bash` tool. Can fire on a doc string that quotes rm -rf."},
             {"id": "destructive.sql-drop-or-truncate", "effect": "deny",
@@ -69,7 +76,11 @@ CATALOG: dict[str, dict[str, Any]] = {
              # `TABLE` is optional after TRUNCATE: PostgreSQL and MySQL both accept
              # `TRUNCATE orders`, and requiring the keyword let the most common spelling of the
              # statement straight through while the copy advertised TRUNCATE as blocked.
-             "arg_contains": r"\b(DROP\s+(TABLE|DATABASE|SCHEMA)\b"
+             # Every DROP object type, not three of them. Dropping a unique index on a
+             # production key, or a view a report depends on, is as destructive as the table.
+             "arg_contains": r"\b(DROP\s+(TABLE|DATABASE|SCHEMA|INDEX|VIEW|MATERIALIZED\s+VIEW"
+                             r"|FUNCTION|PROCEDURE|TRIGGER|SEQUENCE|TYPE|ROLE|USER|EXTENSION"
+                             r"|CONSTRAINT|COLUMN|POLICY|PUBLICATION|SUBSCRIPTION|TABLESPACE)\b"
                              r"|TRUNCATE\s+(TABLE\s+)?[\"'`\w])",
              "reason": "argument contains a destructive SQL statement",
              "note": "Covers a generic query tool. Fires on the text, so a migration tool "
@@ -79,7 +90,10 @@ CATALOG: dict[str, dict[str, Any]] = {
              # Arguments arrive as JSON text, so a statement's end can be a closing quote
              # rather than end-of-string; without the quote alternative, {"q": "DELETE FROM
              # orders", "db": "prod"} slips through because ", \"db\"..." follows the table.
-             "arg_contains": r"\bDELETE\s+FROM\s+[^\s;\"']+\s*(;|\"|'|$)",
+             # The table-name class excluded quotes, so a quoted identifier (`DELETE FROM
+             # "users"`, which Postgres, MySQL and SQLite all accept, and which codegen emits)
+             # left the name group matching nothing and the whole rule failing.
+             "arg_contains": r"\bDELETE\s+FROM\s+[\"'`]?[^\s;\"'`]+[\"'`]?\s*(;|\"|'|$)",
              "reason": "argument contains a DELETE with no WHERE clause",
              "note": "Targets the classic accident: an unbounded DELETE. A deliberate "
                      "full-table delete is blocked too."},
@@ -102,13 +116,24 @@ CATALOG: dict[str, dict[str, Any]] = {
              # `sk-proj-...` and `sk-ant-...` carry a hyphen inside the prefix and the class
              # stopped at it. The copy has advertised "leaked API keys are blocked" throughout,
              # so this matched only the retired key format.
-             "arg_contains": r"\b(sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}"
+             # Stripe uses sk_ with an UNDERSCORE, so the hyphen form matched every OpenAI and
+             # Anthropic key and no Stripe one, and GitHub's fine-grained PATs (github_pat_,
+             # shipped 2022) matched nothing at all. Both are live formats a leaked key arrives
+             # in today.
+             "arg_contains": r"\b(sk-[A-Za-z0-9_-]{20,}|sk_(live|test)_[A-Za-z0-9]{16,}"
+                             r"|rk_(live|test)_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}"
+                             r"|github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,}"
                              r"|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}"
-                             r"|AIza[0-9A-Za-z_-]{30,})",
+                             r"|xapp-[0-9]-[A-Za-z0-9-]{10,}"
+                             r"|AIza[0-9A-Za-z_-]{30,}|ya29\.[0-9A-Za-z_-]{20,}"
+                             r"|glpat-[A-Za-z0-9_-]{16,}|dop_v1_[a-f0-9]{32,}"
+                             r"|npm_[A-Za-z0-9]{30,}|pypi-AgEIcHlwaS5vcmc[A-Za-z0-9_-]{10,}"
+                             r"|hf_[A-Za-z0-9]{30,}|SG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,})",
              "reason": "argument contains what looks like an API token",
-             "note": "Covers OpenAI/Anthropic sk- (including sk-proj- and sk-ant-), GitHub "
-                     "gh*_, Slack xox and Google AIza tokens. A doc example containing a fake "
-                     "token will also match."},
+             "note": "Covers OpenAI/Anthropic sk-, Stripe sk_live/sk_test and webhook secrets, "
+                     "GitHub classic and fine-grained PATs, GitLab, Slack, Google, "
+                     "DigitalOcean, npm, PyPI, HuggingFace and SendGrid. A doc example "
+                     "containing a fake token will also match."},
             {"id": "secrets.jwt", "effect": "deny", "event_type": "tool_call",
              "arg_contains": r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b",
              "reason": "argument contains what looks like a JWT",
@@ -183,7 +208,11 @@ CATALOG: dict[str, dict[str, Any]] = {
              "note": "A force push can destroy history irrecoverably. "
                      "--force-with-lease also matches."},
             {"id": "production.terraform-destroy", "effect": "deny", "event_type": "tool_call",
-             "arg_contains": r"terraform\s+destroy\b",
+             # `terraform destroy` is the deprecated spelling. Current Terraform documents
+             # `terraform apply -destroy` and `terraform plan -destroy`, which is what a
+             # modern pipeline and a modern agent both emit, and -auto-approve makes the flag
+             # form the more dangerous of the two.
+             "arg_contains": r"terraform\s+(destroy\b|(apply|plan)\s[^\n]*-destroy\b)",
              "reason": "argument contains terraform destroy",
              "note": "Very low false-positive risk."},
         ],
@@ -200,9 +229,20 @@ CATALOG: dict[str, dict[str, Any]] = {
              "tool": "*iam*", "reason": "an IAM change requires a recorded human approval",
              "note": "Cloud privilege escalation is a common post-compromise step."},
             {"id": "access.world-writable-chmod", "effect": "deny", "event_type": "tool_call",
-             "arg_contains": r"chmod\s+(-[a-zA-Z]+\s+)*777\b",
+             # An octal prefix (`chmod 0777`, which is what most documentation shows) and the
+             # symbolic forms (`chmod a+rwx`, `chmod o+w`, which is what people type) both
+             # walked past a pattern that demanded the literal digits 777.
+             # World-writable is the "other" digit carrying the write bit, which is 2, 3, 6 or
+             # 7, in a 3 or 4 digit octal mode. Plus the symbolic forms that grant write to
+             # other (`a+rwx`, `o+w`, `ugo+w`). The old pattern demanded the literal digits
+             # 777, so `chmod 0777` (what the docs show) and `chmod a+rwx` (what people type)
+             # both walked straight past it.
+             "arg_contains": r"chmod\s[^\n]*?(0?[0-7]{2}[2367]\b"
+                             r"|[augo]*[ao][augo]*[+=][rwxXst]*w)",
              "reason": "argument makes a path world-writable",
-             "note": "Low false-positive risk."},
+             "note": "World-writable is the OTHER digit carrying the write bit (2, 3, 6 or 7), "
+                     "or a symbolic clause granting write to a or o, so `chmod 755` and "
+                     "`chmod u+w` are untouched. Low false-positive risk."},
             {"id": "access.disable-mfa", "effect": "deny", "event_type": "tool_call",
              "arg_contains": r"(disable|remove|deactivate)[\s_-]*(mfa|2fa|two[\s_-]?factor)",
              "reason": "argument attempts to disable multi-factor authentication",
@@ -224,7 +264,13 @@ CATALOG: dict[str, dict[str, Any]] = {
              "reason": "an outbound upload requires a recorded human approval",
              "note": "Scope to the specific tool if uploading is your agent's main job."},
             {"id": "exfiltration.paste-sites", "effect": "deny", "event_type": "tool_call",
-             "arg_contains": r"\b(pastebin\.com|gist\.github\.com|transfer\.sh|file\.io|0x0\.st)\b",
+             # A five-site list is a list an agent walks around by changing one word. This is
+             # still not exhaustive and cannot be: it is a speed bump, and the note says so.
+             "arg_contains": r"\b(pastebin\.com|gist\.github\.com|transfer\.sh|file\.io"
+                             r"|0x0\.st|ix\.io|dpaste\.(com|org)|hastebin\.com|sprunge\.us"
+                             r"|termbin\.com|paste\.rs|bashupload\.com|oshi\.at|catbox\.moe"
+                             r"|litterbox\.catbox\.moe|anonfiles\.com|gofile\.io|tmpfiles\.org"
+                             r"|ttm\.sh|clbin\.com|envs\.sh|paste\.ee|controlc\.com)\b",
              "reason": "argument references a public paste or file-drop site",
              "note": "A classic exfiltration destination. Blocks legitimate gist use too."},
         ],

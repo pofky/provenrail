@@ -13,6 +13,10 @@ from provenrail.sdk import FlightRecorder
 from provenrail.server.app import create_app
 from provenrail.verifier.verify import verify_bundle
 
+#: Stands in for the payment provider webhook secret. An upgrade is applied by the billing
+#: provider after payment, never by the account holder's own API key.
+BILLING_SECRET = "test-billing-secret"
+
 
 def _h(key):
     return {"Authorization": f"Bearer {key}"}
@@ -36,7 +40,8 @@ def test_assertion_sign_and_verify_roundtrip():
 
 
 def _account_app():
-    app = create_app(":memory:", anchor=LocalAnchor(), require_account=True)
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=True,
+                     billing_secret="test-billing-secret")
     c = TestClient(app)
     acct = c.post("/v1/accounts", json={}).json()
     return app, c, acct["api_key"]
@@ -145,8 +150,23 @@ def test_registry_unchecked_without_pubkey():
 def test_agent_registration_requires_permission():
     app, c, key = _account_app()
     # inviting members is a Team+ feature; upgrade this account so the invite is allowed.
-    c.put("/v1/account/plan", json={"plan": "team"}, headers=_h(key))
+    c.put("/v1/account/plan", json={"plan": "team"},
+          headers={**_h(key), "X-Provenrail-Billing-Secret": BILLING_SECRET})
     # invite a viewer; viewers lack agent.manage
     viewer = c.post("/v1/members", json={"role": "viewer"}, headers=_h(key)).json()["api_key"]
     r = c.post("/v1/agents", json={"agent_id": "x", "pubkey": "ab" * 32}, headers=_h(viewer))
     assert r.status_code == 403
+
+
+def test_a_registered_pubkey_must_be_real_hex():
+    """Length alone let "z" * 64 through. It can never be an Ed25519 key, and the verifier
+    that later tries to parse it is left with no good option."""
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=True,
+                     billing_secret=BILLING_SECRET)
+    c = TestClient(app)
+    key = c.post("/v1/accounts", json={}).json()["api_key"]
+    for bad in ("z" * 64, "A" * 64, "0" * 63, "0" * 65, "", "0x" + "a" * 62):
+        r = c.post("/v1/agents", json={"agent_id": "a", "pubkey": bad}, headers=_h(key))
+        assert r.status_code == 422, bad
+    good = c.post("/v1/agents", json={"agent_id": "a", "pubkey": "ab" * 32}, headers=_h(key))
+    assert good.status_code == 200

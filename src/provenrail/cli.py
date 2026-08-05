@@ -129,7 +129,7 @@ def _cmd_demo(args) -> int:
     print(f"Then change one character in {args.out}, save, and verify again: it will refuse to pass.")
     print()
     print("Optional, once you have seen that:")
-    print(f"  pr report --regime eu-ai-act {args.out} --md     a readable attestation")
+    print(f"  pr report --regime eu-ai-act {args.out} --md     a readable evidence report")
     print(f"  pr verify {args.out} --pin {args.pin}            also check the client pin")
     print( "  verify the public transparency log and its independent witness cosignature:")
     print(f"    pr verify {args.out} \\")
@@ -286,7 +286,14 @@ def _cmd_quickstart(args) -> int:
 
     if args.url:
         # Provision against an already-running sink (yours, or a hosted one).
-        prov = provision_stream(args.url, label=args.label, api_key=args.account_key)
+        try:
+            prov = provision_stream(args.url, label=args.label, api_key=args.account_key)
+        except httpx.HTTPError as exc:
+            print(f"could not reach a Provenrail sink at {args.url}: "
+                  f"{type(exc).__name__}", file=sys.stderr)
+            print("Check the URL, and that the sink is running. `pr quickstart` with no --url "
+                  "starts one locally.", file=sys.stderr)
+            return 1
         cfg = write_config(CONFIG_FILENAME, endpoint=args.url,
                            write_token=prov["write_token"], stream_id=prov["stream_id"],
                            read_token=prov.get("read_token"), share_token=prov.get("share_token"))
@@ -294,6 +301,16 @@ def _cmd_quickstart(args) -> int:
     else:
         # Start a local sink in the background (open mode), wait until healthy, provision.
         url = f"http://127.0.0.1:{args.port}"
+        # Overwriting the pid file orphaned whatever it pointed at: `--stop` could then only
+        # ever kill the most recent sink, and the earlier one kept holding its port with no
+        # way left to stop it.
+        if pid_file.is_file():
+            existing = pid_file.read_text().strip()
+            print(f"a local sink is already recorded as running (pid {existing}).",
+                  file=sys.stderr)
+            print("Run `pr quickstart --stop` first, or use --port for a second one.",
+                  file=sys.stderr)
+            return 1
         proc = subprocess.Popen(
             [sys.executable, "-m", "provenrail.cli", "serve", "--open",
              "--port", str(args.port), "--db", args.db, "--anchor", args.anchor],
@@ -1051,6 +1068,23 @@ def main(argv: list[str] | None = None) -> int:
         # A first-time user following /start may mistype a filename. Show the path, not a traceback.
         print(f"file not found: {e.filename}", file=sys.stderr)
         print("Check the name and that you are in the right folder (`ls` lists files here).",
+              file=sys.stderr)
+        return 2
+    except IsADirectoryError as e:
+        # Tab completion stops at a directory, so this is a slip, not a broken install.
+        print(f"{e.filename} is a directory, not a file.", file=sys.stderr)
+        print("Point at the bundle itself, for example "
+              f"`{e.filename or '.'}/bundle.json`.", file=sys.stderr)
+        return 2
+    except PermissionError as e:
+        print(f"permission denied: {e.filename}", file=sys.stderr)
+        print("Check the file's permissions, or run from an account that can read it.",
+              file=sys.stderr)
+        return 2
+    except OSError as e:
+        # Anything else the filesystem raises. A traceback at the CLI boundary is always a
+        # defect: it tells the user about our internals rather than about their problem.
+        print(f"could not read {getattr(e, 'filename', None) or 'the file'}: {e.strerror or e}",
               file=sys.stderr)
         return 2
     except json.JSONDecodeError as e:

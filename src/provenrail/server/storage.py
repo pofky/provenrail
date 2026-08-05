@@ -48,6 +48,12 @@ CREATE TABLE IF NOT EXISTS records (
     client_record      TEXT NOT NULL,   -- full received record (JSON)
     PRIMARY KEY (stream_id, recv_seq)
 );
+-- Makes the client-seq clash check on ingest a lookup rather than a table scan.
+CREATE INDEX IF NOT EXISTS records_by_client_seq ON records(
+    stream_id,
+    json_extract(client_record, '$.session_id'),
+    json_extract(client_record, '$.seq')
+);
 CREATE TABLE IF NOT EXISTS anchors (
     stream_id     TEXT NOT NULL,
     anchor_seq    INTEGER NOT NULL,
@@ -176,6 +182,14 @@ CREATE INDEX IF NOT EXISTS idx_records_recv_hash ON records(stream_id, recv_hash
 
 def _now() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+class SeqConflict(Exception):
+    """A different record reused a client `seq` this session already holds.
+
+    Raised at the door rather than recorded, because an append-only store cannot take a bad
+    record back: once stored, the stream fails verification forever with no remedy.
+    """
 
 
 class Storage:
@@ -346,6 +360,14 @@ class Storage:
 
         Idempotent: re-sending identical bytes returns the original receipt instead of
         appending a duplicate (replay / retry protection).
+
+        Raises SeqConflict when a DIFFERENT record reuses a client `seq` this stream already
+        holds. Idempotency keys on the exact bytes, so it does not cover that case: anyone
+        holding a write token (a leaked agent credential, for instance) could re-send seq 1
+        with different content, and the store accepted both. The stream then failed
+        verification forever, with duplicate_seq and a broken client chain, and append-only
+        semantics meant there was no way to take it back. Rejecting at the door is the only
+        point at which this is still fixable.
         """
         with self._lock:
             recv_hash = sha256_hex(canonicalize(record))
@@ -360,6 +382,24 @@ class Storage:
                     "recv_hash": recv_hash, "server_prev_hash": dup["server_prev_hash"],
                     "server_record_hash": dup["server_record_hash"], "duplicate": True,
                 }
+            seq = record.get("seq")
+            session_id = record.get("session_id")
+            if seq is not None:
+                # Scoped to the session, because a stream legitimately carries many sessions
+                # and each one restarts its seq at 0.
+                # The client record is stored as JSON, so the clash check reads it back out.
+                # An expression index (records_by_client_seq) keeps this a lookup, not a scan.
+                clash = self._db.execute(
+                    "SELECT recv_seq FROM records WHERE stream_id=? "
+                    "AND json_extract(client_record, '$.seq')=? "
+                    "AND json_extract(client_record, '$.session_id') IS ? LIMIT 1",
+                    (stream_id, seq, session_id),
+                ).fetchone()
+                if clash is not None:
+                    raise SeqConflict(
+                        f"seq {seq} already exists in this session with different content. "
+                        f"The record was NOT stored: accepting it would break the chain "
+                        f"permanently, and an append-only store cannot undo that.")
             cur = self._db.execute(
                 "SELECT recv_seq, server_record_hash FROM records "
                 "WHERE stream_id=? ORDER BY recv_seq DESC LIMIT 1",

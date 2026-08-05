@@ -15,6 +15,10 @@ from provenrail.anchor import LocalAnchor
 from provenrail.server import sso
 from provenrail.server.app import create_app
 
+#: Stands in for the payment provider webhook secret. An upgrade is applied by the billing
+#: provider after payment, never by the account holder's own API key.
+BILLING_SECRET = "test-billing-secret"
+
 
 def _b64u(b: bytes) -> str:
     return base64.urlsafe_b64encode(b).decode().rstrip("=")
@@ -127,11 +131,14 @@ def test_eddsa_token():
 # ---- end to end through the server ----
 
 def _app_with_sso(default_role="member", email_domain=None):
-    app = create_app(":memory:", anchor=LocalAnchor(), require_account=True)
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=True,
+                     billing_secret="test-billing-secret")
     c = TestClient(app)
     owner_key = c.post("/v1/accounts", json={}).json()["api_key"]
     # SSO + members are Team+ features.
-    c.put("/v1/account/plan", json={"plan": "team"}, headers={"Authorization": f"Bearer {owner_key}"})
+    c.put("/v1/account/plan", json={"plan": "team"},
+          headers={"Authorization": f"Bearer {owner_key}",
+                   "X-Provenrail-Billing-Secret": BILLING_SECRET})
     idp = MockIdP()
     cfg = {"issuer": idp.issuer, "audience": "fr-app", "jwks": idp.jwks(),
            "default_role": default_role}
@@ -184,10 +191,13 @@ def test_sso_repeat_login_reuses_member_rotating_key():
 
 
 def test_sso_config_requires_owner():
-    app = create_app(":memory:", anchor=LocalAnchor(), require_account=True)
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=True,
+                     billing_secret="test-billing-secret")
     c = TestClient(app)
     owner_key = c.post("/v1/accounts", json={}).json()["api_key"]
-    c.put("/v1/account/plan", json={"plan": "team"}, headers={"Authorization": f"Bearer {owner_key}"})
+    c.put("/v1/account/plan", json={"plan": "team"},
+          headers={"Authorization": f"Bearer {owner_key}",
+                   "X-Provenrail-Billing-Secret": BILLING_SECRET})
     admin = c.post("/v1/members", json={"role": "admin"},
                    headers={"Authorization": f"Bearer {owner_key}"}).json()["api_key"]
     r = c.put("/v1/sso/config", json={"issuer": "i", "audience": "a", "jwks": {"keys": []}},
