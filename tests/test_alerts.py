@@ -160,3 +160,52 @@ def test_manual_anchor_runs_alert_hook_and_persists_state(monkeypatch):
     # local anchor only -> amber state recorded, no alert event (amber is not an alert trigger)
     assert app.state.store.get_stream_state(prov["stream_id"]) == "amber-proofs"
     assert delivered == []
+
+
+def test_the_documented_verification_recipe_is_the_one_the_sink_actually_uses():
+    """The docs hand a receiver a snippet and tell them to trust it. If the snippet and the
+    signer ever disagree, every honest delivery starts failing verification, and the natural
+    fix a user reaches for is to stop checking the signature at all.
+
+    So this pins the three things the snippet depends on: the MAC is over the raw body bytes
+    before any parsing, it is prefixed `sha256=`, and the replay material the snippet reads
+    (`id` and `at`) is inside the signed body rather than a header, where it cannot be stripped
+    in transit.
+    """
+    import hashlib
+    import hmac
+    import json
+    import re
+    from pathlib import Path
+
+    from provenrail.server import notifier
+
+    secret = "whsec_example"
+    event = {"id": "abc123", "type": "integrity.tampered", "stream_id": "s1",
+             "at": "2026-08-05T12:00:00Z"}
+    raw = json.dumps(event).encode("utf-8")
+    assert notifier.sign(secret, raw) == \
+        "sha256=" + hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+
+    # Whatever the sink puts on the wire must be exactly what it signed.
+    sent = {}
+    class _Client:
+        def post(self, url, content, headers, **kw):
+            sent["body"], sent["sig"] = content, headers["X-Provenrail-Signature"]
+            class R:
+                status_code = 200
+            return R()
+        def close(self): pass
+    assert notifier.deliver("https://ops.example/hook", secret, event, http=_Client())
+    assert sent["sig"] == "sha256=" + hmac.new(
+        secret.encode(), sent["body"], hashlib.sha256).hexdigest()
+    body = json.loads(sent["body"])
+    assert body["id"] and body["at"], "replay material must travel inside the signed body"
+
+    docs = Path(__file__).resolve().parents[1] / "web" / "docs.html"
+    text = docs.read_text(encoding="utf-8")
+    assert "hmac.compare_digest" in text, "the docs must tell receivers to compare in constant time"
+    assert re.search(r'hmac\.new\(secret\.encode\(\),\s*raw_body,\s*hashlib\.sha256\)', text), \
+        "the documented MAC must be taken over the raw body"
+    assert 'event["id"]' in text and 'event["at"]' in text, \
+        "the docs must show the replay check the payload makes possible"

@@ -119,5 +119,11 @@
         }
       }
     }
+  },
+  "legacy_0_1_0": {
+    "file": "legacy_0_1_0.json",
+    "expect_ok": true,
+    "defining_code": null,
+    "description": "a bundle produced by provenrail 0.1.0, the first published release, kept byte-for-byte. Evidence recorded years before a verifier is run is the whole product, so a bundle from an old writer must keep verifying under every later verifier, in both implementations."
   }
 }

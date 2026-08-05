@@ -1,0 +1,200 @@
+{
+  "format": "flightrecorder.bundle/1",
+  "stream_id": "ef4877e0-4686-498f-bb32-8826b0675072",
+  "server_head": {
+    "recv_seq": 5,
+    "server_record_hash": "dc3c26f8b622ef8efe83c92edc9204c7e845715ed720467f767a59ee02a0a63f"
+  },
+  "records": [
+    {
+      "recv_seq": 0,
+      "recv_ts": "2026-08-05T12:18:06.813958Z",
+      "recv_hash": "19f271d0b11a74fcf9fbc0cf90ec81300c1adbcb92056d3b8059f0e7d050750a",
+      "server_prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "server_record_hash": "829daff4f56af5ef5215fae11bbe73518bcab926af5364585d96623a0c752280",
+      "record": {
+        "v": "1",
+        "stream_id": "ef4877e0-4686-498f-bb32-8826b0675072",
+        "session_id": "f98cf748-1ae4-4d39-b4e2-0b11f373152e",
+        "record_id": "4fd9aa8b-87ba-4cdc-a543-e1a40fd7f878",
+        "seq": 0,
+        "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "ts_utc": "2026-08-05T12:18:06.812088Z",
+        "pubkey": "a9cede26c73c09d7dfe7eecc567ad0cce9a287d3f905f7449fa417cfff67d205",
+        "action_type": "lifecycle.session_start",
+        "payload": {
+          "meta": {
+            "agent": "demo-agent",
+            "task": "research and summarize"
+          }
+        },
+        "record_hash": "8a988f50ad6caa7ba81ddb23a573673489652b7fcf1e8988c62669d3244d8d58",
+        "record_sig": "fa5e925a0396f4f95c9b8b50b7d2beb9ed7101d7c5ff1d4ac445f5f101582a95cafd106d8e383c1f72aa986de7cefe95f430d8fefa6d46de86c9c402e371f607"
+      }
+    },
+    {
+      "recv_seq": 1,
+      "recv_ts": "2026-08-05T12:18:06.815611Z",
+      "recv_hash": "417aff72877a944e9fafded318ef0d344d3b6060488b183ad9316f9861302351",
+      "server_prev_hash": "829daff4f56af5ef5215fae11bbe73518bcab926af5364585d96623a0c752280",
+      "server_record_hash": "58996bbe4257337b1a6e2cc663442d11db921e471bdad08407b3eae67cb5ef3e",
+      "record": {
+        "v": "1",
+        "stream_id": "ef4877e0-4686-498f-bb32-8826b0675072",
+        "session_id": "f98cf748-1ae4-4d39-b4e2-0b11f373152e",
+        "record_id": "86ddb478-dc7c-46e6-a9cd-deb151b55c03",
+        "seq": 1,
+        "prev_hash": "8a988f50ad6caa7ba81ddb23a573673489652b7fcf1e8988c62669d3244d8d58",
+        "ts_utc": "2026-08-05T12:18:06.814867Z",
+        "pubkey": "a9cede26c73c09d7dfe7eecc567ad0cce9a287d3f905f7449fa417cfff67d205",
+        "action_type": "model_call",
+        "payload": {
+          "provider": "anthropic",
+          "model": "claude-opus-4-8",
+          "request": {
+            "hash": "bf5f5c9b83d75a120af56c3008d2a60446ebf4a84bd3fd5ce6cbdd0f736bb0a8"
+          },
+          "response": {
+            "hash": "80ccb187a251253dce8c71810e259993f82068f49b7acd2b7b215efbb946cbef"
+          },
+          "usage": {
+            "input": "812",
+            "output": "240"
+          }
+        },
+        "record_hash": "2854647c49bf8d1e747b87cdc9c5bd04a6c0e287f898620097650eb3401bc351",
+        "record_sig": "4c756643ff18b3f03bf2ad889177fdb4db0c2d257b5b7f3849eadccd83d1077778087343e65d7014c5309f598ac4704b60a6d628b096040cdf8790f52cc36808"
+      }
+    },
+    {
+      "recv_seq": 2,
+      "recv_ts": "2026-08-05T12:18:06.817038Z",
+      "recv_hash": "e94086fd6abe7c78c4a108c7a97a87ba44cb2a65006e0c6fc595bc84ce649d82",
+      "server_prev_hash": "58996bbe4257337b1a6e2cc663442d11db921e471bdad08407b3eae67cb5ef3e",
+      "server_record_hash": "dc1fc30559813171d5fbfac0ca7b0ba5a351c4a7eb7dce1481f8bbb26e5c078d",
+      "record": {
+        "v": "1",
+        "stream_id": "ef4877e0-4686-498f-bb32-8826b0675072",
+        "session_id": "f98cf748-1ae4-4d39-b4e2-0b11f373152e",
+        "record_id": "e4b35dc3-d29b-498d-bee9-460ff5d698f4",
+        "seq": 2,
+        "prev_hash": "2854647c49bf8d1e747b87cdc9c5bd04a6c0e287f898620097650eb3401bc351",
+        "ts_utc": "2026-08-05T12:18:06.816319Z",
+        "pubkey": "a9cede26c73c09d7dfe7eecc567ad0cce9a287d3f905f7449fa417cfff67d205",
+        "action_type": "tool_call",
+        "payload": {
+          "tool": "web_search",
+          "outcome": "success",
+          "args": {
+            "hash": "6d5a0186c53d04f7d27f06623b0ed90c2783b325f4b9797321555cf21e45b943"
+          },
+          "result": {
+            "hash": "2bb4c6639f088261dd51e80e0648aa5f5c57dadf00dade1e9efb247d75b64421"
+          }
+        },
+        "record_hash": "e85d8d1803e4a5bd0d59d17ad299ad5bf41f0176e25d21b2074baf4e6db1e1bf",
+        "record_sig": "12dc3525b4d926ef33705c1fc51f4a28f5c2388015f4821920645013315ee9d5b439b5339f871dbd820a6137ae00431a50a0c2962d9d0112b967b18745e7d00a"
+      }
+    },
+    {
+      "recv_seq": 3,
+      "recv_ts": "2026-08-05T12:18:06.818303Z",
+      "recv_hash": "f28db820045187e4494d48cc2171d4a4234117d3809d310cdc069449f9e75853",
+      "server_prev_hash": "dc1fc30559813171d5fbfac0ca7b0ba5a351c4a7eb7dce1481f8bbb26e5c078d",
+      "server_record_hash": "a2fd9f3e87ea6374a8fc377b15b06b4abf5a8337fb7224ff1f0255d1b29da617",
+      "record": {
+        "v": "1",
+        "stream_id": "ef4877e0-4686-498f-bb32-8826b0675072",
+        "session_id": "f98cf748-1ae4-4d39-b4e2-0b11f373152e",
+        "record_id": "b65fc15e-2cb9-4245-8404-f7e637e19997",
+        "seq": 3,
+        "prev_hash": "e85d8d1803e4a5bd0d59d17ad299ad5bf41f0176e25d21b2074baf4e6db1e1bf",
+        "ts_utc": "2026-08-05T12:18:06.817664Z",
+        "pubkey": "a9cede26c73c09d7dfe7eecc567ad0cce9a287d3f905f7449fa417cfff67d205",
+        "action_type": "decision",
+        "payload": {
+          "summary": "answer is grounded; returning to user",
+          "confidence": "high"
+        },
+        "record_hash": "917ab3aea4f26ab0f992f2bb32189549d0a78b9704bdd6a713755eb684fed521",
+        "record_sig": "f1a290c2c19a9910eb7ad5a5cc6cdab967da04f517fbbdac7e29d6db94be70f97d257439131822cc1dad096e2c6a4982d3a9be5a77650387d4e80a3dca42080b"
+      }
+    },
+    {
+      "recv_seq": 4,
+      "recv_ts": "2026-08-05T12:18:06.819575Z",
+      "recv_hash": "dce2118eefba0dd46fc980e9a7be87ca1676f2db1ce29cd2552103276a6023b9",
+      "server_prev_hash": "a2fd9f3e87ea6374a8fc377b15b06b4abf5a8337fb7224ff1f0255d1b29da617",
+      "server_record_hash": "5bd3903175431698dcb2694e4da58f678e5fcc4cd3f44f49fee78e647c37a988",
+      "record": {
+        "v": "1",
+        "stream_id": "ef4877e0-4686-498f-bb32-8826b0675072",
+        "session_id": "f98cf748-1ae4-4d39-b4e2-0b11f373152e",
+        "record_id": "82d16428-60da-440b-89e4-44b80e97ca7e",
+        "seq": 4,
+        "prev_hash": "917ab3aea4f26ab0f992f2bb32189549d0a78b9704bdd6a713755eb684fed521",
+        "ts_utc": "2026-08-05T12:18:06.818930Z",
+        "pubkey": "a9cede26c73c09d7dfe7eecc567ad0cce9a287d3f905f7449fa417cfff67d205",
+        "action_type": "human_oversight",
+        "payload": {
+          "action": "approved",
+          "approver": "freelancer@example.com"
+        },
+        "record_hash": "c474310b284ea419229184d95058d4ef9bf65d2f2704d2eb12100ba0a289b881",
+        "record_sig": "e61a130be765c982a028721f4b323a27a8bda12aaca4bd1fdc4abed92f5f371b73d1230378aea6b8e86dc5cf882fd8c697b2697af3bdbbbb4e874c3be04fdb0e"
+      }
+    },
+    {
+      "recv_seq": 5,
+      "recv_ts": "2026-08-05T12:18:06.820866Z",
+      "recv_hash": "c4de04475c902d86d104a819075b3754ad49b386998bd87dfc0b308d77e81379",
+      "server_prev_hash": "5bd3903175431698dcb2694e4da58f678e5fcc4cd3f44f49fee78e647c37a988",
+      "server_record_hash": "dc3c26f8b622ef8efe83c92edc9204c7e845715ed720467f767a59ee02a0a63f",
+      "record": {
+        "v": "1",
+        "stream_id": "ef4877e0-4686-498f-bb32-8826b0675072",
+        "session_id": "f98cf748-1ae4-4d39-b4e2-0b11f373152e",
+        "record_id": "5e1354bc-03cb-40d8-834f-31a4db330654",
+        "seq": 5,
+        "prev_hash": "c474310b284ea419229184d95058d4ef9bf65d2f2704d2eb12100ba0a289b881",
+        "ts_utc": "2026-08-05T12:18:06.820214Z",
+        "pubkey": "a9cede26c73c09d7dfe7eecc567ad0cce9a287d3f905f7449fa417cfff67d205",
+        "action_type": "lifecycle.session_end",
+        "payload": {
+          "outcome": "success",
+          "trigger": "normal",
+          "count": "5",
+          "session_hash": "941775752d1c01b4cd7d3930e349f66068ecd0dbd6e6a312d848b8657e0bd657"
+        },
+        "record_hash": "41578c616f69c0538eb04025ad904dd319401b8a44ca2f6d356f17ac42e10a4e",
+        "record_sig": "cde5ab6b50d79c20744466215dd07dab4bf08bb87d69fc27d73e334850e7702804a42ba4ed274170c7d41089ef5548b1e331aed8ff0ed8691e846ddba88c9302"
+      }
+    }
+  ],
+  "anchors": [
+    {
+      "anchor_seq": 0,
+      "covers_up_to": 5,
+      "receipt": {
+        "kind": "local",
+        "merkle_root": "1589cbcc4f62c552b744d40f4a8e8f602763ae2cb0d504cf9b2b149427302609",
+        "gen_time": "2026-08-05T12:18:06.822174Z",
+        "token_b64": null,
+        "signature": "fdf2c77f6273e0813f490c4b7bd79f1408af5669cb4dbdc4f70f11c7d9b039a572b8c2537aeb14933b15f6a04bed644a4805607b93963837ddc5e8b5b1149c09",
+        "anchor_pubkey": "6e621c1037a3c3e50ac6e9f13fb34142d39aaf6ee93146a24f06e83ad5cd1459",
+        "tsa_url": null
+      },
+      "tlog_inclusion": {
+        "kind": "tlog_inclusion",
+        "log_origin": "flightrecorder.io/v1/anchors/shared",
+        "leaf_index": 0,
+        "tree_size": 1,
+        "proof_hashes": [],
+        "checkpoint": "flightrecorder.io/v1/anchors/shared\n1\nm8IXQpMvUPR6v9CSSdcyOf7AG6xMqGP/LOm8cY/ERfI=\n\n\u2014 flightrecorder.io/v1/anchors/shared 94eCO7gK3hpcgd8+M+IknaBSZ9xTRbQ7kGzYswl9pSpnCgbbT6K6P1uI1Lh5FmgOJawfDe0c3ERlu9M5aYbEZTEicAw=\n\u2014 demo-witness VJx09gAAAABqcyn++2du9SdCdWZ1qGpNe0rQJg5JlIkwT1AlhTj565way9lmnJoRLN/qIb7X6c7NkpBf3gn7hlmpjApuZFYptA/nAA==\n"
+      },
+      "scitt_receipt": "0oRYYaQBJwRYIO1lPcwtgdjuVm9Xg+cVkIHL3ZJ3tauKW4IY1buIrJLTD6IBbXByb3ZlbnJhaWwuaW8CeCRlZjQ4NzdlMC00Njg2LTQ5OGYtYmIzMi04ODI2YjA2NzUwNzI4bgGhON2hIIFEgwEAgFggm8IXQpMvUPR6v9CSSdcyOf7AG6xMqGP/LOm8cY/ERfJYQMiM8x05xPb6VA6oogKkBSlR7FBXdysyY9v9oaugO5QaU83jNnGsN+4gnUubGHD7bg3uxkIMVaNwUexpluOMYgQ="
+    }
+  ],
+  "tlog_schema_version": 1,
+  "scitt_schema_version": 1
+}

@@ -357,6 +357,23 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
       in the <code>X-Provenrail-Signature</code> header, so you can confirm it came from your sink.
       Delivery runs off the ingest path, so a slow or dead endpoint of yours can never slow down or
       block your agent.</p>
+    <p>Verify it over the <strong>raw request body</strong>, before any JSON parsing, and compare in
+      constant time:</p>
+    <pre><code><span class="g">import</span> hmac, hashlib, json, time
+
+<span class="g">def</span> handle(raw_body: bytes, headers, secret: str):
+    expected = <span class="s">"sha256="</span> + hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+    <span class="g">if not</span> hmac.compare_digest(expected, headers[<span class="s">"X-Provenrail-Signature"</span>]):
+        <span class="g">raise</span> ValueError(<span class="s">"not from the sink"</span>)          <span class="c"># never == on a MAC</span>
+    event = json.loads(raw_body)
+    <span class="c"># Replay defence is inside the signed body, so it cannot be stripped:</span>
+    <span class="c">#   event["id"] is unique per alert  -> drop one you have already handled</span>
+    <span class="c">#   event["at"] is when it was sent  -> reject anything older than a few minutes</span>
+    <span class="g">if</span> seen(event[<span class="s">"id"</span>]): <span class="g">return</span>
+    <span class="g">if</span> time.time() - iso_to_epoch(event[<span class="s">"at"</span>]) &gt; 300: <span class="g">raise</span> ValueError(<span class="s">"stale"</span>)
+    act_on(event)</code></pre>
+    <p>A delivery that gets no <code>2xx</code> is retried twice and then dropped, so your handler
+      should be idempotent, which the <code>id</code> check above already makes it.</p>
     <p><strong>Alert endpoints must be publicly reachable.</strong> A webhook pointing at
       <code>localhost</code>, a private range, or a link-local address is rejected, and the host is
       re-resolved at delivery time as well, so a name that turns internal later stops being
