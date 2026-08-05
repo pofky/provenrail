@@ -43,9 +43,15 @@ Deno.serve(async (req) => {
     // deno-lint-ignore no-explicit-any
     const s = session as any;
     const url = s.customerPortalUrl ?? s.customer_portal_url ?? null;
-    if (!url) return json({ error: "no_portal_url" }, 502);
+    if (!url) return json({ error: "We could not open the billing portal just now. Please try " +
+                                   "again, or email support@provenrail.com." }, 502);
     return json({ url }, 200);
   } catch (e) {
-    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+    // Same reasoning as polar-checkout: never put Polar's raw validation JSON in front of a
+    // paying customer. "Customer does not exist" in particular is our plumbing, not their
+    // problem, and it is what they would see if the webhook had not linked them yet.
+    console.error("polar-portal failed:", e);
+    return json({ error: "We could not open the billing portal just now. Your subscription is " +
+                         "unaffected. Please try again, or email support@provenrail.com." }, 502);
   }
 });

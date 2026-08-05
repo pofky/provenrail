@@ -57,6 +57,13 @@ Deno.serve(async (req) => {
     });
     return json({ url: checkout.url }, 200);
   } catch (e) {
-    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+    // The Polar SDK's message is its raw validation payload: nested JSON with `loc` paths and
+    // internal field names. It went straight into a toast on the page where someone is trying
+    // to pay us, which reads as a broken product. Keep the detail in the function logs, where
+    // it is useful, and give the user a sentence and a way out.
+    console.error("polar-checkout failed:", e);
+    return json({ error: "We could not start checkout just now. Nothing was charged. " +
+                         "Please try again, and email support@provenrail.com if it keeps " +
+                         "happening." }, 502);
   }
 });
