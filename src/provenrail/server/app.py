@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from .. import redaction
 from ..anchor import Anchor, LocalAnchor
+from ..canonical import CanonicalError
 from . import approvals as approvals_mod
 from . import plans
 from . import security as sec
@@ -466,6 +467,15 @@ def create_app(
             # 409, not 400: the request was well formed, it just conflicts with what is
             # already recorded. Nothing in this batch was stored.
             raise HTTPException(409, str(exc)) from None
+        except CanonicalError as exc:
+            # A record that cannot be canonicalized can never be hashed, so it can never be
+            # verified, and storing it would put a permanently unverifiable entry into an
+            # append-only chain. The two ways in are a float and an integer outside the
+            # JS-safe range, both of which a real client produces by accident (a token count
+            # from a buggy provider SDK, a nanosecond timestamp). It reached the caller as a
+            # 500, which reads as "our fault, retry" for a record that will never be accepted.
+            raise HTTPException(422, f"record cannot be canonicalized, so it could never be "
+                                     f"verified: {exc}") from None
         if owner is not None:
             store.bump_usage(owner, events=len(receipts))
         # Instant behavioural alerting: if the agent just tried something the policy blocked,
@@ -1067,9 +1077,15 @@ def create_app(
         acct = None if principal is None else principal["account_id"]
         if acct is None:
             raise HTTPException(400, "agent rotation requires account mode")
-        if not body or len(body.new_pubkey or "") != 64:
-            raise HTTPException(422, "new_pubkey must be a 64-char hex Ed25519 key")
-        store.rotate_agent_key(acct, agent_id, body.old_pubkey, body.new_pubkey)
+        # Same hex check as registration: length alone let "z" * 64 through, and a key that can
+        # never parse is not a key.
+        if not body or not re.fullmatch(r"[0-9a-f]{64}", body.new_pubkey or ""):
+            raise HTTPException(422, "new_pubkey must be a 64-character lowercase hex Ed25519 key")
+        if not store.rotate_agent_key(acct, agent_id, body.old_pubkey, body.new_pubkey):
+            # Answering 200 here told someone mid-incident that a key they believe is stolen had
+            # been revoked, when it was still live and a second live key had just been added.
+            raise HTTPException(404, "old_pubkey is not an active key for this agent; nothing "
+                                     "was rotated and no new key was added")
         _audit(principal, "agent.rotate", "agent", agent_id)
         return {"agent_id": agent_id, "new_pubkey": body.new_pubkey, "rotated": True}
 

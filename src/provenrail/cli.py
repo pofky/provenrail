@@ -216,8 +216,18 @@ def _cmd_ots_verify(args) -> int:
     from . import ots
     data_hex = args.data_sha256
     if not data_hex:
-        # Default: stamp target is the file's own SHA-256.
-        with open(args.proof.replace(".ots", ""), "rb") as fh:
+        # Default: a proof stamps a file, and the convention is that `x.ots` stamps `x`. Strip
+        # only a trailing .ots, not every occurrence anywhere in the path.
+        stamped = args.proof[:-4] if args.proof.endswith(".ots") else args.proof
+        if not Path(stamped).is_file():
+            # The old message was `file not found: test`, naming a path the user never typed
+            # and never explaining where it came from.
+            print(f"a proof stamps a file, and {args.proof} is the proof, not the data.",
+                  file=sys.stderr)
+            print(f"Put the stamped file next to it as {stamped}, or pass the digest directly "
+                  f"with --data-sha256 <hex>.", file=sys.stderr)
+            return 2
+        with open(stamped, "rb") as fh:
             data_hex = __import__("hashlib").sha256(fh.read()).hexdigest()
     roots: dict[int, str] = {}
     for pair in args.block_root or []:
@@ -542,17 +552,31 @@ def _cmd_rules(args) -> int:
                   "patterns. Write custom rules for your actual tool names.")
         return 0
 
+    # Without --check, --use used to be ignored: `pr rules --use secretts` printed the whole
+    # catalogue and exited 0, so a typo in a pack name looked exactly like success. That same
+    # typo in .provenrail.json is how someone ends up believing a pack is armed when it is not.
+    packs = rulesets.CATALOG
+    if args.use:
+        wanted = [p.strip() for p in args.use.split(",") if p.strip()]
+        unknown = [p for p in wanted if p not in rulesets.CATALOG]
+        if unknown:
+            print(f"unknown pack{'s' if len(unknown) > 1 else ''}: {', '.join(unknown)}",
+                  file=sys.stderr)
+            print(f"available: {', '.join(rulesets.CATALOG)}", file=sys.stderr)
+            return 2
+        packs = {p: rulesets.CATALOG[p] for p in wanted}
+
     if args.json:
         print(json.dumps({"packs": {k: {"title": v["title"],
                                         "description": v["description"],
                                         "rules": v["rules"]}
-                                    for k, v in rulesets.CATALOG.items()}}, indent=2))
+                                    for k, v in packs.items()}}, indent=2))
         return 0
 
     print("Prebuilt guardrail packs. Nothing is enabled by default.\n")
     print('Enable in .provenrail.json:  {"policy": {"use": ["destructive", "secrets"]}}')
     print("You can name a whole pack, or a single rule id, and mix with your own rules.\n")
-    for pack, spec in rulesets.CATALOG.items():
+    for pack, spec in packs.items():
         print(f"{pack}  ({spec['title']})")
         print(f"  {spec['description']}")
         for rule in spec["rules"]:
@@ -914,7 +938,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     ov = sub.add_parser("ots-verify",
                         help="verify an OpenTimestamps (Bitcoin) proof offline")
-    ov.add_argument("proof", help="path to the .ots proof file")
+    ov.add_argument("proof", help="path to the .ots proof file; the stamped data is read from "
+                                  "the same path without .ots unless --data-sha256 is given")
     ov.add_argument("--data-sha256", help="SHA-256 hex of the stamped data (the proof's file digest)")
     ov.add_argument("--block-root", action="append",
                     help="a trusted Bitcoin header as height=merkle_root_hex (repeatable)")
@@ -1094,6 +1119,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"that file is not valid JSON ({e.msg} at line {e.lineno}).", file=sys.stderr)
         print("If you edited it by hand, a stray character can break the format. Re-export it, "
               "or run `pr demo` for a fresh bundle.", file=sys.stderr)
+        return 2
+    except RuntimeError as e:
+        # Every RuntimeError raised inside this package is a sentence written for a person: "no
+        # Provenrail endpoint configured. Run `pr quickstart`..." is the exact help someone
+        # running `pr sidecar` in a fresh folder needs. It reached them wrapped in eleven lines
+        # of traceback through easy.py and cli.py, which reads as a crash and buries the one
+        # useful line. Print the message; the traceback told the user only about our internals.
+        print(str(e), file=sys.stderr)
         return 2
     except KeyboardInterrupt:
         return 130

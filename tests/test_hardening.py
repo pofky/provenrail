@@ -1,3 +1,4 @@
+
 from fastapi.testclient import TestClient
 
 from provenrail.server.app import create_app
@@ -118,3 +119,53 @@ def test_anchor_rate_limit_enforced():
     second = c.post(f"/v1/streams/{prov['stream_id']}/anchor", headers=h)
     assert first.status_code == 200
     assert second.status_code == 429
+
+
+def test_an_uncanonicalizable_record_is_refused_not_a_crash():
+    """A float or an out-of-JS-range integer anywhere in a record means the record can never be
+    hashed, so it can never be verified. It reached the client as a 500, which reads as "our
+    fault, retry", for a record that will never be accepted no matter how often it is sent."""
+    from provenrail.anchor import LocalAnchor
+    from provenrail.ingest_client import provision_stream
+    from provenrail.server.app import create_app
+
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=False)
+    c = TestClient(app)
+    prov = provision_stream("http://t", http=c)
+    h = {"Authorization": f"Bearer {prov['write_token']}"}
+    base = {"stream_id": prov["stream_id"], "record_hash": "bb" * 32, "seq": 0,
+            "action_type": "model_call", "ts_utc": "2026-01-01T00:00:00Z"}
+    for bad in ({**base, "seq": 0, "payload": {"cost": 1.5}},
+                {**base, "seq": 1, "payload": {"tokens": 9007199254740992}},
+                {**base, "seq": 2, "payload": {"nested": {"deep": [1, 2.25]}}}):
+        r = c.post("/v1/ingest", json={"records": [bad]}, headers=h)
+        assert r.status_code == 422, (r.status_code, r.text)
+        assert "canonicaliz" in r.text
+
+
+def test_rotating_with_the_wrong_old_key_changes_nothing():
+    """A rotation is what someone does the hour they think a key was stolen, and the only
+    question that matters is whether the old key is dead. It used to revoke nothing, add the new
+    key anyway, and answer 200: the compromised key stayed active and a second live key
+    appeared."""
+    from provenrail.anchor import LocalAnchor
+    from provenrail.server.app import create_app
+
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=True,
+                     billing_secret="s")
+    c = TestClient(app)
+    key = c.post("/v1/accounts", json={}).json()["api_key"]
+    h = {"Authorization": f"Bearer {key}"}
+    real, other, new = "aa" * 32, "bb" * 32, "cc" * 32
+    assert c.post("/v1/agents", json={"agent_id": "a", "pubkey": real}, headers=h).status_code == 200
+
+    r = c.post("/v1/agents/a/rotate", json={"old_pubkey": other, "new_pubkey": new}, headers=h)
+    assert r.status_code == 404, r.text
+    keys = c.get("/v1/agents", headers=h).json()["agents"]
+    assert [(k["pubkey"], k["status"]) for k in keys] == [(real, "active")], (
+        "a failed rotation must add nothing and revoke nothing")
+
+    ok = c.post("/v1/agents/a/rotate", json={"old_pubkey": real, "new_pubkey": new}, headers=h)
+    assert ok.status_code == 200
+    after = {k["pubkey"]: k["status"] for k in c.get("/v1/agents", headers=h).json()["agents"]}
+    assert after == {real: "revoked", new: "active"}

@@ -727,19 +727,32 @@ class Storage:
             self._db.commit()
 
     def rotate_agent_key(self, account_id: str, agent_id: str, old_pubkey: str,
-                         new_pubkey: str) -> None:
+                         new_pubkey: str) -> bool:
         """Register a new key for an agent and revoke the old one. Records signed by the old
         key stay verifiable (its assertion is kept with revoked_at), but new records must use
-        the new key. Both rows are retained so historical evidence still resolves."""
+        the new key. Both rows are retained so historical evidence still resolves.
+
+        Returns False, and changes nothing, when `old_pubkey` is not this agent's active key.
+
+        It used to revoke nothing in that case (the UPDATE simply matched no rows) and add the
+        new key anyway, then answer 200. A rotation is what someone does the hour they believe a
+        key was stolen, and the one thing they need to be told is whether the old key is dead.
+        Reporting success while leaving it active, and while adding a second live key, is the
+        worst possible answer to that question.
+        """
         with self._lock:
-            self._db.execute(
+            cur = self._db.execute(
                 "UPDATE agent_keys SET status='revoked', revoked_at=? "
-                "WHERE account_id=? AND agent_id=? AND pubkey=?",
+                "WHERE account_id=? AND agent_id=? AND pubkey=? AND status='active'",
                 (_now(), account_id, agent_id, old_pubkey))
+            if cur.rowcount == 0:
+                self._db.rollback()
+                return False
             self._db.execute(
                 "INSERT OR IGNORE INTO agent_keys(account_id, agent_id, pubkey, registered_at) "
                 "VALUES (?,?,?,?)", (account_id, agent_id, new_pubkey, _now()))
             self._db.commit()
+            return True
 
     def revoke_agent_key(self, account_id: str, agent_id: str, pubkey: str) -> bool:
         with self._lock:

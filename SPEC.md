@@ -97,6 +97,18 @@ pin_sig = Ed25519_sign(privkey, canonicalize(body))
   anchors: [ { anchor_seq, covers_up_to, receipt } ] }
 ```
 
+`server_head` is `{ recv_seq, server_record_hash }` for the last record in the stream. A
+verifier that sees it MUST check it against the receipt chain it recomputed itself, and fail
+with `server_head_mismatch` if either field disagrees. A field that names the end of the chain
+and is never checked is worse than no field: an export could carry any head at all, including
+one belonging to a different stream, and still verify.
+
+Before any hash is computed, a verifier MUST reject a structurally invalid bundle with
+`malformed_bundle`: `records` and `anchors` present but not lists, an element of either that is
+not an object, a `record` that is not an object, or a `seq` that is not an integer. Verifiers
+that instead run until an incidental type error is raised will disagree with each other about
+the same file, because which operation raises first is an implementation detail.
+
 ## 7. Verification algorithm
 
 A conforming verifier MUST recompute every value below from scratch and MUST NOT trust any
@@ -340,9 +352,11 @@ sizes. Any break is `tlog_consistency_fail` (fail).
 - green: no fail and `tlog_inclusion_witnessed_ok` present (at least one valid cosignature
   from a configured witness key).
 
-A bundle produced for an Audit Trail plan MUST carry `tlog_schema_version: 1` and a
-`tlog_inclusion` on every anchor; for that tier the verifier treats
-`tlog_inclusion_unwitnessed` as a fail, and the scheduler refuses to finalize an un-cosigned
+A verifier MAY be run in **audit-trail mode**, in which `tlog_inclusion_unwitnessed` is a fail
+rather than a warning: a bundle in that mode MUST carry `tlog_schema_version: 1` and a
+`tlog_inclusion` on every anchor. This is a verification strictness setting (the `audit_trail`
+parameter of `verify_bundle`), not a product tier, and it is deliberately not exposed on the
+`pr verify` command line. The scheduler independently refuses to finalize an un-cosigned
 checkpoint when a witness threshold of one or more is configured.
 
 ## 12. Agent identity registry (Know Your Agent)
@@ -456,6 +470,9 @@ attested as enforced, not re-verified. Like the rest of the product, it is a che
 framed without overclaiming.
 
 ## 14. Coherence signals (non-normative)
+
+This section is verification **step 11**; the numbering of steps 1 to 14 in an implementation
+follows the section order, and step 11 is the coherence pass described here.
 
 A verifier MAY emit heuristic `warn`/`info` signals that point a reviewer at structural oddities:
 `nonmonotonic_ts`, `time_gap`, `duplicate_record_id`, `usage_missing`, `no_governance`,

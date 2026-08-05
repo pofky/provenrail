@@ -62,15 +62,37 @@ CATALOG: dict[str, dict[str, Any]] = {
              "note": "A namespace delete cascades to every resource inside it. Scope this "
                      "out if your agent legitimately tears down ephemeral namespaces."},
             {"id": "destructive.recursive-force-remove", "effect": "deny",
-             # Three spellings of the same deletion. Short flags (-rf, -fr, -r -f), GNU long
-             # options (--recursive --force), and `find ... -delete`, which deletes every
-             # matched file and is what an agent asked to "clean up old files" actually emits.
+             # RECURSION is the thing that cannot be undone: `rm -rf` empties a tree, `rm -f`
+             # deletes the files you named. Both spellings of recursion are here (short flags in
+             # any order, GNU --recursive) plus `find ... -delete`, which deletes every match and
+             # is what an agent asked to "clean up old files" actually emits.
+             #
+             # Plain `rm -f one-file.txt` used to be denied by this rule, and the destructive
+             # pack is on by default. An agent that cannot delete a build artifact is an agent
+             # whose owner switches the whole pack off inside a day, taking every working rule
+             # with it. Forced non-recursive deletes are covered below, as an approval rather
+             # than a refusal.
              "event_type": "tool_call",
-             "arg_contains": r"\brm\s+((-[a-zA-Z]*[rf][a-zA-Z]*|--(recursive|force))\s+)+"
+             "arg_contains": r"\brm\s+(-[a-zA-Z]*r[a-zA-Z]*|--recursive)\b"
+                             r"|\brm\s+(-[a-zA-Z]+\s+)*--recursive\b"
                              r"|\bfind\s[^\n]*\s-delete\b",
-             "reason": "argument contains a recursive or forced delete",
-             "note": "Matches shell text in ANY tool's arguments, so it also covers a generic "
-                     "`terminal` or `bash` tool. Can fire on a doc string that quotes rm -rf."},
+             "reason": "argument contains a recursive delete",
+             "note": "Recursive deletes only (rm -r / -rf / --recursive, and find -delete). A "
+                     "forced but non-recursive `rm -f file` is handled by "
+                     "destructive.force-remove instead, because denying it breaks ordinary "
+                     "work. Matches shell text in ANY tool's arguments, so it also covers a "
+                     "generic `terminal` or `bash` tool, and can fire on a doc string that "
+                     "quotes rm -rf."},
+            {"id": "destructive.force-remove", "effect": "require_oversight",
+             # Not a refusal: `rm -f` is ordinary in a build directory and irreversible in a
+             # home directory, and the rule cannot tell which one it is looking at. A recorded
+             # human decision is the honest response to a genuinely ambiguous action.
+             "event_type": "tool_call",
+             "arg_contains": r"\brm\s+((-[a-zA-Z]*f[a-zA-Z]*|--force)\s+)+",
+             "reason": "a forced delete skips every confirmation, so it needs a recorded human "
+                       "decision",
+             "note": "Fires on `rm -f` without recursion. Scope it out if your agent's job is "
+                     "cleaning build output; the recursive rule above still denies `rm -rf`."},
             {"id": "destructive.sql-drop-or-truncate", "effect": "deny",
              "event_type": "tool_call",
              # `TABLE` is optional after TRUNCATE: PostgreSQL and MySQL both accept

@@ -90,6 +90,20 @@
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.18</span><span class="date">August 5, 2026</span><span class="tag">Verification</span></div>
+      <ul>
+        <li><b>The two verifiers no longer disagree about a broken file.</b> A structurally invalid bundle (a list-valued key set to a string, a missing <code>stream_id</code>, a <code>seq</code> that is not a number) made the CLI report TAMPERING DETECTED while the browser threw and showed a neutral "could not verify". Same file, opposite readings, which is the exact failure a second implementation exists to prevent. Both now decide the shape up front by identical rules, and a test asserts they agree on the verdict and the full finding set across 26 malformed shapes.</li>
+        <li><b><code>server_head</code> is checked.</b> The bundle carries the hash of the chain's last record and neither verifier ever looked at it, so an export could claim any head at all, including one from a different stream, and still verify.</li>
+        <li><b>An account could grant itself the top tier.</b> <code>PUT /v1/account/plan</code> took the plan from the request body behind an owner-only permission, so a free account could name itself enterprise and receive unlimited events, seats, SSO and exports. An upgrade now requires the payment provider's secret; a downgrade stays self-service.</li>
+        <li><b>A tab defeated every guardrail.</b> Arguments are matched as JSON text, where a real tab becomes the two characters backslash-t, so <code>rm</code> and <code>-rf</code> separated by a tab matched nothing. Argv arrays had the same problem through the <code>decide()</code> API. Both are normalized before matching now.</li>
+        <li><b><code>rm -f one-file.txt</code> is no longer refused outright.</b> It was denied by a pack that is on by default, and a guardrail that blocks ordinary work gets switched off within a day, taking the working rules with it. Recursion is what cannot be undone, so recursion is what is refused; a forced non-recursive delete asks for a recorded human decision instead.</li>
+        <li><b>Rotating an agent key with the wrong old key changed nothing, and said it succeeded.</b> The old key stayed active and a second live key appeared. It is a 404 now, with nothing written.</li>
+        <li><b>Cached-read prices for <code>o1</code> and <code>o3-mini</code> were half the real figure</b>, so spend caps under-counted every cached call on those models.</li>
+        <li><b>The CLI stopped printing tracebacks.</b> A missing sink, a directory where a file was expected, an unreadable file and a mistyped rule pack all say what happened and what to do. A mistyped pack used to print the whole catalogue and exit 0, which looked exactly like success.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.2.17</span><span class="date">August 4, 2026</span><span class="tag">Guardrails</span></div>
       <ul>
         <li><b>Everything we advertise is now actually blocked.</b> Testing a fresh install against our own marketing copy found five claims the code did not keep: <code>chmod 777</code> lived in a pack the default install never armed; <code>TRUNCATE orders</code> slipped through because the rule required the optional <code>TABLE</code> keyword; <code>dd of=/dev/</code> and <code>kubectl delete namespace</code> had no rule at all; and the token pattern matched only the retired <code>sk-</code> key format, missing every current <code>sk-proj-</code> and <code>sk-ant-</code> key.</li>

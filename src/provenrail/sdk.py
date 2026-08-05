@@ -52,10 +52,23 @@ def _match_text(value: Any) -> str:
     by default), so a content gate stays local and private."""
     if isinstance(value, str):
         return value[:20000]
+    if isinstance(value, list) and all(isinstance(v, str) for v in value):
+        # An argv array IS a command line, and every content rule is written against command
+        # lines. Serialized as JSON it reads `["rm", "-rf", "/"]`, where the quotes and commas
+        # between the program and its flags defeat `\brm\s+-rf` and every pattern like it. The
+        # hook path already joined argv back into a command; a caller using the `decide()` API
+        # directly got the JSON, and an allow.
+        return " ".join(value)[:20000]
     try:
-        return json.dumps(value, default=str, ensure_ascii=False)[:20000]
+        text = json.dumps(value, default=str, ensure_ascii=False)[:20000]
     except Exception:
         return str(value)[:20000]
+    # json.dumps turns a real tab into the two characters backslash-t, so `rm\t-rf /` stopped
+    # matching `\brm\s+-rf`: a shell treats a tab as whitespace and the matcher no longer did.
+    # Undo that one substitution, for whitespace only, so the text a rule sees is the text a
+    # shell would run. Nothing else is unescaped: a literal backslash-n inside a string stays
+    # as written.
+    return text.replace("\\t", " ").replace("\\n", " ").replace("\\r", " ")
 
 
 def _digest(value: Any) -> dict[str, Any]:

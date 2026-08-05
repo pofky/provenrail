@@ -44,7 +44,12 @@ function canonicalString(s) {
 export class CanonicalError extends Error {}
 
 function canon(value) {
-  if (value === null) return "null";
+  // `undefined` is what JavaScript hands back for a key the bundle does not contain, and Python
+  // hands back None for the same read and canonicalizes it as null. Parsed JSON never contains
+  // undefined, so this cannot change the canonical form of any real record; it only stops a
+  // missing key from throwing here while the CLI carries on and reports a hash mismatch. A
+  // bundle with no stream_id is exactly that case.
+  if (value === null || value === undefined) return "null";
   const t = typeof value;
   if (t === "boolean") return value ? "true" : "false";
   if (t === "string") return canonicalString(value);
@@ -1034,7 +1039,82 @@ async function verifyRedactions(records, rep, openings) {
   }
 }
 
+/** Any structural defect in the file, as a verdict rather than an exception.
+ *
+ * The CLI has always ended in a verdict for a malformed bundle, because every structural error
+ * it can raise is caught at the boundary and reported as `malformed_bundle`. The browser had no
+ * such boundary, so `"anchors": "x"` reached `.every` and threw, and a missing `stream_id`
+ * reached canon() and threw, and the page showed a neutral "could not verify" for a file the CLI
+ * called TAMPERED. Two implementations exist precisely so that one catches what the other misses;
+ * disagreeing on a file is the one outcome that makes the pair worth less than either alone.
+ *
+ * Guarding the two shapes that were found would leave the next one. The boundary is what Python
+ * has, so it is what the browser gets.
+ */
 export async function verifyBundle(bundle, pin = null, opts = {}) {
+  try {
+    return await _verifyBundle(bundle, pin, opts);
+  } catch (err) {
+    const rep = new Report();
+    if (err instanceof CanonicalError) {
+      rep.add("fail", "not_canonicalizable",
+        `a record in this bundle cannot be canonicalized, so no hash over it can be checked and ` +
+        `nothing in it can be verified: ${err.message}`);
+    } else if (err instanceof TypeError || err instanceof RangeError || err instanceof SyntaxError) {
+      rep.add("fail", "malformed_bundle",
+        `this bundle is structurally invalid and could not be verified ` +
+        `(${err.constructor.name}: ${err.message})`);
+    } else {
+      throw err;
+    }
+    return rep.toDict();
+  }
+}
+
+/** The bundle's shape, checked before anything is hashed. null means the shape is sound.
+ *
+ * Kept in lockstep with `_structural_defect` in src/provenrail/verifier/verify.py, message for
+ * message. Each implementation used to run a malformed bundle until some incidental operation
+ * raised, and which one raised first differed between the two: `"anchors": "x"` stopped Python
+ * at a type error and gave one `malformed_bundle`, while JavaScript walked the string and
+ * reported "anchor undefined". Same file, same verdict word, different report. The shape is now
+ * decided up front by the same explicit rules on both sides.
+ *
+ * Types only. Nothing here looks at a hash, a signature or a value; a bundle that passes this
+ * can still be tampered with, and that is the next step's job.
+ */
+function structuralDefect(bundle) {
+  const typeName = v => v === null ? "null" : Array.isArray(v) ? "list" :
+    ({ string: "str", number: "int", boolean: "bool", object: "dict" })[typeof v] || typeof v;
+  for (const key of ["records", "anchors"]) {
+    const value = bundle[key];
+    if (value === null || value === undefined) continue;
+    if (!Array.isArray(value)) return `'${key}' must be a list, got ${typeName(value)}`;
+    for (let i = 0; i < value.length; i++) {
+      const item = value[i];
+      if (item === null || typeof item !== "object" || Array.isArray(item)) {
+        return `'${key}[${i}]' must be an object, got ${typeName(item)}`;
+      }
+    }
+  }
+  const records = Array.isArray(bundle.records) ? bundle.records : [];
+  for (let i = 0; i < records.length; i++) {
+    const rec = records[i].record;
+    if (rec !== null && rec !== undefined && (typeof rec !== "object" || Array.isArray(rec))) {
+      return `'records[${i}].record' must be an object, got ${typeName(rec)}`;
+    }
+    if (rec && typeof rec === "object" && !Array.isArray(rec)) {
+      const seq = rec.seq;
+      if (seq !== null && seq !== undefined &&
+          (typeof seq !== "number" || !Number.isInteger(seq))) {
+        return `'records[${i}].record.seq' must be an integer, got ${typeName(seq)}`;
+      }
+    }
+  }
+  return null;
+}
+
+async function _verifyBundle(bundle, pin = null, opts = {}) {
   const rep = new Report();
   if (bundle === null || typeof bundle !== "object" || Array.isArray(bundle)) {
     rep.add("fail", "not_a_bundle",
@@ -1045,6 +1125,9 @@ export async function verifyBundle(bundle, pin = null, opts = {}) {
     rep.add("fail", "bad_format", `unexpected bundle format ${bundle.format}`);
     return rep.toDict();
   }
+  const shape = structuralDefect(bundle);
+  if (shape !== null) { rep.add("fail", "malformed_bundle", shape); return rep.toDict(); }
+
   const server = bundle.records || [];
   if (!server.length) { rep.add("fail", "empty", "bundle has no records"); return rep.toDict(); }
 
@@ -1062,6 +1145,21 @@ export async function verifyBundle(bundle, pin = null, opts = {}) {
     if (link !== sr.server_record_hash) rep.add("fail", "server_chain_break", `recv_seq ${sr.recv_seq}: server receipt chain broken`);
     srh.push(link);
     prev = link;
+  }
+
+  // 1b. the head the bundle claims, against the chain just recomputed. Kept in lockstep with
+  // the same block in verify.py: a field that names the end of the chain and is never checked
+  // lets an export carry any head at all, including one from another stream.
+  const head = bundle.server_head;
+  if (head && typeof head === "object" && !Array.isArray(head) && srh.length) {
+    const lastSeq = server[server.length - 1].recv_seq;
+    if (head.server_record_hash !== srh[srh.length - 1]) {
+      rep.add("fail", "server_head_mismatch",
+        "server_head does not match the recomputed tail of the receipt chain");
+    } else if (head.recv_seq !== lastSeq) {
+      rep.add("fail", "server_head_mismatch",
+        `server_head claims recv_seq ${head.recv_seq}, but the chain ends at ${lastSeq}`);
+    }
   }
 
   // 2. client chain: one genesis-rooted chain per session (a stream reused across runs

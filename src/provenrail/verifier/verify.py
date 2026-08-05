@@ -195,6 +195,49 @@ def verify_bundle(bundle: dict[str, Any], pin: dict[str, Any] | None = None,
         return rep
 
 
+def _structural_defect(bundle: dict[str, Any]) -> str | None:
+    """The bundle's shape, checked before anything is hashed. None means the shape is sound.
+
+    Two verifiers exist so that one catches what the other misses, and the only outcome that
+    makes the pair worth less than either alone is the two of them disagreeing about the same
+    file. That is what a structurally invalid bundle used to cause: each implementation ran
+    until some incidental operation raised, and which operation raised first differed between
+    Python and JavaScript. `"anchors": "x"` aborted Python at a type error and produced a
+    single `malformed_bundle`, while JavaScript walked the string's characters and reported
+    "anchor undefined". Same file, same verdict word, completely different report.
+
+    So the shape is decided up front, by the same explicit rules in both implementations,
+    rather than left to whichever exception happens to fire first. This checks ONLY the types
+    the format requires; it never looks at a hash, a signature or a value. A bundle that
+    passes here can still be tampered with, and that is the next step's job.
+
+    Kept in lockstep with the same function in web/verify.js; tests/test_js_verifier.py
+    asserts the two agree over a family of malformed shapes.
+    """
+    for key in ("records", "anchors"):
+        value = bundle.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, list):
+            return f"'{key}' must be a list, got {type(value).__name__}"
+        for i, item in enumerate(value):
+            if not isinstance(item, dict):
+                return (f"'{key}[{i}]' must be an object, got "
+                        f"{'null' if item is None else type(item).__name__}")
+    for i, sr in enumerate(bundle.get("records") or []):
+        rec = sr.get("record")
+        if rec is not None and not isinstance(rec, dict):
+            return (f"'records[{i}].record' must be an object, got "
+                    f"{type(rec).__name__}")
+        if isinstance(rec, dict):
+            seq = rec.get("seq")
+            # bool is an int in Python and is not one here: a chain position is a number.
+            if seq is not None and (isinstance(seq, bool) or not isinstance(seq, int)):
+                return (f"'records[{i}].record.seq' must be an integer, got "
+                        f"{type(seq).__name__}")
+    return None
+
+
 def _verify_bundle(bundle: dict[str, Any], pin: dict[str, Any] | None = None,
                    tlog_log_key: str | None = None,
                    witness_pubkeys: dict[str, str] | None = None,
@@ -212,6 +255,11 @@ def _verify_bundle(bundle: dict[str, Any], pin: dict[str, Any] | None = None,
         return rep
     if bundle.get("format") != "flightrecorder.bundle/1":
         rep.add("fail", "bad_format", f"unexpected bundle format {bundle.get('format')!r}")
+        return rep
+
+    shape = _structural_defect(bundle)
+    if shape is not None:
+        rep.add("fail", "malformed_bundle", shape)
         return rep
 
     server_records = bundle.get("records") or []
@@ -246,6 +294,23 @@ def _verify_bundle(bundle: dict[str, Any], pin: dict[str, Any] | None = None,
                     f"recv_seq {sr.get('recv_seq')}: server receipt chain broken (delete/reorder)")
         recomputed_srh.append(srh)
         prev = srh
+
+    # --- 1b. the head the bundle claims, against the chain the verifier just recomputed ---
+    # `server_head` is in the bundle shape (SPEC section 6) as the tail of the receipt chain, and
+    # neither verifier looked at it. A field that names the end of the chain and is never checked
+    # is worse than no field: an export can carry any head at all, including one from a different
+    # stream, and both implementations called the file verified. Nothing else in the bundle binds
+    # it, so if it is present it has to be recomputed like everything else here.
+    head = bundle.get("server_head")
+    if isinstance(head, dict) and recomputed_srh:
+        last_seq = server_records[-1].get("recv_seq")
+        if head.get("server_record_hash") != recomputed_srh[-1]:
+            rep.add("fail", "server_head_mismatch",
+                    "server_head does not match the recomputed tail of the receipt chain")
+        elif head.get("recv_seq") != last_seq:
+            rep.add("fail", "server_head_mismatch",
+                    f"server_head claims recv_seq {head.get('recv_seq')}, but the chain ends at "
+                    f"{last_seq}")
 
     # --- 2. client chain (emission order, agent-controlled) ---
     # A stream holds one session per run; each session is its own genesis-rooted chain

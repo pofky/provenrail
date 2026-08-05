@@ -141,10 +141,14 @@ PRICES: dict[str, ModelPrice] = {
     "gpt-4-turbo": _o(10.00, 30.00, cache_ratio=1.0),
     "gpt-3.5-turbo": _o(0.50, 1.50, cache_ratio=1.0),
     "o4-mini": _o(1.10, 4.40),
-    "o3-mini": _o(1.10, 4.40),
+    # The o-series cached-input discount is not one number. o3/o4-mini are billed at 25% of
+    # input, o1 and o3-mini at 50%, and taking the default for all of them undercharged every
+    # cached read on the two older reasoning models by half. Verified against
+    # https://developers.openai.com/api/docs/pricing on 2026-08-05.
+    "o3-mini": _o(1.10, 4.40, cache_ratio=0.5, as_of="2026-08-05"),
     "o3": _o(2.00, 8.00),
     "o1-mini": _o(1.10, 4.40),
-    "o1": _o(15.00, 60.00),
+    "o1": _o(15.00, 60.00, cache_ratio=0.5, as_of="2026-08-05"),
     # Anthropic. Every current model is listed explicitly, because resolution is longest
     # substring and "claude-opus-4" would otherwise capture claude-opus-4-6/4-7/4-8 and bill
     # them at the retired Opus 4 rate of $15/$75 instead of their real $5/$25, a 3x overcharge.

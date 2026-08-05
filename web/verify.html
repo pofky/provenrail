@@ -107,6 +107,7 @@
   </script>
 </head>
 <body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
   <header>
     <nav class="nav" aria-label="Primary navigation">
       <a href="/" class="nav-logo" aria-label="Provenrail home">
@@ -132,7 +133,7 @@
       </div>
     </nav>
   </header>
-  <div class="wrap">
+  <main id="main-content" class="wrap">
 
     <p class="eyebrow">Independent verification</p>
     <h1>Verify a record.<br>Trust no one.</h1>
@@ -160,7 +161,7 @@
 
     <details class="adv">
       <summary>Advanced: paste a bundle, or transparency-log keys</summary>
-      <textarea id="paste" placeholder='Paste bundle JSON here, then press Enter'></textarea>
+      <textarea id="paste" placeholder='Paste bundle JSON here, then press Cmd+Enter (Ctrl+Enter on Windows)'></textarea>
     </details>
 
     <div class="result" id="result" hidden></div>
@@ -248,6 +249,26 @@
       }
     }
 
+    // A file that is not JSON is a slip, not tampering, so it gets the neutral card and a
+    // sentence about what to do, in the same place every other verdict appears. It used to be an
+    // alert() on the paste path and nothing at all on the file and drop paths: choose the wrong
+    // file and the page simply did not respond.
+    function showNotJson(err) {
+      result.hidden = false;
+      result.className = 'result neutral';
+      result.innerHTML =
+        `<div class="verdict neutral"><span class="vbadge"><span class="bd"></span>Not a JSON file</span>
+           <div class="vmeta"><div class="h">Nothing was verified</div><div class="s">${esc(err.message || err)}. A bundle is the <code>bundle.json</code> that <code>pr demo</code> or an export writes.</div></div>
+         </div>`;
+      result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function verifyText(text, opts) {
+      let bundle;
+      try { bundle = JSON.parse(text); } catch (err) { showNotJson(err); return; }
+      verify(bundle, opts);
+    }
+
     async function loadAndVerify(url, opts) {
       const r = await fetch(url);
       const bundle = await r.json();
@@ -261,16 +282,18 @@
     const file = document.getElementById('file');
     drop.onclick = () => file.click();
     drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') file.click(); };
-    file.onchange = () => { const f = file.files[0]; if (f) f.text().then(t => verify(JSON.parse(t), {})); };
+    file.onchange = () => { const f = file.files[0]; if (f) f.text().then(t => verifyText(t, {})); };
     ['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
     ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
-    drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) f.text().then(t => verify(JSON.parse(t), {})); });
+    drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) f.text().then(t => verifyText(t, {})); });
 
     const paste = document.getElementById('paste');
+    // Cmd/Ctrl+Enter only. Plain Enter fired verification on every newline, so pasting a bundle
+    // line by line, or editing one, ran the verifier against half a file repeatedly.
     paste.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey || !e.shiftKey)) {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        try { verify(JSON.parse(paste.value), {}); } catch (err) { alert('Not valid JSON: ' + err.message); }
+        verifyText(paste.value, {});
       }
     });
 

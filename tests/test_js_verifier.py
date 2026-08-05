@@ -780,3 +780,157 @@ def test_both_verifiers_emit_the_same_finding_codes_on_a_clean_bundle(tmp_path):
     assert result.returncode == 0, (
         f"JS is missing finding codes the CLI emits. Python emitted {py_codes}\n"
         f"{result.stdout}")
+
+
+def _structural_mutations(bundle):
+    """Every way a bundle can be structurally wrong, not only the two that were reported.
+
+    Each entry is a whole-bundle shape a real user can produce: a hand-edit, a truncated
+    download, a script that wrote `null` where a list belonged, an export from a different
+    tool. A malformed file is not a trick input; it is Tuesday.
+    """
+    out = {}
+    for key in ("anchors", "records"):
+        for label, value in (("null", None), ("string", "not a list"), ("number", 7),
+                             ("object", {"0": "x"}), ("bool", True)):
+            m = copy.deepcopy(bundle)
+            m[key] = value
+            out[f"{key}_is_{label}"] = m
+    for key in ("stream_id", "format", "server_head", "tlog_schema_version"):
+        m = copy.deepcopy(bundle)
+        m.pop(key, None)
+        out[f"missing_{key}"] = m
+        m2 = copy.deepcopy(bundle)
+        m2[key] = None
+        out[f"null_{key}"] = m2
+    m = copy.deepcopy(bundle)
+    m["records"] = [None]
+    out["record_is_null"] = m
+    m = copy.deepcopy(bundle)
+    m["records"] = ["a string where a record belongs"]
+    out["record_is_string"] = m
+    m = copy.deepcopy(bundle)
+    m["records"][1].pop("record", None)
+    out["record_missing_inner"] = m
+    m = copy.deepcopy(bundle)
+    m["records"][1]["record"] = None
+    out["inner_record_is_null"] = m
+    m = copy.deepcopy(bundle)
+    m["records"][1]["record"]["seq"] = "one"
+    out["seq_is_string"] = m
+    m = copy.deepcopy(bundle)
+    m["records"][1]["record"]["payload"] = 3.14  # floats are banned by canonicalization
+    out["float_in_payload"] = m
+    m = copy.deepcopy(bundle)
+    m["anchors"] = [None]
+    out["anchor_is_null"] = m
+    m = copy.deepcopy(bundle)
+    if m["anchors"]:
+        m["anchors"][0] = "a string where an anchor belongs"
+    out["anchor_is_string"] = m
+    return out
+
+
+def test_the_two_verifiers_agree_on_every_malformed_shape(tmp_path):
+    """A malformed bundle must reach the SAME verdict and the SAME finding codes in both
+    implementations.
+
+    This is the failure the second implementation exists to prevent, and it is worse than a
+    plain bug: the CLI said TAMPERING DETECTED while the browser threw and showed a neutral
+    "could not verify", so the same file got opposite readings depending on where you opened
+    it. Python has always had a catch-all at its boundary that turns any structural error into
+    a `malformed_bundle` verdict; the browser had none, so `"anchors": "x"` reached `.every`
+    and a missing `stream_id` reached the canonicalizer, and both escaped as exceptions.
+
+    Fixing the two shapes that were reported would leave the next one, so this asserts over the
+    whole family, exact code sets, both directions.
+    """
+    from provenrail.verifier.verify import verify_bundle
+
+    bundle, _pin = _clean_bundle_and_pin(tmp_path)
+    mutations = _structural_mutations(bundle)
+    assert len(mutations) >= 20, "the point of this test is breadth"
+
+    js_manifest = []
+    for name, obj in mutations.items():
+        rep = verify_bundle(obj)
+        (tmp_path / f"{name}.json").write_text(json.dumps(obj), encoding="utf-8")
+        js_manifest.append({
+            "name": name, "bundle": f"{name}.json",
+            "expect_ok": rep.ok, "expect_result": rep.result,
+            "exact_codes": sorted({f.code for f in rep.findings}),
+        })
+
+    mpath = tmp_path / "malformed_manifest.json"
+    mpath.write_text(json.dumps(js_manifest), encoding="utf-8")
+    result = subprocess.run(["node", str(CONFORMANCE), str(mpath)],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, (
+        "the CLI and the browser disagree on a malformed bundle, which is the one outcome that "
+        "makes two implementations worth less than one:\n"
+        f"{result.stdout}\n{result.stderr}")
+
+
+def test_the_browser_verifier_never_throws(tmp_path):
+    """Whatever the file is, the page must end in a verdict.
+
+    An uncaught exception surfaces to the user as a neutral "could not verify", which reads as
+    "we could not tell" for a file the CLI calls tampered. Refusing to answer and answering
+    wrongly are the same mistake here.
+    """
+    bundle, _pin = _clean_bundle_and_pin(tmp_path)
+    shapes = dict(_structural_mutations(bundle))
+    shapes.update({"empty_object": {}, "array": [1, 2], "string": "hello", "number": 5,
+                   "null": None, "true": True,
+                   "format_only": {"format": "flightrecorder.bundle/1"}})
+    for name, obj in shapes.items():
+        (tmp_path / f"nx_{name}.json").write_text(json.dumps(obj), encoding="utf-8")
+    script = tmp_path / "nothrow.mjs"
+    script.write_text(
+        "import { readFileSync } from 'node:fs';\n"
+        f"import {{ verifyBundle }} from '{(HERE.parent / 'web' / 'verify.js').as_posix()}';\n"
+        "const names = JSON.parse(process.argv[2]);\n"
+        "let bad = 0;\n"
+        "for (const n of names) {\n"
+        f"  const b = JSON.parse(readFileSync('{tmp_path.as_posix()}/nx_' + n + '.json', 'utf8'));\n"
+        "  try {\n"
+        "    const rep = await verifyBundle(b, null, {});\n"
+        "    if (!rep || typeof rep.result !== 'string') { console.log('NO VERDICT', n); bad++; }\n"
+        "  } catch (e) { console.log('THREW', n, e.constructor.name + ': ' + e.message); bad++; }\n"
+        "}\n"
+        "process.exit(bad ? 1 : 0);\n", encoding="utf-8")
+    result = subprocess.run(["node", str(script), json.dumps(sorted(shapes))],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, (
+        f"the browser verifier threw instead of returning a verdict:\n{result.stdout}\n"
+        f"{result.stderr}")
+
+
+def test_a_head_that_contradicts_the_chain_is_caught_by_both(tmp_path):
+    """`server_head` names the tail of the receipt chain and neither verifier looked at it, so
+    an export could claim any head at all, including one from a different stream, and both
+    called the file verified. A field that is in the format and never checked is worse than no
+    field: it reads as a binding and is not one."""
+    from provenrail.verifier.verify import verify_bundle
+
+    bundle, _pin = _clean_bundle_and_pin(tmp_path)
+    assert verify_bundle(bundle).ok, "the unmodified bundle must still pass"
+
+    wrong_hash = copy.deepcopy(bundle)
+    wrong_hash["server_head"]["server_record_hash"] = "a" * 64
+    wrong_seq = copy.deepcopy(bundle)
+    wrong_seq["server_head"]["recv_seq"] = 99
+
+    js_manifest = []
+    for name, obj in {"head_hash": wrong_hash, "head_seq": wrong_seq}.items():
+        rep = verify_bundle(obj)
+        assert not rep.ok and "server_head_mismatch" in {f.code for f in rep.findings}, name
+        (tmp_path / f"{name}.json").write_text(json.dumps(obj), encoding="utf-8")
+        js_manifest.append({"name": name, "bundle": f"{name}.json", "expect_ok": False,
+                            "expect_result": rep.result,
+                            "exact_codes": sorted({f.code for f in rep.findings})})
+    mpath = tmp_path / "head_manifest.json"
+    mpath.write_text(json.dumps(js_manifest), encoding="utf-8")
+    result = subprocess.run(["node", str(CONFORMANCE), str(mpath)],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, f"JS disagreed on server_head:\n{result.stdout}"

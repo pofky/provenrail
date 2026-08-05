@@ -27,9 +27,19 @@ for (const t of manifest) {
   let ok = rep.ok === t.expect_ok;
   const missing = (t.codes || []).filter(c => !codes.has(c));
   if (missing.length) ok = false;
+  // `codes` is a subset check: the listed codes must be present. `exact_codes` is the stronger
+  // contract, for cases where an EXTRA code in one implementation is itself the divergence.
+  let extra = [];
+  if (t.exact_codes) {
+    const want = new Set(t.exact_codes);
+    extra = [...codes].filter(c => !want.has(c));
+    const absent = t.exact_codes.filter(c => !codes.has(c));
+    if (extra.length || absent.length) ok = false;
+    if (absent.length) missing.push(...absent.filter(c => !missing.includes(c)));
+  }
   const resultBad = t.expect_result && rep.result !== t.expect_result;
   if (resultBad) ok = false;
-  console.log(`${ok ? "PASS" : "FAIL"} ${t.name} (ok=${rep.ok} expect=${t.expect_ok}${missing.length ? " missing=" + missing.join(",") : ""}${resultBad ? ` result=${rep.result} expect_result=${t.expect_result}` : ""})`);
+  console.log(`${ok ? "PASS" : "FAIL"} ${t.name} (ok=${rep.ok} expect=${t.expect_ok}${missing.length ? " missing=" + missing.join(",") : ""}${extra.length ? " extra=" + extra.join(",") : ""}${resultBad ? ` result=${rep.result} expect_result=${t.expect_result}` : ""})`);
   if (!ok) { failures++; console.log("  findings:", JSON.stringify(rep.findings)); }
 }
 process.exit(failures ? 1 : 0);

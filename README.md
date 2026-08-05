@@ -136,7 +136,7 @@ has been read and tested.
 Simplest possible: one command to set up, two lines in your code.
 
 ```bash
-pip install -e ".[anchor]"
+pip install provenrail
 pr quickstart        # starts a local sink and writes .provenrail.json (no tokens to copy)
 ```
 
@@ -191,11 +191,29 @@ pr demo              # self-contained: records a session, anchors it, writes bun
 pr verify bundle.json --pin pin.json     # verify, trusting neither agent nor sink
 pr report --regime eu-ai-act bundle.json --md   # map the record to a regime
 pr diff run-a.json run-b.json            # diff two runs with provable fidelity
-fr serve --anchor rfc3161                # run the sink yourself (real trusted timestamps)
+pr serve --anchor rfc3161                # run the sink yourself (real trusted timestamps)
 pr sidecar --upstream https://api.openai.com   # out-of-process capture proxy (point base_url here)
 pr witness --log <origin>=<pubkey>       # run an independent witness on separate infrastructure
 # or: docker compose up
 ```
+
+Running the sink in account mode (the default, without `--open`) with paid plans in front of it
+needs one environment variable:
+
+```bash
+PROVENRAIL_BILLING_SECRET=<the secret your payment provider's webhook sends>  pr serve
+```
+
+Raising an account's plan requires that secret in an `X-Provenrail-Billing-Secret` header, so
+only the payment provider can do it. Leave it unset and no upgrade can be applied over the API
+at all, which is the right default for a self-hosted sink with no billing in front of it.
+Lowering a plan never needs it: nobody defrauds anyone by asking for less.
+
+Two responses worth knowing if you write your own ingest client rather than using the SDK:
+`409` means a record reused a client `seq` that this session already holds with different
+content, and nothing in the batch was stored (accepting it would break the chain permanently).
+`422` on ingest means the record cannot be canonicalized, usually a float or an integer outside
+the JS-safe range, so it could never be hashed or verified.
 
 ### Out-of-process capture (harder to skip)
 
@@ -289,13 +307,13 @@ Trust and compliance surface
   as present but unvalidated rather than pretending to have checked it.
 - Embeddable live badge: `<img src=".../badge/<share_token>.svg">` re-verifies on every load
   and turns amber or red if the record ever stops verifying.
-- One-click evidence pack (`fr pack`, or `/v1/streams/{id}/evidence`): a self-contained,
+- One-click evidence pack (`pr pack`, or `/v1/streams/{id}/evidence`): a self-contained,
   reproducible ZIP with the bundle, a regime evidence report (EU AI Act Art. 12 / HIPAA
   164.312(b) / generic), a verification guide, and a SHA-256 manifest, for an auditor.
 - SIEM export (`/v1/streams/{id}/export.ndjson`): one flattened, hash-linked record per line
   for Splunk / Elastic / Datadog, content-hashed by default so it does not leak prompts.
 - Premium, mobile-first, shareable proof page with a live verified badge.
-- `fr` CLI (serve / demo / verify / report / pack), Dockerfile, CI, ruff-clean source, a
+- `pr` CLI (serve / demo / verify / report / pack), Dockerfile, CI, ruff-clean source, a
   marketing site in `web/`, and a formal `SPEC.md` so anyone can build an independent verifier.
 
 ## Specification

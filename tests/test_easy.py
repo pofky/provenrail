@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi.testclient import TestClient
 
 import provenrail as fr
@@ -169,3 +171,51 @@ def test_record_with_policy_enforces(monkeypatch, tmp_path):
         raised = True
     assert raised
     _reset()
+
+
+def test_the_cli_never_shows_a_traceback_for_a_missing_sink(tmp_path, monkeypatch):
+    """`pr sidecar` in a fresh folder printed eleven lines of traceback around one useful
+    sentence. A traceback tells the user about our internals; they asked about theirs."""
+    import subprocess
+    import sys
+
+    env = dict(os.environ)
+    env.pop("PROVENRAIL_URL", None)
+    r = subprocess.run([sys.executable, "-m", "provenrail.cli", "sidecar",
+                        "--upstream", "https://api.openai.com"],
+                       cwd=tmp_path, capture_output=True, text=True, env=env)
+    assert r.returncode != 0
+    assert "Traceback" not in r.stderr and "Traceback" not in r.stdout, r.stderr
+    assert "quickstart" in (r.stderr + r.stdout)
+
+
+def test_an_unknown_rule_pack_is_an_error_not_the_whole_catalogue(tmp_path):
+    """`pr rules --use secretts` printed every pack and exited 0, so a typo looked exactly like
+    success. The same typo in .provenrail.json is how a pack ends up unarmed while its owner
+    believes otherwise."""
+    import subprocess
+    import sys
+
+    bad = subprocess.run([sys.executable, "-m", "provenrail.cli", "rules", "--use", "secretts"],
+                         cwd=tmp_path, capture_output=True, text=True)
+    assert bad.returncode == 2, bad.stdout
+    assert "unknown pack" in bad.stderr
+
+    good = subprocess.run([sys.executable, "-m", "provenrail.cli", "rules", "--use", "secrets"],
+                          cwd=tmp_path, capture_output=True, text=True)
+    assert good.returncode == 0
+    assert "secrets" in good.stdout and "destructive  (" not in good.stdout
+
+
+def test_ots_verify_explains_the_companion_file_instead_of_naming_a_path_nobody_typed(tmp_path):
+    """The error was `file not found: test` for a command whose only argument was test.ots."""
+    import subprocess
+    import sys
+
+    proof = tmp_path / "proof.ots"
+    proof.write_bytes(b"not a real proof")
+    r = subprocess.run([sys.executable, "-m", "provenrail.cli", "ots-verify", str(proof)],
+                       capture_output=True, text=True)
+    assert r.returncode == 2
+    assert "--data-sha256" in r.stderr and str(proof) in r.stderr
+    assert "file not found" not in r.stderr
