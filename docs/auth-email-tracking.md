@@ -1,7 +1,9 @@
 # Sign-in emails are being tracked, and Brevo cannot turn it off
 
-**Status:** partially mitigated 2026-08-05 (anonymous tracking on). Still needs an
-owner decision on moving provider, see "The fix" below.
+**Status:** mitigated and PARKED, 2026-08-05. Anonymous tracking is on, which settles the
+privacy question. What remains is a deliverability nuisance, not a security hole. Revisit if
+sign-in complaints appear or we start selling into companies. Do not migrate provider before
+then: it is work that buys little at zero users.
 **Found:** 2026-08-05, by receiving a real sign-in email in a disposable inbox and reading it.
 
 ## What is happening
@@ -62,7 +64,22 @@ So anonymising removed the link between tracking and the individual, which was w
 and left the auth token still transiting a third-party redirect and the phishing-signal
 rewrite untouched. Those only go away by changing provider.
 
-## The fix
+## Why this is parked rather than fixed
+
+Two of the three concerns above do not survive scrutiny:
+
+- "A third party sees the auth token" is true of **any** SMTP relay. The token is in the email
+  body whoever sends it. Changing provider does not change that.
+- The privacy concern was the real one, and anonymous tracking addressed it.
+
+What genuinely remains is deliverability. Corporate mail security rewrites or blocks links to
+unfamiliar tracking domains, and some scanners pre-fetch them. A pre-fetched one-time sign-in
+link is consumed before the user clicks it, so they see "invalid or expired link" and cannot
+sign in. That is a real failure mode, and it lands mostly on enterprise inboxes.
+
+At zero users that is a nuisance worth watching, not a migration worth doing.
+
+## The fix, when it is worth doing
 
 Move authentication email to a relay that lets us turn click tracking off. This is a Supabase
 Auth SMTP config change (host, port, user, password) plus DNS records for the new sender, and
