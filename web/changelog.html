@@ -91,6 +91,15 @@
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.28</span><span class="date">August 5, 2026</span><span class="tag">Seats</span></div>
+      <ul>
+        <li><b>Single sign-on could grow a team past the seats it pays for.</b> Inviting a member checked the plan's seat limit; a first-time SSO login did not, and provisioned the member anyway. An org on the ten-seat Team plan went to eleven and kept going, one login at a time. New users are now refused at the cap with a message an administrator can act on. People who already hold a seat keep signing in.</li>
+        <li><b>Cancelling a plan left former teammates with their keys.</b> A seat was only ever checked when the member was created, so downgrading from Team to a single-seat plan did nothing to the keys already issued. Every teammate kept reading the audit trail indefinitely. Member keys are now checked against the plan on each request, and a downgrade that shrinks the seat count keeps the longest-standing members. Nothing is deleted, so restoring the plan restores access with the same key.</li>
+        <li><b>Disabling a member frees their seat.</b> Disabled members could not sign in but still counted against the cap, and member rows are never deleted because the audit log points at them. A team that replaced one person could never fill its last seat again.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.2.27</span><span class="date">August 5, 2026</span><span class="tag">Windows</span></div>
       <ul>
         <li><b>Spend caps did not bind on Windows at all.</b> The cross-process ledger lock was POSIX-only, and the Windows path was documented as "weaker" when it was in fact absent. Three processes each adding 60 increments of one cent recorded $0.03 of $1.80, so 98% of the spend vanished and a blown cap read as barely touched. Windows now takes a real cross-process lock. Found by adding Windows to CI, which is the entire reason to have it there.</li>

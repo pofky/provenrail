@@ -203,3 +203,137 @@ def test_sso_config_requires_owner():
     r = c.put("/v1/sso/config", json={"issuer": "i", "audience": "a", "jwks": {"keys": []}},
               headers={"Authorization": f"Bearer {admin}"})
     assert r.status_code == 403  # admin lacks owner.manage
+
+
+def test_sso_jit_provisioning_cannot_exceed_the_plans_seat_limit():
+    """A first-time SSO login buys a seat, so it must obey the seat cap the invite path obeys.
+
+    Against a real 0.2.27 server this was the hole: `POST /v1/members` checked
+    `plans.would_exceed(plan, "seats", ...)` but `POST /v1/sso/login` called
+    `store.create_member` directly, so an org on the 10-seat Team plan grew past 10 simply by
+    having more staff sign in with its IdP. Measured live: an account already at 10 members
+    went to 11. That is a billing hole and it contradicts what the pricing card sells ("up to
+    10 team members"). Only NEW users may be refused; people who already hold a seat must keep
+    signing in, or a full org locks itself out of its own audit trail at renewal time.
+    """
+    c, owner_key, idp = _app_with_sso()
+    owner_h = {"Authorization": f"Bearer {owner_key}"}
+
+    # Seat 2 arrives via SSO, so we have a real SSO-provisioned member to re-check later.
+    first = c.post("/v1/sso/login", json={"id_token": idp.token("fr-app", "early@corp.com")})
+    assert first.status_code == 200, first.text
+
+    # Fill the remaining seats by invitation: owner + 1 SSO member + 8 invites = 10 of 10.
+    for i in range(8):
+        r = c.post("/v1/members", json={"email": f"staff{i}@corp.com", "role": "viewer"},
+                   headers=owner_h)
+        assert r.status_code == 200, r.text
+    assert len(c.get("/v1/members", headers=owner_h).json()["members"]) == 9  # + owner = 10
+
+    # A brand-new person signing in is refused, with a message an admin can act on.
+    over = c.post("/v1/sso/login", json={"id_token": idp.token("fr-app", "eleventh@corp.com")})
+    assert over.status_code == 402, over.text
+    assert "seat limit" in over.json()["detail"]
+    assert len(c.get("/v1/members", headers=owner_h).json()["members"]) == 9  # nothing created
+
+    # Someone who already has a seat is unaffected by the cap.
+    again = c.post("/v1/sso/login", json={"id_token": idp.token("fr-app", "early@corp.com")})
+    assert again.status_code == 200, again.text
+    assert again.json()["member_id"] == first.json()["member_id"]
+
+
+def test_disabling_a_member_frees_the_seat_they_occupied():
+    """Seats are what an org pays for, so they must track people who can actually sign in.
+
+    A member row is never deleted (the audit log points at it), and a disabled member's key is
+    refused at authentication. Counting disabled rows toward the cap meant a Team account that
+    replaced one person could never fill the tenth seat again: the 402 told an admin to free a
+    seat, and no request existed that would free one.
+    """
+    c, owner_key, idp = _app_with_sso()
+    owner_h = {"Authorization": f"Bearer {owner_key}"}
+    ids = []
+    for i in range(9):  # owner + 9 = 10 of 10
+        r = c.post("/v1/members", json={"email": f"s{i}@corp.com", "role": "viewer"},
+                   headers=owner_h)
+        assert r.status_code == 200, r.text
+        ids.append(r.json()["member_id"])
+    assert c.post("/v1/members", json={"email": "over@corp.com", "role": "viewer"},
+                  headers=owner_h).status_code == 402
+
+    # Someone leaves.
+    off = c.patch(f"/v1/members/{ids[0]}", json={"status": "disabled"}, headers=owner_h)
+    assert off.status_code == 200, off.text
+
+    # Their replacement fits, by invite and by SSO alike.
+    hired = c.post("/v1/members", json={"email": "replacement@corp.com", "role": "viewer"},
+                   headers=owner_h)
+    assert hired.status_code == 200, hired.text
+    assert c.post("/v1/members", json={"email": "one-too-many@corp.com", "role": "viewer"},
+                  headers=owner_h).status_code == 402
+    c.patch(f"/v1/members/{ids[1]}", json={"status": "disabled"}, headers=owner_h)
+    assert c.post("/v1/sso/login",
+                  json={"id_token": idp.token("fr-app", "viasso@corp.com")}).status_code == 200
+
+    # The rows are still there for the audit trail, just not billable.
+    members = c.get("/v1/members", headers=owner_h).json()["members"]
+    assert sum(1 for m in members if m["status"] == "disabled") == 2
+
+
+def test_a_member_key_stops_working_when_the_plan_no_longer_covers_the_seat():
+    """Seats were checked at invite time only, so a plan could shrink out from under one.
+
+    Measured on 0.2.27: an owner upgraded to Team, invited a teammate, then downgraded to Free
+    (a single-seat plan). The teammate's key still authenticated and still returned the stream
+    list and usage. Cancelling a subscription left every former colleague with standing read
+    access to the audit trail. Restoring the plan must restore access, because nothing is
+    deleted, only refused.
+    """
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=True,
+                     billing_secret=BILLING_SECRET)
+    c = TestClient(app)
+    owner_key = c.post("/v1/accounts", json={}).json()["api_key"]
+    owner_h = {"Authorization": f"Bearer {owner_key}"}
+    bill_h = {**owner_h, "X-Provenrail-Billing-Secret": BILLING_SECRET}
+    c.put("/v1/account/plan", json={"plan": "team"}, headers=bill_h)
+    member = c.post("/v1/members", json={"email": "t@corp.com", "role": "member"},
+                    headers=owner_h).json()
+    mh = {"Authorization": f"Bearer {member['api_key']}"}
+    assert c.get("/v1/streams", headers=mh).status_code == 200
+
+    c.put("/v1/account/plan", json={"plan": "free"}, headers=bill_h)
+    r = c.get("/v1/streams", headers=mh)
+    assert r.status_code == 402, r.text
+    assert "does not include team members" in r.json()["detail"]
+    assert c.get("/v1/usage", headers=mh).status_code == 402
+    # The owner is never locked out of their own account by this.
+    assert c.get("/v1/streams", headers=owner_h).status_code == 200
+
+    c.put("/v1/account/plan", json={"plan": "team"}, headers=bill_h)
+    assert c.get("/v1/streams", headers=mh).status_code == 200  # same key, nothing re-issued
+
+
+def test_downgrading_seat_count_keeps_the_longest_standing_members():
+    """Enterprise (unlimited seats) to Team (10) has to pick which members keep access.
+
+    Invitation order, oldest first, so every request agrees and the answer does not depend on
+    who happens to call. The owner always holds seat one.
+    """
+    app = create_app(":memory:", anchor=LocalAnchor(), require_account=True,
+                     billing_secret=BILLING_SECRET)
+    c = TestClient(app)
+    owner_key = c.post("/v1/accounts", json={}).json()["api_key"]
+    owner_h = {"Authorization": f"Bearer {owner_key}"}
+    bill_h = {**owner_h, "X-Provenrail-Billing-Secret": BILLING_SECRET}
+    c.put("/v1/account/plan", json={"plan": "enterprise"}, headers=bill_h)
+    keys = [c.post("/v1/members", json={"email": f"m{i}@corp.com", "role": "member"},
+                   headers=owner_h).json()["api_key"] for i in range(12)]
+    assert all(c.get("/v1/streams", headers={"Authorization": f"Bearer {k}"}).status_code == 200
+               for k in keys)
+
+    c.put("/v1/account/plan", json={"plan": "team"}, headers=bill_h)  # 10 seats incl. owner
+    codes = [c.get("/v1/streams", headers={"Authorization": f"Bearer {k}"}).status_code
+             for k in keys]
+    assert codes == [200] * 9 + [402] * 3, codes
+    assert "more active members than plan" in c.get(
+        "/v1/streams", headers={"Authorization": f"Bearer {keys[-1]}"}).json()["detail"]

@@ -221,6 +221,17 @@ def create_app(
     def _plan_lookup(account_id: str | None) -> str | None:
         return _effective_plan(account_id)
 
+    def _seats_in_use(account_id: str) -> int:
+        """Users occupying a seat: the owner, plus every member who can still sign in.
+
+        Disabled members are excluded deliberately. Their key is refused at authentication, so
+        they are not using the product, and a member row can never be deleted (it is referenced
+        by the audit log, which has to stay resolvable). Counting them would mean an org that
+        rotates staff ratchets toward its cap with no way back short of upgrading, and the
+        "free a seat" advice in the 402 would be advice nobody could follow."""
+        members = store.list_members(account_id)
+        return sum(1 for m in members if m["status"] == "active") + 1
+
     def _gate_feature(owner: str | None, feat: str) -> None:
         """Raise 402 if the plan in force for an owning account does not unlock a paid feature.
         Open/dev streams (no owner) are never gated. Commercial control, not a security control:
@@ -302,9 +313,39 @@ def create_app(
             return {"account_id": acct["account_id"], "role": sec.OWNER, "actor": "account_key"}
         member = store.resolve_member(key_hash)
         if member is not None:
+            _check_seat_still_paid(member)
             return {"account_id": member["account_id"], "role": member["role"],
                     "actor": member["member_id"]}
         raise HTTPException(401, "invalid API key")
+
+    def _check_seat_still_paid(member: dict[str, Any]) -> None:
+        """Refuse a member key whose seat the account's current plan no longer covers.
+
+        The seat limit was only ever checked when a member was created, so a plan could shrink
+        underneath one. Cancel a Team subscription and every teammate you invited kept their key
+        and kept reading the audit trail, indefinitely, on a single-seat plan. Downgrades from
+        Enterprise had the same shape with a number instead of a boolean.
+
+        Which members keep access is decided by invitation order, oldest first, so the outcome
+        is deterministic and the same on every request rather than depending on who calls when.
+        The owner is never affected: the owner key is resolved before this, and always holds
+        seat one. Nothing is deleted or disabled here, so restoring the plan restores access."""
+        account_id = member["account_id"]
+        plan = _effective_plan(account_id)
+        if not plans.feature(plan, "members"):
+            raise HTTPException(402, f"this account's plan ('{plan}') does not include team "
+                                "members; the account owner can restore access for invited "
+                                "members by upgrading to Team")
+        seats = plans.limit(plan, "seats")
+        if seats is None:
+            return
+        # Seat one belongs to the owner; the remaining seats go to the longest-standing members.
+        active = [m["member_id"] for m in store.list_members(account_id)
+                  if m["status"] == "active"]
+        if member["member_id"] not in active[:max(seats - 1, 0)]:
+            raise HTTPException(402, f"this account has more active members than plan '{plan}' "
+                                f"seats ({seats} incl. owner); the owner must upgrade the plan "
+                                "or disable another member to restore your access")
 
     def _account(authorization: str | None) -> str | None:
         """Resolve an account id from an API key (org root or member). None in dev mode."""
@@ -1002,8 +1043,7 @@ def create_app(
         account_id = principal["account_id"]
         _gate_feature(account_id, "members")
         plan = _effective_plan(account_id)
-        # current users = invited members + the owner; one more must stay within the seat limit.
-        current_users = len(store.list_members(account_id)) + 1
+        current_users = _seats_in_use(account_id)
         if plans.would_exceed(plan, "seats", current_users, 1):
             raise HTTPException(402, f"seat limit for plan '{plan}' reached "
                                 f"({plans.limit(plan, 'seats')} members incl. owner); "
@@ -1165,6 +1205,18 @@ def create_app(
             store.set_member_key(account_id, existing["member_id"], key_hash)
             member_id, role = existing["member_id"], existing["role"]
         else:
+            # A first-time SSO login provisions a seat, so it has to pass the same seat check
+            # the invite path does. Without this, an org on a 10-seat plan grows without limit
+            # just by having more staff log in with the IdP, which is both a billing hole and a
+            # lie on the pricing card. Existing members are unaffected: they already hold a
+            # seat, so they keep logging in even when the account is at its cap.
+            plan = _effective_plan(account_id)
+            current_users = _seats_in_use(account_id)
+            if plans.would_exceed(plan, "seats", current_users, 1):
+                raise HTTPException(402, f"seat limit for plan '{plan}' reached "
+                                    f"({plans.limit(plan, 'seats')} members incl. owner); "
+                                    "an administrator must free a seat or upgrade the plan "
+                                    "before this user can sign in")
             member_id = sec.new_member_id()
             role = cfg["default_role"]
             store.create_member(member_id, account_id, key_hash, role, label=email, email=email)
