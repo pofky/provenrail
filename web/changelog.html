@@ -26,10 +26,11 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#0b0a08">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"></noscript>
+  <!-- Fonts are self-hosted (see styles.css): no third-party request, and preloading
+       them here means the real typeface is in place before first paint instead of
+       swapping in afterwards and shifting the page. -->
+  <link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/dm-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
   <style>
     :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#858f9c;
@@ -88,6 +89,18 @@
     <p class="eyebrow">Changelog</p>
     <h1>What changed, and when</h1>
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.21</span><span class="date">August 5, 2026</span><span class="tag">Costs and CLI</span></div>
+      <ul>
+        <li><b>A model that was missing from the price table can no longer switch a budget off.</b> Claude Mythos 5 is live at $10/$50 per million tokens and was in neither price table, so every call to it estimated at $0.00 and a spend cap silently stopped binding. It is now priced in both the CLI and the browser verifier, and the two agree call for call.</li>
+        <li><b>Introductory pricing now ends when the provider said it would.</b> Claude Sonnet 5's $2/$10 introductory rate is published as ending 31 August 2026, after which the standard $3/$15 applies. The table kept billing the introductory rate past that date and undercounted every September call by a third. It now switches on the date, and an expired rate with no published successor stops counting as a binding estimate rather than quietly reporting a total it knows is low.</li>
+        <li><b>A binary file no longer produces a traceback.</b> Pointing <code>pr verify</code> at a PDF, an archive, or a half-finished download raised a raw decoder error out of the file read. It now gets the same plain sentence broken JSON gets. Both cases also print a <code>RESULT:</code> line, so a script reading standard output for a verdict is never met with silence.</li>
+        <li><b><code>pr guard hook --use</code> works.</b> The flag was accepted and then ignored: with no configuration file present the hook allowed everything while its own help text said the packs were armed. It now arms exactly the packs named, and a mistyped pack name refuses to enforce and says so instead of silently arming nothing.</li>
+        <li><b><code>pr --version</code>.</b> The first thing anyone needs for a bug report.</li>
+        <li><b>The site is fixed on tablets, and stops moving under you.</b> The navigation overflowed the viewport on every page between 768px and 1050px wide, which is every iPad in portrait. Fonts are now served from our own origin instead of Google's, which removes a third-party request from every page load and takes layout shift on the homepage from 0.25 to 0.00, and on the account page from 0.24 to 0.00. Body text, tap targets and reduced-motion handling were brought up to standard throughout.</li>
+      </ul>
+    </div>
 
     <div class="rel">
       <div class="rel-head"><span class="ver">0.2.20</span><span class="date">August 5, 2026</span><span class="tag">Verification</span></div>

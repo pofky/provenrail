@@ -791,7 +791,20 @@ def _cmd_guard(args) -> int:
     action = args.action or "status"
 
     if action == "hook":
-        code, out, err = guard.run_hook(sys.stdin.read(), default_event=args.event)
+        use = None
+        if args.use:
+            from . import rulesets
+            use = [p.strip() for p in args.use.split(",") if p.strip()]
+            unknown = [p for p in use if p not in rulesets.CATALOG]
+            if unknown:
+                # Exit 0: a hook that exits non-zero on a typo blocks the user's agent. Refusing
+                # to enforce is the safe half; saying so loudly is the other half.
+                sys.stderr.write(
+                    f"provenrail: unknown guardrail pack{'s' if len(unknown) > 1 else ''} "
+                    f"{', '.join(unknown)}; available: {', '.join(rulesets.CATALOG)}. "
+                    f"NOT enforcing.\n")
+                return 0
+        code, out, err = guard.run_hook(sys.stdin.read(), default_event=args.event, use=use)
         if out:
             print(out)
         if err:
@@ -895,6 +908,10 @@ def _cmd_guard(args) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pr", description="Provenrail: tamper-evident agent audit trail.")
+    # The first thing anyone asks for in a bug report is the version. Without this they have to
+    # know the package is importable and named differently from the command.
+    from . import __version__
+    p.add_argument("--version", action="version", version=f"provenrail {__version__}")
     # Not required: a bare `pr` should greet a new user, not print an argparse error (see main()).
     sub = p.add_subparsers(dest="cmd", required=False)
 
@@ -1127,9 +1144,14 @@ def main(argv: list[str] | None = None) -> int:
         # The /start guide tells beginners to hand-edit a bundle to feel tamper detection; a
         # stray character makes it invalid JSON. That is a malformed file, not tampering, so
         # say so plainly instead of dumping a Python traceback.
-        print(f"that file is not valid JSON ({e.msg} at line {e.lineno}).", file=sys.stderr)
-        print("If you edited it by hand, a stray character can break the format. Re-export it, "
-              "or run `pr demo` for a fresh bundle.", file=sys.stderr)
+        from .verifier.verify import say_not_json
+        say_not_json(e)
+        return 2
+    except UnicodeDecodeError:
+        # A bundle is UTF-8 JSON. Pointing at a PDF, a zip, or a truncated download is the same
+        # class of mistake as pointing at broken JSON, and gets the same sentence.
+        from .verifier.verify import say_not_utf8
+        say_not_utf8()
         return 2
     except RuntimeError as e:
         # Every RuntimeError raised inside this package is a sentence written for a person: "no

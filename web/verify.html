@@ -26,10 +26,11 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#0b0a08">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"></noscript>
+  <!-- Fonts are self-hosted (see styles.css): no third-party request, and preloading
+       them here means the real typeface is in place before first paint instead of
+       swapping in afterwards and shifting the page. -->
+  <link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/dm-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
   <style>
     :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--border-hi:#3a3124;
@@ -48,7 +49,7 @@
     .eyebrow::before{content:'';width:18px;height:1px;background:var(--accent)}
     h1{font-family:var(--font-mono);font-size:clamp(1.7rem,4.5vw,2.4rem);font-weight:500;letter-spacing:-.02em;line-height:1.1;margin-bottom:.85rem}
     .lede{color:var(--text-mid);font-size:1rem;max-width:60ch;margin-bottom:.6rem}
-    .trust{color:var(--accent);font-family:var(--font-mono);font-size:.78rem;margin-bottom:2rem;display:flex;align-items:center;gap:.5rem}
+    .trust{color:var(--accent);font-family:var(--font-mono);font-size:1rem;margin-bottom:2rem;display:flex;align-items:center;gap:.5rem}
     .trust svg{width:15px;height:15px;flex-shrink:0}
     .cta{display:flex;flex-wrap:wrap;gap:.7rem;margin-bottom:1.4rem}
     .btn{display:inline-flex;align-items:center;gap:.5rem;font-family:var(--font-body);font-size:.9rem;font-weight:600;border:none;border-radius:10px;padding:.8rem 1.25rem;min-height:48px;cursor:pointer;transition:background .15s,transform .12s,border-color .15s}
@@ -60,7 +61,7 @@
     .drop.over{border-color:var(--accent);background:var(--accent-glow)}
     .drop .ic{width:38px;height:38px;margin:0 auto .7rem;color:var(--accent)}
     .drop .t{font-family:var(--font-mono);font-size:.9rem;color:var(--text-hi);margin-bottom:.25rem}
-    .drop .d{font-size:.82rem;color:var(--text-lo)}
+    .drop .d{font-size:1rem;color:var(--text-lo)}
     .adv{margin-top:1rem}
     .adv summary{font-family:var(--font-mono);font-size:.78rem;color:var(--text-mid);cursor:pointer;list-style:none;display:flex;align-items:center;gap:.4rem}
     .adv summary::-webkit-details-marker{display:none}
@@ -78,7 +79,7 @@
     .neutral .vbadge{color:var(--text-lo);border-color:var(--border)}.neutral .vbadge .bd{background:var(--text-lo)}
     .vmeta{flex:1;min-width:12rem}
     .vmeta .h{font-family:var(--font-mono);font-size:1rem;color:var(--text-hi)}
-    .vmeta .s{font-size:.84rem;color:var(--text-mid);margin-top:.15rem}
+    .vmeta .s{font-size:1rem;color:var(--text-mid);margin-top:.15rem}
     .checks{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
     .chk{display:inline-flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.72rem;color:var(--text-mid);border:1px solid var(--border);background:var(--bg-3);border-radius:999px;padding:.32rem .65rem}
     .chk.ok{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
@@ -91,7 +92,7 @@
     .f.fail .sev{color:var(--bad);background:rgba(240,106,93,.12)}.f.warn .sev{color:var(--warn);background:rgba(240,178,58,.12)}.f.info .sev{color:var(--accent);background:var(--accent-glow)}
     .f .code{font-family:var(--font-mono);font-size:.76rem;color:var(--text-hi)}
     .f .detail{font-size:.95rem;color:var(--text-mid);margin-top:.15rem;word-break:break-word}
-    .foot{margin-top:2.5rem;font-size:.8rem;color:var(--text-lo);line-height:1.6;border-top:1px solid var(--border);padding-top:1.25rem}
+    .foot{margin-top:2.5rem;font-size:1rem;color:var(--text-lo);line-height:1.6;border-top:1px solid var(--border);padding-top:1.25rem}
     .foot a{color:var(--accent)}
     .foot code{font-family:var(--font-mono);background:var(--bg-3);padding:.1em .4em;border-radius:5px}
     .spin{width:16px;height:16px;border:2px solid var(--border-hi);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;display:inline-block;vertical-align:-2px}

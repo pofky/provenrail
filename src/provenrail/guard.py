@@ -499,7 +499,8 @@ def _no_policy_notice() -> str:
 # ---------------------------------------------------------------- the hook itself
 
 
-def run_hook(raw: str, default_event: str = "pre") -> tuple[int, str, str]:
+def run_hook(raw: str, default_event: str = "pre",
+             use: list[str] | None = None) -> tuple[int, str, str]:
     """Handle one hook invocation. Returns (exit_code, stdout, stderr).
 
     Never raises into the agent: any internal failure degrades to "allow, unrecorded" rather
@@ -516,7 +517,12 @@ def run_hook(raw: str, default_event: str = "pre") -> tuple[int, str, str]:
     hook = parse_hook_input(data, default_event=default_event)
     try:
         from .easy import _load_config_file, load_policy
-        policy = load_policy((_load_config_file() or {}).get("policy"))
+        # `--use` on the hook arms those packs for this invocation, without a config file. It
+        # used to be accepted and then ignored, so `pr guard hook --use destructive` in a folder
+        # with no `.provenrail.json` allowed everything while its help text said the packs were
+        # armed: the worst shape a guardrail failure can take.
+        policy = (load_policy({"use": list(use)}) if use
+                  else load_policy((_load_config_file() or {}).get("policy")))
     except Exception as exc:  # a broken policy config must be loud, not silently permissive
         return 0, "", f"provenrail: could not load the policy ({exc}); NOT enforcing\n"
 

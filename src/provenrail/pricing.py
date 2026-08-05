@@ -86,6 +86,11 @@ class ModelPrice:
     #: Last date this rate is known to hold. A published future price change is not staleness:
     #: the table is freshly verified and still about to be wrong, so it needs its own flag.
     until: str = ""
+    #: The rate that takes over the day after `until`, when the provider has published it.
+    #: Without this, an introductory price keeps billing after it ends and every estimate is
+    #: quietly low, which is exactly the failure `until` exists to prevent. With it, the switch
+    #: happens on the date the provider said it would.
+    successor: ModelPrice | None = None
     #: True when the provider bills reasoning/thinking tokens IN ADDITION to the reported
     #: output count, so they must be added rather than treated as an already-billed subset.
     reasoning_additive: bool = False
@@ -98,12 +103,14 @@ class ModelPrice:
 VERIFIED = "2026-08-04"
 
 
-def _a(input_: float, output: float, as_of: str = VERIFIED, until: str = "") -> ModelPrice:
+def _a(input_: float, output: float, as_of: str = VERIFIED, until: str = "",
+       after: tuple[float, float] | None = None) -> ModelPrice:
     """Anthropic: cache read 0.1x input, 5m cache write 1.25x, 1h cache write 2x, usage
     EXCLUSIVE. Multipliers from platform.claude.com/docs/en/about-claude/pricing."""
     return ModelPrice(input_, output, round(input_ * 0.10, 6), round(input_ * 1.25, 6),
                       cache_inclusive=False, as_of=as_of,
-                      cache_write_1h=round(input_ * 2.00, 6), until=until)
+                      cache_write_1h=round(input_ * 2.00, 6), until=until,
+                      successor=(_a(after[0], after[1], as_of=as_of) if after else None))
 
 
 def _o(input_: float, output: float, cache_ratio: float = 0.25,
@@ -170,9 +177,10 @@ PRICES: dict[str, ModelPrice] = {
     "claude-sonnet-4-5": _a(3.00, 15.00),
     "claude-sonnet-4-6": _a(3.00, 15.00),
     "claude-sonnet-4": _a(3.00, 15.00),
-    # Introductory pricing, published as ending 31 August 2026. `until` makes the table say so
-    # rather than quietly overcharging by a third from 1 September.
-    "claude-sonnet-5": _a(2.00, 10.00, until="2026-08-31"),
+    # Introductory pricing, published as ending 31 August 2026, with the standard $3/$15 rate
+    # taking over on 1 September. Without the successor the table would keep billing the intro
+    # rate and undercount every September call by a third.
+    "claude-sonnet-5": _a(2.00, 10.00, until="2026-08-31", after=(3.00, 15.00)),
     "claude-opus-4-5": _a(5.00, 25.00),
     "claude-opus-4-6": _a(5.00, 25.00),
     "claude-opus-4-7": _a(5.00, 25.00),
@@ -181,6 +189,9 @@ PRICES: dict[str, ModelPrice] = {
     "claude-opus-4": _a(15.00, 75.00),
     "claude-opus-5": _a(5.00, 25.00),
     "claude-fable-5": _a(10.00, 50.00),
+    # Same rate and context window as Fable 5; availability differs, price does not.
+    "claude-mythos-5": _a(10.00, 50.00),
+    "claude-mythos-preview": _a(10.00, 50.00),
     # Google
     "gemini-2.5-flash-lite": _g(0.10, 0.40),
     "gemini-2.5-flash": _g(0.30, 2.50),
@@ -415,6 +426,14 @@ def cost_for(model: str, usage: dict[str, Any] | None,
         return {**base, "cost_usd": 0.0, "priced": False, "basis": "unknown",
                 "known_unpriced": is_known_unpriced(model), "cache_basis": "none"}
 
+    # A rate whose published end date has passed is wrong from that date on. If the provider
+    # already told us the successor rate, switch to it; if it did not, keep billing the old one
+    # and say so through `price_expired`, which callers treat as "this total is a floor".
+    intro_ended = bool(price.until and (today or _today_iso()) > price.until)
+    superseded = intro_ended and price.successor is not None
+    if superseded:
+        price = price.successor  # type: ignore[assignment]
+
     # Providers that report cached tokens inside the prompt total would otherwise be charged
     # twice: once at the input rate inside `tin`, once at the cache rate.
     uncached_in = max(0, tin - t_cache_read) if price.cache_inclusive else tin
@@ -462,8 +481,10 @@ def cost_for(model: str, usage: dict[str, Any] | None,
         "tier_applied": tiered,
         # A published price change the table already knows about. The rate is freshly verified
         # and still about to be wrong, which ordinary staleness cannot express.
-        "price_expired": bool(price.until and (today or _today_iso()) > price.until),
+        "price_expired": intro_ended and not superseded,
         "price_until": price.until or None,
+        # True when an introductory rate ended and the published successor rate was applied.
+        "price_superseded": superseded,
         # Retained for callers and for parity with the browser verifier. Both providers whose
         # convention was in doubt are now settled from their own documentation, so this is
         # False throughout; it stays so a future unverified family has somewhere to say so.

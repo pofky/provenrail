@@ -26,10 +26,11 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#0b0a08">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"></noscript>
+  <!-- Fonts are self-hosted (see styles.css): no third-party request, and preloading
+       them here means the real typeface is in place before first paint instead of
+       swapping in afterwards and shifting the page. -->
+  <link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/dm-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
   <style>
     :root{--bg:#0b0a08;--bg-2:#12100c;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#858f9c;
@@ -153,6 +154,11 @@
       is nothing in this data that identifies you or links two of your visits together, so it does not
       constitute personal data and no consent banner is required for it. The data is stored on our own
       infrastructure in the EU and is never sold or shared. We use no third-party analytics provider.</p>
+    <p>Loading a page on this site makes no request to any third party. Fonts, styles, scripts and images
+      are all served from our own domain: there is no font host, no script CDN and no tag manager, so your
+      IP address is never disclosed to one. The only network calls a page makes beyond fetching itself go to
+      our own backend, which is the Supabase infrastructure listed above, for the account page and for the
+      pageview count described here.</p>
 
     <h2>Email you send us</h2>
     <p>If you email us, we keep that correspondence to reply and for our records. We do not add you to a

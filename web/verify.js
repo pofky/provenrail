@@ -695,7 +695,14 @@ function globMatch(pattern, value) {
 // pricing.py entry for entry: a divergence here is a divergence in the verdict a budget
 // replay reaches, which is the one thing two independent implementations exist to prevent.
 // Anthropic: cache read 0.1x input, 5m write 1.25x, 1h write 2x, usage EXCLUSIVE of cache.
-const _a = (i, o) => ({ in: i, out: o, cr: i * 0.10, cw: i * 1.25, cw1h: i * 2.00, incl: false });
+// `until` is the last date a published introductory rate holds, and `after` is the standard
+// rate that replaces it. Without the successor, an intro price keeps billing after it ends and
+// every replayed budget is quietly low, which is precisely what `until` exists to prevent.
+const _a = (i, o, until, after) => ({
+  in: i, out: o, cr: i * 0.10, cw: i * 1.25, cw1h: i * 2.00, incl: false,
+  ...(until ? { until } : {}),
+  ...(after ? { successor: _a(after[0], after[1]) } : {}),
+});
 // OpenAI: cached input at a discount, no separate write charge, usage INCLUSIVE.
 const _o = (i, o, ratio = 0.25) => ({ in: i, out: o, cr: i * ratio, cw: null, incl: true });
 // Google: cache read 0.1x input, usage INCLUSIVE, thinking tokens billed at the output rate
@@ -723,13 +730,17 @@ const JS_PRICES = {
   "claude-3-haiku": _a(0.25, 1.25), "claude-3-opus": _a(15.00, 75.00),
   "claude-haiku-4-5": _a(1.00, 5.00), "claude-haiku-4": _a(1.00, 5.00),
   "claude-sonnet-4-5": _a(3.00, 15.00), "claude-sonnet-4-6": _a(3.00, 15.00),
-  "claude-sonnet-4": _a(3.00, 15.00), "claude-sonnet-5": _a(2.00, 10.00),
+  "claude-sonnet-4": _a(3.00, 15.00),
+  // Introductory pricing published as ending 31 August 2026; standard $3/$15 from 1 September.
+  "claude-sonnet-5": _a(2.00, 10.00, "2026-08-31", [3.00, 15.00]),
   // Every current Opus is listed: longest-substring resolution would otherwise hand 4-6, 4-7
   // and 4-8 to "claude-opus-4" and bill them at the retired $15/$75 rate.
   "claude-opus-4-5": _a(5.00, 25.00), "claude-opus-4-6": _a(5.00, 25.00),
   "claude-opus-4-7": _a(5.00, 25.00), "claude-opus-4-8": _a(5.00, 25.00),
   "claude-opus-4-1": _a(15.00, 75.00), "claude-opus-4": _a(15.00, 75.00),
   "claude-opus-5": _a(5.00, 25.00), "claude-fable-5": _a(10.00, 50.00),
+  // Same rate and context window as Fable 5; availability differs, price does not.
+  "claude-mythos-5": _a(10.00, 50.00), "claude-mythos-preview": _a(10.00, 50.00),
   "gemini-2.5-flash-lite": _g(0.10, 0.40), "gemini-2.5-flash": _g(0.30, 2.50),
   "gemini-2.5-pro": _g(1.25, 10.00, { tierAt: 200000, tierIn: 2.50, tierOut: 15.00 }),
   "gemini-1.5-flash": _g(0.075, 0.30), "gemini-1.5-pro": _g(1.25, 5.00),
@@ -760,11 +771,19 @@ function pickTokens(usage, keys) {
   for (const k of keys) if (usage[k] !== undefined && usage[k] !== null) { const n = parseInt(String(usage[k]).trim(), 10); return Number.isNaN(n) ? 0 : Math.max(0, n); }
   return 0;
 }
+// UTC date, matching `_today_iso()` in pricing.py. Local time would put the two verifiers on
+// different sides of a price-change date for up to a day, in either direction.
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
 function estimateCost(model, usage) {
   const name = String(model || "").toLowerCase();
   let price = null, bestLen = -1;
   for (const [key, p] of Object.entries(JS_PRICES)) if (name.includes(key) && key.length > bestLen) { price = p; bestLen = key.length; }
   if (!price) return 0;
+  // An introductory rate that has ended is replaced by its published successor, on the same
+  // date rule pricing.py applies, so a budget replayed in the browser reaches the CLI's number.
+  if (price.until && price.successor && todayISO() > price.until) price = price.successor;
   const u = flatUsage(usage);
   const tin = pickTokens(u, IN_KEYS), tout = pickTokens(u, OUT_KEYS);
   const cr = pickTokens(u, CACHE_READ_KEYS), cw = pickTokens(u, CACHE_WRITE_KEYS);

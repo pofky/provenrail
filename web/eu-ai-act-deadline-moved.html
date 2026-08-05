@@ -26,10 +26,11 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#0b0a08">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"></noscript>
+  <!-- Fonts are self-hosted (see styles.css): no third-party request, and preloading
+       them here means the real typeface is in place before first paint instead of
+       swapping in afterwards and shifting the page. -->
+  <link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/dm-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
   <style>
     :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#7c8490;
@@ -69,13 +70,13 @@
     .faq dd{color:var(--text-mid);margin:.25rem 0 0;padding:0}
     .back{display:inline-block;margin-top:2.5rem;font-family:var(--font-mono);font-size:.82rem;color:var(--text-lo);text-decoration:none}
     .back:hover{color:var(--accent)}
-    .src{font-size:.82rem;color:var(--text-mid)}
+    .src{font-size:1rem;color:var(--text-mid)}
     .src a{color:var(--text-mid);text-decoration:underline}
     .countdown{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:12px;padding:.9rem 1.1rem;margin:0 0 1.8rem}
     .countdown .cd-label{font-family:var(--font-mono);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
     .countdown .cd-clock{font-family:var(--font-mono);font-size:1.05rem;color:var(--text-hi);font-weight:500}
     .countdown .cd-clock b{color:var(--accent);font-weight:500}
-    .countdown .cd-note{font-size:.86rem;color:var(--text-mid)}
+    .countdown .cd-note{font-size:1rem;color:var(--text-mid)}
     .selfcheck{background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:1.1rem 1.2rem;margin:1.2rem 0 1.6rem}
     .selfcheck fieldset{border:0;margin:0;padding:0}
     .selfcheck legend{font-weight:600;color:var(--text-hi);font-size:.98rem;margin-bottom:.6rem;padding:0}

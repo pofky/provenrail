@@ -1,4 +1,7 @@
 
+import io
+
+import pytest
 from fastapi.testclient import TestClient
 
 from provenrail.server.app import create_app
@@ -169,3 +172,80 @@ def test_rotating_with_the_wrong_old_key_changes_nothing():
     assert ok.status_code == 200
     after = {k["pubkey"]: k["status"] for k in c.get("/v1/agents", headers=h).json()["agents"]}
     assert after == {real: "revoked", new: "active"}
+
+
+def test_a_binary_file_gets_a_sentence_not_a_decoder_traceback(tmp_path, capsys):
+    """Pointing the verifier at a PDF, a zip, or a half-finished download is the same class of
+    mistake as pointing it at broken JSON. It used to surface as a raw UnicodeDecodeError
+    traceback out of the file read, which tells the user about our internals rather than their
+    problem, and makes a working tool look broken."""
+    from provenrail.cli import main as cli_main
+    from provenrail.verifier.verify import main as verify_main
+
+    binary = tmp_path / "not-a-bundle.pdf"
+    binary.write_bytes(b"%PDF-1.7\n\xff\xfe\x00\x01 binary payload")
+
+    for run in (lambda: verify_main([str(binary)]),          # the `pr-verify` console script
+                lambda: cli_main(["verify", str(binary)])):  # and the `pr verify` subcommand
+        capsys.readouterr()
+        assert run() == 2
+        out = capsys.readouterr()
+        assert "Traceback" not in out.out + out.err
+        assert "UnicodeDecodeError" not in out.out + out.err
+        assert "not valid UTF-8" in out.err
+        # A caller reading stdout for a verdict must never get silence.
+        assert "RESULT: NOT A BUNDLE" in out.out
+
+
+def test_an_unparseable_file_still_prints_a_verdict_line(tmp_path, capsys):
+    """Exit code 2 says "I could not read this", but a script that greps stdout for RESULT: had
+    nothing to read and would hang or mis-report."""
+    from provenrail.cli import main as cli_main
+
+    for content in ("", "{ not json }"):
+        bad = tmp_path / "b.json"
+        bad.write_text(content, encoding="utf-8")
+        capsys.readouterr()
+        assert cli_main(["verify", str(bad)]) == 2
+        out = capsys.readouterr()
+        assert "RESULT: NOT A BUNDLE" in out.out
+        assert "not valid JSON" in out.err
+        assert "Traceback" not in out.out + out.err
+
+
+def test_the_hook_arms_the_packs_it_was_asked_for(tmp_path, monkeypatch, capsys):
+    """`pr guard hook --use destructive` accepted the flag and then ignored it: with no config
+    file the hook allowed everything while its own help text said the packs were armed. A
+    guardrail that reports itself as on and is off is worse than no guardrail."""
+    import json as _json
+
+    from provenrail.cli import main as cli_main
+
+    monkeypatch.chdir(tmp_path)   # deliberately no .provenrail.json here
+    payload = _json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Bash",
+                           "tool_input": {"command": "rm -rf /"}})
+
+    monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+    capsys.readouterr()
+    code = cli_main(["guard", "hook", "--use", "destructive"])
+    out = capsys.readouterr()
+    assert code != 0 or "deny" in (out.out + out.err).lower(), (
+        f"a recursive force-remove must not be waved through: exit={code} {out.out} {out.err}")
+
+    # A typo must refuse to enforce and say so, rather than silently arming nothing.
+    monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+    capsys.readouterr()
+    assert cli_main(["guard", "hook", "--use", "destructiv"]) == 0   # never block on our own error
+    err = capsys.readouterr().err
+    assert "unknown guardrail pack" in err and "NOT enforcing" in err
+
+
+def test_pr_reports_its_own_version(capsys):
+    """The first line of any bug report."""
+    from provenrail import __version__
+    from provenrail.cli import main as cli_main
+
+    with pytest.raises(SystemExit) as e:
+        cli_main(["--version"])
+    assert e.value.code == 0
+    assert __version__ in capsys.readouterr().out

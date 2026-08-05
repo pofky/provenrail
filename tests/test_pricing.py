@@ -240,11 +240,32 @@ def test_a_published_future_price_change_is_flagged_before_it_bites():
     assert before["cost_usd"] == pytest.approx(12.00)   # $2 in + $10 out, introductory
     assert before["price_until"] == "2026-08-31"
     assert before["price_expired"] is False
-    # The date is passed in rather than read from the clock, so the expired branch is actually
-    # exercised. Asserting "not expired yet" against the real clock tests nothing today and
-    # fails the build on 1 September, which is the one day the flag starts mattering.
-    assert cost_for("claude-sonnet-5", usage, today="2026-09-01")["price_expired"] is True
+    # The date is passed in rather than read from the clock, so the post-intro branch is actually
+    # exercised. Asserting only "not expired yet" against the real clock tests nothing today and
+    # would start lying on 1 September, the one day this matters.
+    after = cost_for("claude-sonnet-5", usage, today="2026-09-01")
+    assert after["cost_usd"] == pytest.approx(18.00)   # $3 in + $15 out, the standard rate
+    assert after["price_superseded"] is True
+    # Not "expired": the successor rate is published and applied, so the number is correct and a
+    # budget built on it still binds. `price_expired` is reserved for a rate we know is stale
+    # and have nothing to replace with.
+    assert after["price_expired"] is False
     assert cost_for("claude-sonnet-4-5", {"input_tokens": 1})["price_until"] is None
+
+
+def test_an_ended_intro_price_with_no_successor_stops_a_budget_binding():
+    """A rate whose end date has passed and that has no published replacement is a number we
+    know is too low. Counting it as a real estimate lets a budget report itself as binding while
+    undercharging every call, so it is treated exactly like an unpriced model."""
+    from provenrail.pricing import PRICES, ModelPrice, _a
+
+    table = dict(PRICES)
+    table["madeup-intro-model"] = ModelPrice(**{**_a(1.00, 1.00, until="2026-01-01").__dict__,
+                                               "successor": None})
+    usage = {"input_tokens": 1_000_000, "output_tokens": 0}
+    ended = cost_for("madeup-intro-model", usage, table=table, today="2026-06-01")
+    assert ended["price_expired"] is True and ended["price_superseded"] is False
+    assert ended["cost_usd"] == pytest.approx(1.00)   # still counted, just not trusted as final
 
 
 def test_negative_token_counts_cannot_reduce_a_budget():

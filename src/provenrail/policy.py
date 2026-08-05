@@ -395,4 +395,9 @@ def _estimate_cost(ctx: dict[str, Any]) -> tuple[float, bool]:
     """
     from .pricing import cost_for
     c = cost_for(ctx.get("model", ""), ctx.get("usage"))
-    return c.get("cost_usd", 0.0), bool(c.get("priced"))
+    # An introductory rate whose end date has passed, with no published successor in the table,
+    # is a number we know is too low. Counting it as a real estimate would let a budget keep
+    # reporting itself as binding while undercharging every call, so it is treated the same way
+    # as an unpriced model: the spend still accrues, but the total is declared a floor.
+    reliable = bool(c.get("priced")) and not c.get("price_expired")
+    return c.get("cost_usd", 0.0), reliable

@@ -1038,6 +1038,28 @@ def _verify_anchor_receipt(receipt: dict[str, Any], rep: Report, seq: Any) -> st
     return "fail"
 
 
+def say_not_json(e: json.JSONDecodeError) -> None:
+    """Explain an unparseable bundle, in one place.
+
+    Both entry points (`pr verify` and the standalone `pr-verify`) can hit this, and a user who
+    gets two different explanations for the same file learns to distrust both. Every path also
+    prints a RESULT line, so a script reading stdout for a verdict never sees silence.
+    """
+    print("RESULT: NOT A BUNDLE")
+    print(f"that file is not valid JSON ({e.msg} at line {e.lineno}).", file=sys.stderr)
+    print("If you edited it by hand, a stray character can break the format. Re-export it, "
+          "or run `pr demo` for a fresh bundle.", file=sys.stderr)
+
+
+def say_not_utf8() -> None:
+    """Explain a bundle that is not text at all (a PDF, an archive, a partial download)."""
+    print("RESULT: NOT A BUNDLE")
+    print("that file is not text: it contains bytes that are not valid UTF-8, so it cannot "
+          "be JSON.", file=sys.stderr)
+    print("Check you are pointing at the bundle and not at an archive or a partial download. "
+          "`pr demo` writes a known-good bundle to compare against.", file=sys.stderr)
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="pr-verify", description="Verify a Provenrail bundle.")
     p.add_argument("bundle", help="path to exported bundle JSON, or '-' for stdin")
@@ -1074,8 +1096,19 @@ def main(argv: list[str] | None = None) -> int:
             host, cert_path = pair.split("=", 1)
             trust.add_root(host.strip(), cert_path.strip())
 
-    raw = sys.stdin.read() if args.bundle == "-" else open(args.bundle, encoding="utf-8").read()
-    bundle = json.loads(raw)
+    # `pr-verify` is its own console script, so it cannot rely on the boundary in `pr`. A file
+    # that is not UTF-8 JSON is a mistaken path, not a verdict, and it must never surface as a
+    # decoder traceback.
+    try:
+        raw = sys.stdin.read() if args.bundle == "-" else open(args.bundle,
+                                                               encoding="utf-8").read()
+        bundle = json.loads(raw)
+    except UnicodeDecodeError:
+        say_not_utf8()
+        return 2
+    except json.JSONDecodeError as e:
+        say_not_json(e)
+        return 2
     pin = json.loads(open(args.pin, encoding="utf-8").read()) if args.pin else None
     # A malformed trust flag used to be skipped in silence, and the run then printed VERIFIED
     # without ever performing the check the flag asked for. That is worse than an error: the

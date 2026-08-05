@@ -531,7 +531,10 @@ def test_js_and_python_cost_estimation_agree(tmp_path):
               # rate. Both verifiers must make the same mistake or the same correct choice.
               "claude-opus-4-5", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8",
               "claude-opus-4-1", "claude-opus-4-20250514", "claude-opus-5", "claude-sonnet-5",
-              "claude-fable-5", "claude-sonnet-4-6", "gemini-2.5-flash-lite", "gpt-5"]
+              "claude-fable-5", "claude-sonnet-4-6", "gemini-2.5-flash-lite", "gpt-5",
+              # Mythos prices exactly like Fable; it was absent from both tables, so every call
+              # to it priced at $0.00 with priced=False and no budget could bind.
+              "claude-mythos-5", "claude-mythos-preview"]
     usages = [
         {"input_tokens": 1_000_000, "output_tokens": 250_000},
         # Google's two documented spellings, verified against the official REST reference and
