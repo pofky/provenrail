@@ -55,3 +55,22 @@ def test_manifest_covers_all_vector_files():
 def test_clean_vector_is_actually_clean():
     bundle = json.loads((VECTORS / "clean.json").read_text(encoding="utf-8"))
     assert verify_bundle(bundle).ok
+
+
+def test_the_published_conformance_page_lists_every_vector():
+    """The page at /conformance is a public claim about what our verifiers survive.
+
+    It had drifted: the suite grew to 13 while the page still advertised 11 and omitted two
+    rows. A page whose whole purpose is precision cannot be the stale one, and this is the
+    kind of number a sceptical reader checks against the repo first.
+    """
+    import re
+    page = (Path(__file__).resolve().parents[1] / "web" / "conformance.html").read_text(
+        encoding="utf-8")
+    for name in MANIFEST:
+        assert f'>{name}</td>' in page, f"vector {name} is in the suite but not on the page"
+    rows = re.findall(r'<tr><td class="name">([a-z0-9_]+)</td>', page)
+    assert sorted(rows) == sorted(MANIFEST), (sorted(set(rows) ^ set(MANIFEST)))
+    count = re.search(r"<b>(\d+)</b> frozen vectors", page)
+    assert count and int(count.group(1)) == len(MANIFEST), (
+        f"page advertises {count.group(1) if count else '?'} vectors, suite has {len(MANIFEST)}")

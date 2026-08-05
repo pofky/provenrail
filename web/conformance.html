@@ -105,7 +105,7 @@
     <p class="updated">Last updated <time datetime="2026-08-05">5 August 2026</time></p>
 
     <div class="pillrow">
-      <span class="pill"><b>11</b> frozen vectors</span>
+      <span class="pill"><b>13</b> frozen vectors</span>
       <span class="pill"><b>2</b> independent implementations</span>
       <span class="pill"><b>Python + JavaScript</b> in lockstep</span>
       <span class="pill"><b>Open source</b> under MIT</span>
@@ -129,11 +129,13 @@
         <tr><td class="name">scitt_forged</td><td class="r">Rejected</td><td>A SCITT receipt whose COSE signature was altered. Hard fail.</td><td><code>scitt_receipt_invalid</code></td></tr>
         <tr><td class="name">redacted_disclosed</td><td class="v">Verifies</td><td>A redactable field disclosed with valid openings. Commitments recompute.</td><td><code>redaction_summary</code></td></tr>
         <tr><td class="name">redacted_forged</td><td class="r">Rejected</td><td>A redactable field with a forged opening. The commitment does not match.</td><td><code>redaction_disclosure_invalid</code></td></tr>
+        <tr><td class="name">multi_session</td><td class="r ok">Verifies</td><td>Several runs recorded into one stream, each sealed separately. A stream is not one session, and a verifier that assumes it is will reject an honest record.</td><td><code>none (clean pass)</code></td></tr>
+        <tr><td class="name">legacy_0_1_0</td><td class="r ok">Verifies</td><td>A record written by 0.1.0, the first published release, kept byte for byte. Evidence outlives the version that wrote it, so an old record must keep verifying under every later verifier.</td><td><code>none (clean pass)</code></td></tr>
       </tbody>
     </table>
 
     <h2>Why this is the bar</h2>
-    <p>Anyone can claim their records are verifiable. The honest test is whether a second, independent implementation reaches the same conclusion. These vectors cover the full chain: client signatures, the server receipt chain, arrival ordering, external anchors, the witnessed transparency log, SCITT COSE receipts, and verifiable redaction. Both the shipped verifiers run all of them on every change.</p>
+    <p>Anyone can claim their records are verifiable. The honest test is whether a second, independent implementation reaches the same conclusion. These vectors cover the full chain: client signatures, the server receipt chain, arrival ordering, external anchors, the witnessed transparency log, SCITT COSE receipts, verifiable redaction, multi-session streams, and backward compatibility with the first released version. Both the shipped verifiers run all of them on every change.</p>
     <div class="note"><strong>Frozen on purpose.</strong> The vectors are locked. A change in verification behavior, in either implementation, is caught immediately rather than slipping out quietly. That is what keeps a record verified today still verifiable tomorrow.</div>
 
     <h2>Verify it yourself</h2>
