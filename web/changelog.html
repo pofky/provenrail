@@ -91,6 +91,15 @@
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.27</span><span class="date">August 5, 2026</span><span class="tag">Windows</span></div>
+      <ul>
+        <li><b>Spend caps did not bind on Windows at all.</b> The cross-process ledger lock was POSIX-only, and the Windows path was documented as "weaker" when it was in fact absent. Three processes each adding 60 increments of one cent recorded $0.03 of $1.80, so 98% of the spend vanished and a blown cap read as barely touched. Windows now takes a real cross-process lock. Found by adding Windows to CI, which is the entire reason to have it there.</li>
+        <li><b><code>python -m provenrail</code>, for when <code>pr</code> is not our <code>pr</code>.</b> <code>pr</code> is also the POSIX paginator from coreutils, and on Windows under Git Bash that one wins on PATH. There was previously no way around it. Every subcommand now works through the module entry point, which nothing can shadow.</li>
+        <li><b>CI runs Windows and macOS.</b> Alongside Linux on Python 3.11 to 3.14, with a smoke test of the real command line on each.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.2.25</span><span class="date">August 5, 2026</span><span class="tag">Concurrency</span></div>
       <ul>
         <li><b>Two agents writing at the same moment no longer break each other.</b> The sink shared one SQLite connection across request threads and serialised only writes, not reads. A read cursor interleaved with another thread's statement returned no row for records that plainly exist, so under concurrent ingest a <em>valid</em> write token came back as <code>invalid token</code> (401), an existing stream came back as <code>unknown stream</code> (404), and the record-count check crashed (500). A client is entitled to read a 401 as "my credentials were revoked", stop, and drop the run, so this could lose records for no reason other than a second agent writing at the same instant. Every statement is now serialised and its rows read before the lock is released. Measured on a 400-request burst from 16 threads: 58 failures before, 0 after, across 1,200 requests.</li>
