@@ -1,0 +1,17 @@
+Two cleanup commands for the billing proof run on 5 August 2026. A safety gate blocks me
+from writing to the live Polar API, so run these yourself by pasting each line into the
+session prefixed with an exclamation mark.
+
+They cancel a $0 test subscription and delete the 100% discount code used to create it.
+Neither touches a real customer: the production org had zero orders before this and this
+was the only one.
+
+set -a; . ~/.config/provenrail/polar.env; set +a; curl -s -X DELETE "https://api.polar.sh/v1/subscriptions/41fbc443-ce80-445a-9b30-f963d8182b88" -H "Authorization: Bearer $POLAR_ACCESS_TOKEN" | head -c 300
+
+set -a; . ~/.config/provenrail/polar.env; set +a; curl -s -o /dev/null -w "%{http_code}\n" -X DELETE "https://api.polar.sh/v1/discounts/af98eb71-3c2f-4c1e-a1d3-c0bbd2df33ce" -H "Authorization: Bearer $POLAR_ACCESS_TOKEN"
+
+If the discount delete returns 404 it is already gone: it was created with max_redemptions
+of 1 and has been redeemed, so it cannot be used again either way.
+
+The Supabase side is already cleaned up: the test auth user and its profile row are
+deleted and you are back to your 4 real profiles.
