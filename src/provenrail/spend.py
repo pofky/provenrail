@@ -35,6 +35,7 @@ import json
 import os
 import tempfile
 import threading
+import time
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -47,6 +48,11 @@ try:                                              # POSIX only; absent on Window
 except ImportError:                               # pragma: no cover - platform dependent
     _flock = None
     _LOCK_EX = _LOCK_UN = 0
+
+try:                                              # Windows only; absent on POSIX
+    import msvcrt as _msvcrt
+except ImportError:                               # pragma: no cover - platform dependent
+    _msvcrt = None
 
 #: Serialises writers inside one process. The file lock covers separate processes.
 _THREAD_LOCK = threading.Lock()
@@ -172,19 +178,26 @@ def _exclusive(target: Path):
     lost across two threads, and with two agents one agent's entire history was erased. For a
     ledger whose only job is to make a spend cap bind, losing half the spend is a fail-open.
 
-    `fcntl.flock` covers threads and processes on POSIX, which is what an agent fleet on one
-    host actually looks like. Windows has no flock; there the lock degrades to the in-process
-    lock alone, which is honest but weaker, so the failure mode is documented rather than
-    pretended away.
+    `fcntl.flock` covers threads and processes on POSIX. Windows has no flock, and this used to
+    degrade there to the in-process lock alone, documented as "honest but weaker". It was not
+    weaker, it was absent: three processes each adding 60 increments of $0.01 landed $0.03 of
+    $1.80 on Windows, so 98% of the spend vanished and a cap that had been blown read as barely
+    touched. A spend cap that does not bind on one operating system is not a spend cap, and
+    documenting the hole does not make the budget hold. Windows locks the same file through
+    `msvcrt.locking`, which is a real cross-process lock.
     """
     lock_path = target.with_name(target.name + ".lock")
     with _THREAD_LOCK:
         handle = None
         try:
             lock_path.parent.mkdir(parents=True, exist_ok=True)
-            handle = open(lock_path, "w")
+            # Windows needs a byte to lock and a mode that does not truncate under another
+            # holder, so open for append on both platforms.
+            handle = open(lock_path, "a+b")
             if _flock is not None:
                 _flock(handle.fileno(), _LOCK_EX)
+            elif _msvcrt is not None:
+                _lock_windows(handle)
         except OSError:
             handle = None   # locking unavailable; proceed under the thread lock only
         try:
@@ -194,8 +207,35 @@ def _exclusive(target: Path):
                 try:
                     if _flock is not None:
                         _flock(handle.fileno(), _LOCK_UN)
+                    elif _msvcrt is not None:
+                        _unlock_windows(handle)
+                except OSError:
+                    pass
                 finally:
                     handle.close()
+
+
+def _lock_windows(handle) -> None:
+    """Block until this process owns the lockfile's first byte.
+
+    `LK_LOCK` retries for about ten seconds and then raises. Under a fleet of agents that is
+    reachable, and giving up would silently drop the increment, so retry rather than fail open.
+    """
+    handle.seek(0)
+    deadline = time.monotonic() + 60
+    while True:
+        try:
+            _msvcrt.locking(handle.fileno(), _msvcrt.LK_LOCK, 1)
+            return
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.05)
+
+
+def _unlock_windows(handle) -> None:
+    handle.seek(0)
+    _msvcrt.locking(handle.fileno(), _msvcrt.LK_UNLCK, 1)
 
 
 def add_spend(amount_usd: float, agent_id: str = "default", path: Path | None = None,

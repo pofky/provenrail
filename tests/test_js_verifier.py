@@ -891,7 +891,10 @@ def test_the_browser_verifier_never_throws(tmp_path):
     script = tmp_path / "nothrow.mjs"
     script.write_text(
         "import { readFileSync } from 'node:fs';\n"
-        f"import {{ verifyBundle }} from '{(HERE.parent / 'web' / 'verify.js').as_posix()}';\n"
+        # as_uri(), not as_posix(): on Windows a POSIX-ised absolute path is "D:/..." and
+        # node's ESM loader reads the drive letter as a URL scheme and refuses it. A file://
+        # URI is the only form that works on both.
+        f"import {{ verifyBundle }} from '{(HERE.parent / 'web' / 'verify.js').as_uri()}';\n"
         "const names = JSON.parse(process.argv[2]);\n"
         "let bad = 0;\n"
         "for (const n of names) {\n"
