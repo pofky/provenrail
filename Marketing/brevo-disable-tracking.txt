@@ -1,7 +1,0 @@
-Brevo dashboard, one setting to change.
-
-Sign in at https://app.brevo.com, then go to Transactional, then Settings, then the Tracking section. Turn off click tracking and open tracking for transactional email. Save.
-
-Why it matters: every Provenrail sign-in email currently has its link rewritten to a Brevo tracking domain (sendibt2.com) and carries an open-tracking pixel. That means Brevo logs when each user opens their sign-in email and when they click it, tied to their email address. A one-time authentication token should not travel through a third-party redirect, link rewriting to an unrelated domain is a phishing signal that some mail security products block, and we would rather not measure sign-in emails at all.
-
-After you save it, tell me and I will send a fresh sign-in link to a test inbox and confirm the link points straight at provenrail.com with no tracker in the chain, then update the privacy page to drop the paragraph that currently discloses this tracking.
