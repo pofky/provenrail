@@ -91,6 +91,14 @@
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.23</span><span class="date">August 5, 2026</span><span class="tag">Exit codes</span></div>
+      <ul>
+        <li><b>Writing a guardrail receipt is no longer reported as a failure.</b> <code>pr guard receipt</code> took its exit code from <code>pr risk</code>, which exits 1 when it finds blocked actions. Finding them is the reason you run it, so a successful export reported itself as a failure, with the same code as an export that produced nothing at all. It now exits 0 when the receipt was written. <code>pr risk</code> keeps the gating exit code for CI, and both are documented in <code>--help</code>.</li>
+        <li><b>A pack name in capitals is the same pack.</b> <code>--use DESTRUCTIVE</code> stopped setup with an unknown-pack error. Pack names are now matched case-insensitively.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.2.22</span><span class="date">August 5, 2026</span><span class="tag">Guardrails and CI</span></div>
       <ul>
         <li><b>A <code>--use</code> that names no pack now refuses, instead of arming something you did not choose.</b> <code>pr guard hook --use "  "</code> parsed to an empty list and fell back to whatever the configuration file said, under a flag that reads as if it selected those packs. Both <code>pr guard hook</code> and <code>pr guard install</code> now refuse and say so, and a refused <code>install</code> writes nothing to disk.</li>

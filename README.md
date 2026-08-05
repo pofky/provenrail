@@ -44,6 +44,12 @@ empty, truncated) or the arguments were wrong; that case prints `RESULT: NOT A B
 your job on `1` and treat `2` as "check the path you passed", or a typo will page someone about
 a tampering incident that never happened. `pr verify --help` restates this.
 
+`pr guard hook` always exits `0`: a hook that exits non-zero would block your agent over our
+own error, so a denial is carried on stdout instead. `pr guard receipt` exits `0` when it wrote
+the receipt, whether or not the receipt contains denials, since finding them is why you ran it.
+To gate a job on "did this run try anything it was not allowed to?", use
+`pr risk guard-receipt.json`, which exits `1` when there are denials.
+
 ### The record underneath
 
 Install the SDK, capture model calls and tool calls, and every record is pushed to an

@@ -289,6 +289,54 @@ def test_the_exit_code_contract_is_documented_where_a_script_author_looks():
     assert "exit codes" in buf.getvalue()
 
 
+def test_a_pack_name_in_capitals_is_the_same_pack(tmp_path, monkeypatch, capsys):
+    """The ids are lowercase, so `--use DESTRUCTIVE` errored during setup. The user meant the
+    pack that exists, and there is no second pack the capitals could refer to."""
+    import json as _json
+
+    from provenrail.cli import main as cli_main
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".provenrail.json").write_text('{"endpoint": "http://localhost:8787"}\n')
+    capsys.readouterr()
+    assert cli_main(["guard", "install", "--use", "DESTRUCTIVE, Secrets "]) == 0
+    cfg = _json.loads((tmp_path / ".provenrail.json").read_text())
+    assert cfg["policy"]["use"] == ["destructive", "secrets"], cfg
+
+
+def test_writing_a_receipt_is_not_a_failure_just_because_it_contains_denials(monkeypatch,
+                                                                            tmp_path, capsys):
+    """`pr guard receipt` delegated its exit code to `pr risk`, which exits 1 when it finds
+    denials. Denials are the reason you run it, so a successful export reported itself as a
+    failure, and did so with the same code as an export that produced nothing at all."""
+    import argparse
+
+    from provenrail import cli
+
+    bundle = tmp_path / "guard-receipt.json"
+    denial = {"action_type": "policy.decision", "seq": 0,
+              "payload": {"effect": "deny", "rule": "destructive.recursive-force-remove",
+                          "reason": "argument contains a recursive delete",
+                          "event_type": "PreToolUse", "target": "Bash"}}
+    bundle.write_text(_json_dumps({"records": [{"record": denial}]}))
+
+    monkeypatch.setattr(cli, "_cmd_export", lambda ns: 0)
+    capsys.readouterr()
+    code = cli._cmd_guard(argparse.Namespace(action="receipt", out=str(bundle), use=None,
+                                             event="pre"))
+    out = capsys.readouterr().out
+    assert code == 0, "writing the receipt succeeded"
+    assert "destructive.recursive-force-remove" in out, "the denial is still reported"
+
+    # ...and the gating exit code is still available where a CI job would look for it.
+    assert cli._cmd_risk(argparse.Namespace(bundle=str(bundle), json=False)) == 1
+
+
+def _json_dumps(o):
+    import json as _json
+    return _json.dumps(o)
+
+
 def test_pr_reports_its_own_version(capsys):
     """The first line of any bug report."""
     from provenrail import __version__

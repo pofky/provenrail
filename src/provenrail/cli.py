@@ -792,7 +792,9 @@ def _selected_packs(raw: str) -> list[str]:
     """
     from . import rulesets
 
-    packs = [p.strip() for p in raw.split(",") if p.strip()]
+    # Case-folded: the pack ids are lowercase, and someone typing DESTRUCTIVE meant destructive.
+    # Erroring there teaches nothing and stops a setup step for no reason.
+    packs = [p.strip().lower() for p in raw.split(",") if p.strip()]
     if not packs:
         raise ValueError(f"--use names no guardrail pack; available: {', '.join(rulesets.CATALOG)}")
     unknown = [p for p in packs if p not in rulesets.CATALOG]
@@ -875,7 +877,13 @@ def _cmd_guard(args) -> int:
         if rc != 0:
             return rc
         print()
-        return _cmd_risk(argparse.Namespace(bundle=args.out, json=False))
+        # `pr risk` exits 1 when it finds denials, which is the right gate for a CI job asking
+        # "did this run try anything it was not allowed to?". It is the wrong code here: finding
+        # denials is why you run `pr guard receipt`, and reporting the successful export as a
+        # failure would also make it indistinguishable from an export that produced nothing.
+        # Use `pr risk guard-receipt.json` when you want the gating exit code.
+        _cmd_risk(argparse.Namespace(bundle=args.out, json=False))
+        return 0
 
     # status
     from .easy import find_config_file
@@ -1005,7 +1013,16 @@ def build_parser() -> argparse.ArgumentParser:
     dc.set_defaults(func=_cmd_disclose)
 
     g = sub.add_parser("guard",
-                       help="block destructive coding-agent actions and record the decision")
+                       help="block destructive coding-agent actions and record the decision",
+                       formatter_class=argparse.RawDescriptionHelpFormatter,
+                       epilog="""exit codes:
+  hook     always 0. A hook that exits non-zero would block your agent over our own
+           error; a denial is carried on stdout, not in the exit code.
+  receipt  0 when the receipt was written, whether or not it contains denials.
+           Finding denials is why you ran it. To gate a job on "did this run try
+           anything it was not allowed to?", use `pr risk guard-receipt.json`,
+           which exits 1 when there are denials.
+  others   0 on success, non-zero when the command could not do what was asked.""")
     g.add_argument("action", nargs="?",
                    choices=["install", "uninstall", "status", "receipt", "reset", "hook"],
                    help="install/uninstall Claude Code hooks, show status, export a receipt, "
@@ -1025,7 +1042,12 @@ def build_parser() -> argparse.ArgumentParser:
     rl.add_argument("--json", action="store_true", help="machine-readable catalogue")
     rl.set_defaults(func=_cmd_rules)
 
-    rk = sub.add_parser("risk", help="list every action a policy blocked in a bundle")
+    rk = sub.add_parser("risk", help="list every action a policy blocked in a bundle",
+                        formatter_class=argparse.RawDescriptionHelpFormatter,
+                        epilog="exit codes:\n  0  no action was blocked (including when no "
+                               "policy was in force, which is not the\n     same thing: check "
+                               "the output).\n  1  at least one action was blocked. This is the "
+                               "gate to use in CI.")
     rk.add_argument("bundle")
     rk.add_argument("--json", action="store_true", help="machine-readable output")
     rk.set_defaults(func=_cmd_risk)
