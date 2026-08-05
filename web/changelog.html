@@ -90,7 +90,7 @@
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
 
     <div class="rel">
-      <div class="rel-head"><span class="ver">0.2.19</span><span class="date">August 5, 2026</span><span class="tag">Verification</span></div>
+      <div class="rel-head"><span class="ver">0.2.20</span><span class="date">August 5, 2026</span><span class="tag">Verification</span></div>
       <ul>
         <li><b>The two verifiers no longer disagree about a broken file.</b> A structurally invalid bundle (a list-valued key set to a string, a missing <code>stream_id</code>, a <code>seq</code> that is not a number) made the CLI report TAMPERING DETECTED while the browser threw and showed a neutral "could not verify". Same file, opposite readings, which is the exact failure a second implementation exists to prevent. Both now decide the shape up front by identical rules, and a test asserts they agree on the verdict and the full finding set across 26 malformed shapes.</li>
         <li><b><code>server_head</code> is checked.</b> The bundle carries the hash of the chain's last record and neither verifier ever looked at it, so an export could claim any head at all, including one from a different stream, and still verify.</li>
