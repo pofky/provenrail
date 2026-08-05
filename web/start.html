@@ -33,9 +33,9 @@
   <link rel="preload" href="/fonts/dm-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
   <style>
-    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#858f9c;
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--accent-ink:#0b0a08;--ok:#6fcf86;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#858f9c;
       --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif}
-    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#8a6c2c;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#656d78}}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#7e6428;--accent-ink:#fdfbf7;--ok:#1f7038;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#656d78}}
     *{box-sizing:border-box;margin:0;padding:0}
     html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
     body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
@@ -56,7 +56,7 @@
     pre .c{color:var(--text-lo)}
     pre .g{color:var(--accent)}
     pre .p{color:var(--text-lo);user-select:none}
-    pre .ok{color:#6fcf86}
+    pre .ok,.ok{color:var(--ok)}
     .toc{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.4rem 0 2rem}
     .toc a{font-family:var(--font-mono);font-size:.78rem;background:var(--bg-2);border:1px solid var(--border);border-radius:999px;padding:.35rem .8rem;text-decoration:none;color:var(--text-mid)}
     .toc a:hover{border-color:var(--accent);color:var(--accent)}
@@ -206,8 +206,8 @@
 <span class="c">[info] summary: 6 records, 1 anchors, 0 heartbeats.</span>
 <span class="ok">RESULT: VERIFIED</span>
 <span class="c">The warn/info lines above are advisory context, not failures.</span></code></pre>
-    <p><strong>That green <span style="color:#6fcf86">VERIFIED</span> is the entire product in one word.</strong> The verifier trusted nobody: not us, not the file, not your network. It re-derived the record from scratch and confirmed it is intact. Want to feel the other side? Open <code>bundle.json</code> in any text editor, change a single character inside it, save, and run <code>pr verify bundle.json</code> again. It will report <strong>TAMPERING DETECTED</strong> and refuse to pass. That is the point: a changed record cannot pass.</p>
-    <div class="note"><strong>You will also see a few <code>[warn]</code> lines, and that is expected on the free plan.</strong> They say things like "local anchor only" and "not witnessed": the record carries your own machine's time, not a trusted third-party timestamp. That timestamp, plus witness cosignatures, is the paid Builder feature. The integrity proof is identical on every plan, so the line that matters here is the last one: <span style="color:#6fcf86">RESULT: VERIFIED</span>. Warnings are guidance, not failures; only <strong>TAMPERING DETECTED</strong> is a failure.</div>
+    <p><strong>That green <span class="ok">VERIFIED</span> is the entire product in one word.</strong> The verifier trusted nobody: not us, not the file, not your network. It re-derived the record from scratch and confirmed it is intact. Want to feel the other side? Open <code>bundle.json</code> in any text editor, change a single character inside it, save, and run <code>pr verify bundle.json</code> again. It will report <strong>TAMPERING DETECTED</strong> and refuse to pass. That is the point: a changed record cannot pass.</p>
+    <div class="note"><strong>You will also see a few <code>[warn]</code> lines, and that is expected on the free plan.</strong> They say things like "local anchor only" and "not witnessed": the record carries your own machine's time, not a trusted third-party timestamp. That timestamp, plus witness cosignatures, is the paid Builder feature. The integrity proof is identical on every plan, so the line that matters here is the last one: <span class="ok">RESULT: VERIFIED</span>. Warnings are guidance, not failures; only <strong>TAMPERING DETECTED</strong> is a failure.</div>
     <div class="note">No coding happened here, and nothing left your machine. You can also try it in your browser with no install at all on the <a href="/verify?demo">live verifier</a>.</div>
 
     <h2 id="record">5. Record a run of your own agent</h2>

@@ -139,3 +139,32 @@ document.querySelectorAll('.tour-card .tour-play').forEach(btn => {
     else if (href.indexOf('/docs') === 0 || href.indexOf('/start') === 0) send('cta_docs');
   }, true);
 })();
+
+/* WCAG 2.1.1 Keyboard: a <pre> that scrolls horizontally is a scrollable region, and a
+   scrollable region has to be reachable by keyboard or the content past the right edge
+   cannot be read without a pointer. axe flags this as serious; it was on 90 blocks.
+   Only blocks that actually overflow get a tab stop, so we do not litter the tab order
+   with code that fits. Re-checked on resize, because the same block overflows at 375px
+   and does not at 1440px. */
+(function () {
+  function markScrollable() {
+    document.querySelectorAll('pre, table, .scroll-x').forEach(function (el) {
+      var overflows = el.scrollWidth > el.clientWidth + 1;
+      if (overflows) {
+        if (!el.hasAttribute('tabindex')) {
+          el.setAttribute('tabindex', '0');
+          if (!el.hasAttribute('role')) el.setAttribute('role', 'region');
+        }
+      } else if (el.getAttribute('tabindex') === '0' && el.getAttribute('role') === 'region') {
+        el.removeAttribute('tabindex');
+        el.removeAttribute('role');
+      }
+    });
+  }
+  markScrollable();
+  var t;
+  window.addEventListener('resize', function () {
+    clearTimeout(t);
+    t = setTimeout(markScrollable, 150);
+  });
+})();

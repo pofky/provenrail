@@ -33,9 +33,9 @@
   <link rel="preload" href="/fonts/dm-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
   <style>
-    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#858f9c;
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--accent-ink:#0b0a08;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#858f9c;
       --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif}
-    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#8a6c2c;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#656d78}}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#7e6428;--accent-ink:#fdfbf7;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#656d78}}
     *{box-sizing:border-box;margin:0;padding:0}
     html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
     body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
@@ -89,6 +89,16 @@
     <p class="eyebrow">Changelog</p>
     <h1>What changed, and when</h1>
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.25</span><span class="date">August 5, 2026</span><span class="tag">Concurrency</span></div>
+      <ul>
+        <li><b>Two agents writing at the same moment no longer break each other.</b> The sink shared one SQLite connection across request threads and serialised only writes, not reads. A read cursor interleaved with another thread's statement returned no row for records that plainly exist, so under concurrent ingest a <em>valid</em> write token came back as <code>invalid token</code> (401), an existing stream came back as <code>unknown stream</code> (404), and the record-count check crashed (500). A client is entitled to read a 401 as "my credentials were revoked", stop, and drop the run, so this could lose records for no reason other than a second agent writing at the same instant. Every statement is now serialised and its rows read before the lock is released. Measured on a 400-request burst from 16 threads: 58 failures before, 0 after, across 1,200 requests.</li>
+        <li><b>Python 3.14 is tested.</b> The bug above appeared reliably on 3.14 and not at all on 3.11, and our matrix stopped at 3.13, which is exactly why it shipped. CI now covers 3.11 through 3.14, and adds Windows and macOS runners plus a smoke test of the installed <code>pr</code> command on each.</li>
+        <li><b>Spend controls are documented.</b> <code>pr spend</code>, budget caps in <code>.provenrail.json</code>, and <code>pr reconcile</code> against a provider invoice were built but appeared nowhere on the site. Same for <code>pr verify-content</code> and <code>pr disclose</code>.</li>
+        <li><b>The site meets WCAG 2.1 AA.</b> An audit of every page in both colour schemes found three serious classes of violation: links identified by colour alone, code blocks and tables that scroll but could not be reached by keyboard, and text that missed the 4.5:1 contrast floor. All fixed and re-audited to zero.</li>
+      </ul>
+    </div>
 
     <div class="rel">
       <div class="rel-head"><span class="ver">0.2.24</span><span class="date">August 5, 2026</span><span class="tag">Reports and CI</span></div>

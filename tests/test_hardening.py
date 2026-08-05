@@ -437,3 +437,45 @@ def test_the_sink_reports_the_version_it_is_actually_running():
 
     c = client()
     assert c.get("/v1/meta").json()["version"] == __version__
+
+
+def test_concurrent_ingest_never_returns_a_spurious_auth_or_missing_stream(tmp_path):
+    """Two agents writing at the same moment used to break each other's reads.
+
+    `sqlite3.Connection` is not safe for concurrent cursor use across threads, and only writes
+    were serialised here. A read cursor interleaved with another thread's statement made
+    `fetchone()` return None for rows that plainly exist. Against a real server on CPython
+    3.14 a 400-request burst from 16 threads reliably produced ~28 500s (count_records doing
+    `fetchone()["n"]` on the None), ~22 401 "invalid token" for a VALID token, and ~8 404
+    "unknown stream" for a stream that exists. On 3.11 the same burst was clean, which is why
+    this went unnoticed: our CI matrix stopped at 3.13.
+
+    The 401 is the worst of them: a client is entitled to read that as "my credentials were
+    revoked", stop, and drop the run. Nothing was wrong with the credentials.
+
+    Driven through the ASGI app rather than Storage directly, because the interleaving only
+    shows up with the server's own read-read-read-write pattern per request.
+    """
+    import concurrent.futures as cf
+    from collections import Counter
+
+    from provenrail.server.app import create_app
+
+    app = create_app(str(tmp_path / "s.db"), require_account=False)
+    with TestClient(app) as c:
+        prov = c.post("/v1/streams", json={}).json()
+        sid, wt = prov["stream_id"], prov["write_token"]
+
+        def send(seq):
+            r = c.post("/v1/ingest", json={"records": [{
+                "stream_id": sid, "seq": seq, "action_type": "tool_call",
+                "record_hash": f"{seq:064x}", "ts_utc": "2026-08-05T10:00:00.0Z"}]},
+                headers={"Authorization": f"Bearer {wt}"})
+            return r.status_code
+
+        with cf.ThreadPoolExecutor(max_workers=16) as ex:
+            codes = Counter(ex.map(send, range(400)))
+
+    assert set(codes) == {200}, (
+        f"a valid writer was refused under concurrency: {dict(codes)}. 401/404 here are "
+        f"spurious (the token and stream are fine) and 500 is a crash on a None row.")

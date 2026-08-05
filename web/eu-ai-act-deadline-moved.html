@@ -33,9 +33,9 @@
   <link rel="preload" href="/fonts/dm-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
   <style>
-    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#7c8490;
-      --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;--yes:#6fcf86;--no:#c2502f}
-    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#7e6428;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#5f6974;--yes:#2f8f4e;--no:#b1442a}}
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--accent-ink:#0b0a08;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#7c8490;
+      --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;--yes:#6fcf86;--no:#e2705a}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#7e6428;--accent-ink:#fdfbf7;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#5f6974;--yes:#1f7038;--no:#b1442a}}
     *{box-sizing:border-box;margin:0;padding:0}
     html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
     body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
@@ -63,7 +63,7 @@
     .toc a:hover{border-color:var(--accent);color:var(--accent)}
     .cta{display:flex;flex-wrap:wrap;gap:.7rem;margin:1.6rem 0}
     .cta a{font-family:var(--font-mono);font-size:.85rem;text-decoration:none;border-radius:10px;padding:.7rem 1.1rem}
-    .cta a.primary{background:var(--accent);color:#0b0a08;font-weight:600}
+    .cta a.primary{background:var(--accent);color:var(--accent-ink);font-weight:600}
     .cta a.ghost{border:1px solid var(--border);color:var(--text-hi)}
     .cta a.ghost:hover{border-color:var(--accent)}
     .faq dt{color:var(--text-hi);font-weight:600;margin-top:1.1rem}

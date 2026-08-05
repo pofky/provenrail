@@ -33,9 +33,9 @@
   <link rel="preload" href="/fonts/dm-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles.css">
   <style>
-    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#7c8490;
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--accent-ink:#0b0a08;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#7c8490;
       --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif}
-    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#7e6428;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#5f6974}}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#7e6428;--accent-ink:#fdfbf7;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#5f6974}}
     *{box-sizing:border-box;margin:0;padding:0}
     html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
     body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
@@ -124,6 +124,8 @@
       <a href="#typescript">TypeScript</a>
       <a href="#verify">Verify</a>
       <a href="#policy">Guardrails &amp; alerts</a>
+      <a href="#spend">Spend caps</a>
+      <a href="#content">Transcripts &amp; redaction</a>
       <a href="#cli">CLI</a>
       <a href="#selfhost">Self-host the sink</a>
       <a href="#team">Team &amp; SSO</a>
@@ -382,6 +384,57 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
       an agent cannot skip, put <code>pr sidecar</code> in front of the model API and lock egress
       to it.</div>
 
+    <h2 id="spend">Spend: caps that bind, and a bill you can check</h2>
+    <p>An agent that loops overnight is a bill you find out about from the invoice. Provenrail
+      records the token usage each model call reports, prices it, and enforces caps at the same
+      boundary as the guardrails, so the stop is recorded in the same signed chain as everything
+      else.</p>
+
+    <h3>Cap the spend</h3>
+    <p>Budgets sit next to your rules in <code>.provenrail.json</code>. Scope is
+      <code>session</code>, <code>day</code> or <code>total</code>; <code>warn_at</code> is a
+      fraction of the limit that warns without ever changing the verdict.</p>
+    <pre><code>{
+  "policy": {
+    "use": ["destructive", "money"],
+    "budgets": [
+      { "id": "per-session", "scope": "session", "limit_usd": 0.50, "warn_at": 0.8 },
+      { "id": "daily",       "scope": "day",     "limit_usd": 5.00 }
+    ]
+  }
+}</code></pre>
+    <p><code>pr guard status</code> shows every budget, what it has spent and what is left.</p>
+
+    <h3>See what a run cost</h3>
+    <pre><code><span class="g">pr spend</span> my-run.json          <span class="c"># per session and per model</span>
+<span class="g">pr spend</span>                      <span class="c"># the cross-run ledger, all agents</span>
+<span class="g">pr spend</span> --agent billing-bot  <span class="c"># one agent</span></code></pre>
+
+    <h3>Check it against the real bill</h3>
+    <p>Our figure is an estimate from published list prices, so the number that matters is the
+      gap between it and what you were actually charged. Feed in the provider's usage export:</p>
+    <pre><code><span class="g">pr reconcile</span> my-run.json --invoice openai-usage.csv</code></pre>
+    <p>It exits <code>1</code> when the invoice bills for a model that never went through the
+      recorder, which is the finding worth alerting on: spend from an uninstrumented service, a
+      scheduled job, or a machine outside your deployment. A price variance on a model you
+      <em>did</em> record is reported for you to read and does not change the exit code, because a
+      list-price estimate is expected to drift from a negotiated rate.</p>
+
+    <div class="note"><strong>Honest scope.</strong> Budgets bind model calls made through the SDK,
+      using the usage each call reports. Tool hooks carry no model spend. A model we have no price
+      for is counted as unpriced rather than as zero, and <code>pr spend --json</code> reports
+      <code>unpriced_calls</code> so a total is never silently short.</div>
+
+    <h2 id="content">Prove a transcript, and disclose a redacted one</h2>
+    <p>By default the record stores a hash of each prompt and response, not the text, so the record
+      itself leaks nothing. To show someone that the transcript you hold is the one that was
+      recorded, check your copy against the fingerprint:</p>
+    <pre><code><span class="g">pr verify-content</span> my-run.json --file prompt.json --field request</code></pre>
+    <p>It exits <code>0</code> on a match and <code>1</code> when the content is not what was
+      recorded. Where fields were redacted at capture, <code>pr disclose</code> renders a view of
+      the bundle with named fields opened for a specific recipient, leaving the rest sealed:</p>
+    <pre><code><span class="g">pr disclose</span> my-run.json --openings keys.json</code></pre>
+
     <h2 id="cli">CLI reference</h2>
     <pre><code><span class="g">pr quickstart</span>        <span class="c"># local sink + config, zero tokens</span>
 <span class="g">pr demo</span>              <span class="c"># records a session, anchors it, writes bundle.json + pin.json</span>
@@ -391,7 +444,11 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
 <span class="g">pr risk</span> bundle.json    <span class="c"># every action a policy blocked (exit 1 if any)</span>
 <span class="g">pr report</span> --regime eu-ai-act bundle.json --md   <span class="c"># map the record to a regime</span>
 <span class="g">pr pack</span> bundle.json    <span class="c"># self-contained evidence pack (zip) for auditors</span>
-<span class="g">pr diff</span> run-a.json run-b.json            <span class="c"># diff two runs with provable fidelity</span>
+<span class="g">pr diff</span> run-a.json run-b.json            <span class="c"># diff two runs (exit 1 if they differ)</span>
+<span class="g">pr spend</span> bundle.json   <span class="c"># what this run cost, per session and per model</span>
+<span class="g">pr reconcile</span> bundle.json --invoice bill.csv  <span class="c"># recorded spend vs the provider's bill</span>
+<span class="g">pr verify-content</span> bundle.json --file prompt.json  <span class="c"># prove a transcript you hold was the one recorded</span>
+<span class="g">pr disclose</span> bundle.json --openings keys.json   <span class="c"># reveal redacted fields to a named recipient</span>
 <span class="g">pr ots-verify</span> proof.ots --data-sha256 H  <span class="c"># verify a Bitcoin (OpenTimestamps) proof</span>
 <span class="g">pr serve</span> --anchor rfc3161               <span class="c"># run the sink yourself (real trusted time)</span>
 <span class="g">pr sidecar</span> --upstream https://api.openai.com   <span class="c"># out-of-process capture proxy</span>

@@ -457,3 +457,32 @@ section { position: relative; }
   /* The nav links and the nav CTA were the one gap left in this block. */
   .nav-links, .nav-links > a, .nav-links .btn-nav { transition-duration: .01ms; }
 }
+
+/* ---- WCAG 2.1 AA: link identification and scrollable regions -------------------
+   Two serious axe findings, on every page.
+
+   1.4.1 Use of Colour. A link sitting inside a paragraph was distinguished from the
+   text around it by colour alone, which is invisible to a reader who cannot separate
+   those hues. Underline it. Links that are their own block (nav, footer, cards, CTAs)
+   are not affected: they are identifiable by position, so they stay clean. */
+p a:not(.btn):not(.back):not([class*="btn"]),
+li a:not(.btn):not(.back):not([class*="btn"]),
+.note a:not(.btn):not([class*="btn"]),
+.foot a:not(.btn):not([class*="btn"]),
+.muted a,
+.lede a,
+dd a, td a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: from-font;
+}
+
+/* 2.1.1 Keyboard. Code blocks scroll sideways on narrow screens. A pointer can drag
+   them; a keyboard could not reach them at all, so the right-hand end of every command
+   was unreachable without a mouse. main.js gives an overflowing <pre> tabindex="0";
+   this gives the focus it then receives something visible. */
+pre[tabindex="0"]:focus-visible,
+.scroll-x:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}

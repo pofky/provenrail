@@ -7,10 +7,21 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Windows and macOS are here because a CLI breaks on them in ways Linux never shows:
+    # path separators, the default console encoding (cp1252 refusing our output), and
+    # SQLite file locking. Testing only ubuntu meant claiming cross-platform support we
+    # had never once run.
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        os: [ubuntu-latest]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: windows-latest
+            python-version: "3.14"
+          - os: macos-latest
+            python-version: "3.14"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,3 +33,16 @@ jobs:
         run: ruff check src
       - name: Test
         run: python -m pytest -q -W ignore::DeprecationWarning
+      - name: CLI smoke test
+        # The unit tests import the package; this proves the installed console script runs
+        # and closes the loop a real user follows on the platform under test.
+        shell: bash
+        run: |
+          pr --version
+          pr demo --out b.json --pin pin.json
+          pr verify b.json --pin pin.json
+          pr spend b.json
+          pr report b.json --md --out r.md
+          test -s r.md
+          pr pack b.json --out p.zip
+          test -s p.zip
