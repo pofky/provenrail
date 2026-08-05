@@ -62,6 +62,17 @@ def test_plugin_manifest_is_valid() -> None:
     assert data["name"] == "provenrail-guard"
 
 
+def test_the_plugin_version_matches_the_package_it_shims() -> None:
+    """The plugin is a shim over the installed `pr`, so a user comparing the two should not see
+    two different numbers. Nothing enforced this and it drifted: 0.2.28 shipped with 0.2.27 in
+    the plugin manifest, because the bump was a hand edit in a second place. It is one line to
+    check and it removes the hand edit from the release checklist."""
+    from provenrail import __version__
+    data = json.loads((PLUGIN_DIR / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    assert data["version"] == __version__, (
+        f"plugin.json says {data['version']}, the package is {__version__}; bump both")
+
+
 def test_hooks_reference_the_plugin_root_not_an_absolute_path() -> None:
     """Plugins are copied to a cache directory on install, so any path that is not resolved
     through ${CLAUDE_PLUGIN_ROOT} points at the author's machine and fails for every user."""
