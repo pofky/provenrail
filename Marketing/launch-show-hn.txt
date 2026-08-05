@@ -1,0 +1,39 @@
+TITLE (80 char limit, currently 79)
+
+Show HN: Tamper-evident audit trail for AI coding agents, verifiable in-browser
+
+
+BODY (paste into the text field, leave the URL field pointing at https://provenrail.com)
+
+I build with coding agents daily and kept hitting the same thing: when the agent does something destructive, the only account of what happened is a log the same process could have written anything into. Claude Code's permission prompt is one keypress and leaves nothing behind. In April 2026 a coding agent deleted a company's production database and every backup stored alongside it in a single API call, and the most recent recoverable backup was three months old. The agent then wrote its own confession listing the rules it had broken, which is useful for learning and useless for prevention.
+
+So Provenrail does two things. It blocks the destructive call at the agent's own tool boundary before it runs, and it signs every decision into a hash-chained record that lives off the agent's box.
+
+The record is the part I would like you to attack. Each entry is JCS-canonicalised and Ed25519-signed by the agent, and carries the hash of the previous entry. The sink independently chains what it receives, so there are two chains that have to agree, and the sink cannot quietly reorder or drop anything without breaking its own. Heads get folded into an RFC 6962 Merkle tree, checkpointed into a transparency log, and optionally countersigned by witnesses running on separate infrastructure. Time comes from an RFC 3161 authority. Verification trusts neither the agent nor the sink nor us.
+
+You can try it without signing up for anything: https://provenrail.com/verify?demo runs the real verifier on a real record entirely in your browser. Then https://provenrail.com/verify?tamper runs the identical code over a record where one byte was changed, so you can watch it fail rather than take my word that it would.
+
+Two things I did deliberately that I think matter more than the feature list.
+
+The verifier is written twice, once in Python and once in JavaScript, by the same person, which is not independence but does catch the class of bug where a verifier and the thing it verifies share an assumption. Thirteen conformance vectors are frozen in the repo, each with an expected verdict, and both implementations have to agree on every one. If you write a third verifier, those vectors are the contract.
+
+And the honest limitation, stated in the README rather than buried: the SDK runs inside the agent process, so a genuinely hostile agent can simply not call it. Nothing here makes capture complete, and the tool never claims a run was complete. What it does is get whatever was recorded off the box fast enough that it becomes immutable, and make tampering after the fact detectable. Anyone selling you provable completeness for an in-process recorder is selling you something that does not exist.
+
+Guardrails ship as 36 rules in 7 packs (destructive, secrets, money, production, access, exfiltration, blast radius). The Claude Code integration is one command and blocks rm -rf, terraform destroy, force pushes, DROP TABLE and leaked keys before execution, recording each decision either way.
+
+MIT licensed, Python and TypeScript SDKs, self-hostable sink, and a free tier that is not a trial. Source: https://github.com/pofky/provenrail
+
+What I most want picked apart: the threat model. I have tried to be careful about what the two chains actually prove versus what people will assume they prove, and I would rather find the gap here than after someone relies on it.
+
+
+FIRST COMMENT (post this yourself right after submitting, as the author)
+
+A few things I expect to come up, answered up front.
+
+Why not just use a transparency log directly. You can, and the design borrows from Certificate Transparency on purpose. The gap is capture: a log proves an entry was in it, not that the entry describes what the agent did. That is what the client-side signing and the tool-boundary interception are for, and it is also why I am careful to say tamper-evident rather than tamper-proof.
+
+Why should I trust your verifier. You should not, which is why the conformance vectors exist and why there are two implementations. The browser one is about 1,300 lines of plain JavaScript with zero dependencies, so reading it is a realistic afternoon rather than a project.
+
+What happens if your company disappears. The sink is self-hostable, the record format is documented, and verification is offline and MIT licensed. A bundle verified today verifies with no network access and no server of mine involved. I keep old bundles as test fixtures for exactly this reason: a record written by the first published version still verifies under today's verifier.
+
+Is this EU AI Act compliance in a box. No. Article 12 record-keeping moved to December 2027 under the Digital Omnibus, and no tool makes you compliant on its own. It produces technical evidence an auditor can independently check, which is one input among many.

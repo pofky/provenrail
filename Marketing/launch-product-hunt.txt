@@ -1,0 +1,56 @@
+PRODUCT HUNT LISTING
+Launch Tuesday, Wednesday or Thursday at 12:01am Pacific. Treat this as a credibility
+signal and a backlink, not a growth channel.
+
+
+NAME
+
+Provenrail
+
+
+TAGLINE (60 char limit, currently 57)
+
+Guardrails for AI agents, with a receipt anyone can verify
+
+
+DESCRIPTION (260 char limit, currently 257)
+
+Block your coding agent's destructive commands before they run, and sign every decision into a hash-chained record that cannot be altered without it showing. Verify any record in your browser, no signup. MIT licensed verifier, self-hostable, free tier.
+
+
+TOPICS (pick 3)
+
+Developer Tools
+Artificial Intelligence
+Security
+
+
+LINKS
+
+Website: https://provenrail.com
+GitHub: https://github.com/pofky/provenrail
+Try without signup: https://provenrail.com/verify?demo
+
+
+FIRST COMMENT (post as maker, immediately after the listing goes live)
+
+I build with coding agents every day, and two things kept bothering me.
+
+The first is that the permission prompt does not work. After the twentieth one in an hour you stop reading, which is precisely when you approve the one that matters. Provenrail moves the decision to the agent's tool boundary instead: rm -rf, terraform destroy, force pushes, DROP TABLE and leaked keys are denied before they execute, using 36 rules across 7 packs you can extend.
+
+The second is that when something does go wrong, the only account of it is a log written by the process that did it. So every decision, allowed or denied, is signed and hash-chained off the machine. The record carries two independent chains, one from the agent and one from the receiving server, which have to agree, so nothing can be edited, reordered or truncated afterwards without it showing.
+
+You do not have to take my word for any of that. There is a real record verifying in your browser at provenrail.com/verify?demo, and the identical code running over the same record with one byte changed at provenrail.com/verify?tamper. The verifier is MIT licensed, has no dependencies, and there are 13 frozen conformance vectors in the repo that two independent implementations both have to agree on.
+
+One limitation I would rather say myself: the recorder runs inside the agent process, so a hostile agent can decline to call it. This makes tampering detectable, it does not make capture complete, and it never claims a run was complete.
+
+I would genuinely rather have criticism than upvotes here. If you think the threat model has a hole, that is the most useful thing you can give me.
+
+
+MAKER NOTES (do not paste)
+
+Reply to every single comment, ideally within the hour. Ask for feedback, never for
+upvotes, which is against the rules and obvious anyway. A short screen recording of the
+tampered verifier going red is worth more than any screenshot: that is the shareable
+moment in this product. Add the Product Hunt URL to the Organization sameAs list in
+web/index.html once the listing exists.

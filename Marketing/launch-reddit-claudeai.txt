@@ -1,0 +1,45 @@
+SUBREDDIT: r/ClaudeAI
+FLAIR: Built with Claude (or Productivity, whichever exists at the time)
+POST TYPE: text post, not link post
+
+
+TITLE
+
+I made a Claude Code hook that blocks rm -rf before it runs, and records every decision
+
+
+BODY
+
+Claude Code's permission prompt has never worked for me. After the twentieth one in an hour I stopped reading them, which is exactly the state in which you approve the one that matters. And once you have clicked through it, nothing about that decision is written down anywhere.
+
+So I built a PreToolUse hook that makes the decision at the tool boundary instead of asking me. It ships as a plugin:
+
+/plugin marketplace add pofky/provenrail
+
+Then in your project:
+
+uv tool install provenrail
+pr guard install --use destructive
+
+That arms ten rules. rm -rf, terraform destroy, force push to a protected branch, DROP TABLE, chmod 777 and friends get denied before execution, and Claude sees a normal denial with the reason, so it adapts instead of hanging. There are six other packs if you want them: secrets, money, production, access, exfiltration and blast radius, 36 rules in total. You can also write your own in a JSON policy file.
+
+The part I actually care about is the second half. Every decision, allowed or denied, is signed and written into a hash-chained record that leaves your machine. Not a log file the same process could rewrite. Each entry carries the hash of the one before it, the server independently chains what it receives, and the two chains have to agree, so a record cannot be edited, reordered or truncated afterwards without it showing.
+
+You can see what that looks like without installing anything or making an account. This is a real record verifying in your browser:
+
+https://provenrail.com/verify?demo
+
+And this is the same code running over the same record with a single byte changed:
+
+https://provenrail.com/verify?tamper
+
+Being straight about the limits, because this subreddit will find them anyway. The hook only sees what Claude Code routes through its hook system. It cannot constrain a process that never calls it, and it cannot make your capture complete, so it never claims a run was complete. It catches the accident, which is the thing that actually happens, not a determined adversary sitting at your keyboard.
+
+Free, MIT licensed, works with a local sink so nothing has to go to my servers at all. Source is at github.com/pofky/provenrail if you want to read the hook before you run it, which you should.
+
+Happy to answer anything about the rules or the record format. If you think a rule is wrong or missing, tell me, that is the most useful thing I can get out of posting this.
+
+
+NOTES FOR POSTING (do not paste this section)
+
+Post on a weekday morning US time. Reply to every comment in the first two hours, that window decides whether it spreads. Do not cross-post the identical text to several subreddits on the same day, rewrite the opening for each. If someone asks whether you are selling something, say yes, there is a paid hosted tier, and that the guardrails and the verifier are free and MIT either way. Never argue with a sceptical comment, agree with the accurate part first.

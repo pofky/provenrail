@@ -1,0 +1,39 @@
+INDIE HACKERS
+Post to the Developers group, or Building in Public. IH converts better than Product Hunt
+for bootstrapped tools, mostly because the audience reads the whole post.
+
+
+TITLE
+
+I shipped a tamper-evident audit trail for AI agents to zero customers. Here is what the numbers actually look like
+
+
+BODY
+
+I have been building Provenrail for a few months. It puts guardrails at a coding agent's tool boundary and signs every decision into a record that cannot be edited afterwards without it showing. Technically it is in good shape: 855 tests, two independent verifier implementations that have to agree on 13 frozen conformance vectors, published on PyPI and npm, MIT licensed, self-hostable.
+
+Commercially it has produced nothing, and I think the numbers are more useful to other people here than another launch announcement.
+
+Total pageviews on the site since it went up: 1,691. Of those, roughly 1,600 are my own automated browser tests. On days I was not working on it, traffic was zero, one, or two visits. Referrers across the last thousand views: three from Bing, everything else direct or unattributed. Four signups, all on the free tier. Zero paying customers, zero enquiries, ever.
+
+PyPI looks healthier at around 1,000 downloads a month until you separate mirrors from real installs and look at the daily shape. The baseline is two to twenty a day, with spikes of 487 and 395 on the exact days I published releases and ran install tests. Those spikes are me.
+
+The mistake is not subtle in hindsight. I kept finding real bugs, so I kept fixing them, and fixing real bugs feels exactly like progress. In one week I found that a plan downgrade left former teammates holding working API keys, that single sign-on could add members past the seat limit a customer pays for, and that two agents writing to one stream made the client report tampering on 97 percent of records. Every one of those was worth fixing. None of them was the reason nobody had signed up. Nobody had signed up because nobody had seen it.
+
+The honest diagnosis: I have been treating quality as a growth strategy. It is not. It is a retention strategy, and retention is a problem you earn the right to have.
+
+What I am doing about it, in case it is useful to compare notes. Everything gets pointed at distribution for the next month, with the product work limited to whatever a real user actually asks for. The one asset I think is genuinely good is that you can try the thing with no signup at all: there is a real record verifying in your browser at provenrail.com/verify?demo, and the same record with one byte changed at provenrail.com/verify?tamper, so the demo proves itself instead of asserting.
+
+Two questions for anyone who has been through this.
+
+If you built something technical that nobody had heard of, what actually moved first? I have a suspicion the answer is almost always "one specific person told one specific other person" and that everything else is noise on top of that.
+
+And how long did you keep polishing before you admitted the polishing was avoidance? I got a week into an audit that found five real defects before I looked at the traffic numbers and realised what I was doing.
+
+
+NOTES (do not paste)
+
+The numbers in this post are real as of 5 August 2026. Update them before posting if time
+has passed, and never round them in your favour: the specificity is the entire reason this
+post works. Do not post this the same week as the Show HN, it reads as a different person
+than the confident launch and both are true but the sequence matters. IH first, HN second.

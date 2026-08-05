@@ -48,7 +48,7 @@
     .top{display:inline-flex;align-items:center;gap:.6rem;font-family:var(--font-mono);font-size:.9rem;font-weight:500;margin-bottom:2.5rem;color:var(--text-hi);text-decoration:none}
     .top svg{width:26px;height:26px}
     .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:.6rem}
-    h1{font-family:var(--font-mono);font-size:clamp(1.5rem,4vw,2rem);font-weight:500;letter-spacing:-.02em;margin-bottom:.4rem}
+    h1,.panel-h{font-family:var(--font-mono);font-size:clamp(1.5rem,4vw,2rem);font-weight:500;letter-spacing:-.02em;margin-bottom:.4rem}
     .sub{color:var(--text-mid);font-size:1rem;margin-bottom:2rem}
     .card{background:var(--bg-2);border:1px solid var(--border);border-radius:16px;padding:clamp(1.2rem,4vw,1.75rem);margin-bottom:1.1rem}
     label{display:block;font-family:var(--font-mono);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-lo);margin-bottom:.5rem}
@@ -126,12 +126,14 @@
   </header>
   <main id="main-content" class="wrap">
 
+    <h1 class="sr-only">Provenrail account</h1>
+
     <div id="loading"><div class="spin"></div></div>
 
     <!-- LOGGED OUT -->
     <section id="auth" class="hide">
       <p class="eyebrow">Account</p>
-      <h1>Sign in</h1>
+      <h2 class="panel-h">Sign in</h2>
       <p class="sub">No passwords. Continue with GitHub or Google, or get a one-time email link.</p>
       <div class="card">
         <div class="oauth-row">
@@ -159,7 +161,7 @@
     <!-- SENT -->
     <section id="sent" class="hide">
       <p class="eyebrow">Check your inbox</p>
-      <h1>Link sent</h1>
+      <h2 class="panel-h">Link sent</h2>
       <p class="sub">We sent a sign-in link to <strong id="sent-to"></strong>. Open it on this device to continue.</p>
       <div class="card">
         <button class="btn-ghost" onclick="location.reload()">Use a different email</button>
@@ -169,7 +171,7 @@
     <!-- LOGGED IN -->
     <section id="app" class="hide">
       <p class="eyebrow">Account</p>
-      <h1 id="hello">Your account</h1>
+      <h2 class="panel-h" id="hello">Your account</h2>
       <p class="sub" id="email-line"></p>
 
       <div class="card">

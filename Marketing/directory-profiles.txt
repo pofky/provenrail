@@ -1,0 +1,74 @@
+DIRECTORY AND ENTITY PROFILES
+Being listed on four or more platforms makes a tool substantially more likely to be named
+by an AI assistant, and these listings are close to a hard gate: nearly every tool that
+gets cited has them. Each block below is paste-ready for one destination.
+
+
+=== SHORT DESCRIPTION (50 words, for anywhere with a small field) ===
+
+Provenrail blocks destructive AI agent actions before they run and signs every decision into a hash-chained record that cannot be altered without it showing. Verification is open source, runs offline, and trusts neither the agent nor the server. Python and TypeScript SDKs, self-hostable, free tier.
+
+
+=== ONE LINE (for fields under 120 characters) ===
+
+Guardrails for AI agents, with a tamper-evident record anyone can independently verify.
+
+
+=== LONG DESCRIPTION (for Crunchbase, AlternativeTo, StackShare) ===
+
+Provenrail is a tamper-evident audit trail and guardrail layer for AI agents. It intercepts an agent's tool calls and blocks destructive ones before execution, using 36 built-in rules across seven packs covering destructive commands, secrets, spending, production access, permissions, data exfiltration and blast radius. Every decision, allowed or denied, is canonicalised, signed with Ed25519 and written into a hash-chained record that leaves the agent's machine immediately.
+
+The record carries two independent chains, one produced by the agent and one by the receiving server, which must agree, so entries cannot be edited, reordered or removed after the fact without detection. Record heads are folded into an RFC 6962 Merkle tree, published as signed transparency-log checkpoints, optionally countersigned by independent witnesses, and timestamped by an RFC 3161 authority.
+
+Verification is open source under the MIT licence, runs entirely offline, and trusts neither the agent, the server, nor Provenrail. Two independent verifier implementations, one in Python and one in JavaScript, are held to a frozen conformance suite that both must agree on. Anyone can verify a record in a browser without an account.
+
+Provenrail integrates with Claude Code as an installable plugin, and with OpenAI, Anthropic, LangChain and MCP through one-line instrumentation. The server is self-hostable, so records need never reach a third party. There is a free tier, and paid tiers add trusted timestamping, team access with roles and single sign-on, evidence exports and compliance reports.
+
+
+=== CATEGORIES AND TAGS (use whichever the destination supports) ===
+
+Developer Tools, AI, Security, Compliance, Observability, DevSecOps, Audit, Monitoring
+
+ai-agents, guardrails, audit-log, tamper-evident, agent-security, ai-safety, compliance, transparency-log, claude-code, devsecops
+
+
+=== WHERE TO CREATE PROFILES, IN PRIORITY ORDER ===
+
+1. Crunchbase. Free basic profile. Organisation entity that feeds knowledge graphs.
+   Use the long description, the logo at provenrail.com/icon-512.png, founding year 2026,
+   Lithuania, and link the website and GitHub.
+
+2. AlternativeTo. Free. Very high intent traffic and heavily cited in "best X" answers.
+   List as an alternative to: audit logging tools, and in AI developer tooling. Use the
+   long description and the one line.
+
+3. StackShare. Free. Developer-tool entity record with good citation weight.
+
+4. Wikidata. Free, no notability bar for a software item. Create an item of type
+   "software" with: label Provenrail, description "open-source tamper-evident audit trail
+   for AI agents", official website https://provenrail.com, source code repository
+   https://github.com/pofky/provenrail, licence MIT, programming languages Python and
+   TypeScript. This feeds knowledge graphs directly and is the highest ratio of effect to
+   effort on this list.
+
+5. Product Hunt. See launch-product-hunt.txt. Also creates an entity record.
+
+6. GitHub topics on the repo itself. Add: ai-agents, audit-log, tamper-evident,
+   ai-safety, claude-code, guardrails, transparency-log, compliance. Free, thirty seconds,
+   and it is how people browsing GitHub by topic find anything.
+
+7. PyPI and npm listings already exist. Make sure both carry the same one line as above,
+   so the description is identical everywhere. Consistency across platforms is the point:
+   the same entity described the same way in many places is what an assistant resolves
+   into a confident answer.
+
+8. Awesome lists. Submit a pull request to awesome-ai-agents, awesome-llm-security and
+   awesome-mcp if it fits. One line, alphabetical position, no marketing language, link
+   straight to the repo. Maintainers reject anything that reads like an ad.
+
+
+=== AFTER EACH PROFILE IS LIVE ===
+
+Add its URL to the Organization "sameAs" list in web/index.html. It currently lists PyPI,
+npm and GitHub. Every additional platform in that list strengthens the entity, and the
+list is how a machine knows all these profiles are the same thing.

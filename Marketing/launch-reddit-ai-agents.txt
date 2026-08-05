@@ -1,0 +1,34 @@
+SUBREDDIT: r/AI_Agents
+POST TYPE: text post
+POST THIS AT LEAST THREE DAYS AFTER THE r/ClaudeAI POST, AND NEVER THE SAME TEXT
+
+
+TITLE
+
+If your agent did something expensive last Tuesday, can you prove what it did?
+
+
+BODY
+
+I have been building agents for a while and I think we have a gap nobody wants to look at. We have traces, we have observability dashboards, we have logs. Every one of them is written by the same process that did the thing, and every one of them is editable afterwards. That is fine for debugging. It is worth nothing the moment somebody disputes what happened.
+
+The situations where that stops being theoretical: an agent runs up a bill and finance wants to know what authorised it. An agent touches customer data and someone asks which records. An agent breaks production and the postmortem needs to establish what it was actually asked to do. A customer claims your agent did something it did not do, and you need to show otherwise. In every one of those, "here is our log" is an assertion, not evidence, because you control the log.
+
+What actually closes it is fairly well understood, it is just borrowed from a different field. Certificate Transparency solved a structurally identical problem for TLS certificates: how do you prove a log has not been rewritten when the log's operator has every incentive to rewrite it. The answer is append-only hash chains, Merkle trees, published checkpoints and independent witnesses.
+
+The shape, if you want to build it yourself rather than use anything:
+
+Sign each record client-side, canonicalised so the bytes are deterministic, each carrying the hash of the previous one. Ship it off the agent's machine immediately, because a record that is still on the box is a record the box can edit. Have the receiving side keep its own independent chain of what it received, so there are two chains that must agree and the receiver cannot silently drop or reorder either. Fold the heads into a Merkle tree and publish signed checkpoints. Get timestamps from an RFC 3161 authority rather than the agent's clock. Then make verification something a third party can run offline, trusting neither end.
+
+The property you get is not "nobody can tamper", it is "tampering is detectable by someone who does not trust you". That is a weaker and much more useful claim.
+
+The thing you cannot get, and I would be sceptical of anyone who claims otherwise: completeness. If the recorder runs inside the agent process, a genuinely hostile agent can decline to call it. You can prove what was recorded was not altered. You cannot prove nothing was omitted. Any tool telling you it guarantees a complete record of an in-process agent is overselling.
+
+I built this out as a tool, Provenrail, because I wanted it for my own agents. Free tier, MIT licensed verifier, self-hostable so nothing needs to reach my servers. If you just want to see the mechanism rather than install anything, there is a real record verifying live in your browser at provenrail.com/verify?demo and the same record with one byte flipped at provenrail.com/verify?tamper, so you can watch it fail rather than believe me.
+
+Mostly though I am interested in whether other people building agents see this as a real problem yet, or whether it only becomes real the first time something goes wrong in a way you have to explain to someone else.
+
+
+NOTES FOR POSTING (do not paste this section)
+
+The value has to land before the product does, which is why the build-it-yourself section is real and specific. If you strip that out it becomes an ad and it will be treated as one. Answer the "why not just use OpenTelemetry" question directly if it comes: OTel is for debugging your own system and assumes you trust the emitter, this assumes you do not.

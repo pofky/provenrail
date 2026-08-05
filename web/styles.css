@@ -486,3 +486,55 @@ pre[tabindex="0"]:focus-visible,
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
+
+/* ---- WCAG 2.5.5 / 2.5.8: touch targets ------------------------------------------
+   Measured on a real 375px viewport across all 16 public pages: footer navigation
+   links stood 23px tall, table-of-contents entries 34px, "back" links 22px, and the
+   skip link 42px. A finger is about 44px wide, so every one of those was a link you
+   aim at and miss, and the pages worst affected were the long documentation ones read
+   on a phone.
+
+   Links sitting inline inside a sentence are deliberately left alone: WCAG exempts
+   them, and padding them would wreck the line spacing of body copy. What is fixed
+   here is every link that stands on its own as a thing to hit. The extra height is
+   taken as padding on an inline-flex box, so the visual rhythm barely moves: the gaps
+   between items are reduced to compensate. */
+.footer-links a,
+.footer-nav-links a,
+.footer-copy a,
+.back,
+.toc a,
+.toc-list a,
+nav.toc a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  /* Short words ("FAQ", "Pricing") were still a 43px-wide target. The box widens; the
+     text stays left-aligned, so nothing moves visually. */
+  min-width: 44px;
+  /* Keeps the hit area honest without making the text look spaced out. */
+  padding-block: .1rem;
+}
+
+/* The columns already had generous gaps; with 44px boxes they would read as a list of
+   buttons, so the gap comes down by roughly what the padding added. */
+.footer-nav-links { gap: .1rem; }
+.footer-links { gap: 0 1.2rem; }
+
+/* A summary is a control: it must be as easy to hit as a button. */
+details > summary { min-height: 44px; display: flex; align-items: center; }
+
+/* The skip link is the first thing a keyboard or screen-reader user lands on, and it
+   was 2px short of the target size. */
+.skip-link { padding: .75rem 1.2rem; }
+
+/* A visible, machine-readable "last updated" on every guide and reference page.
+   Answer engines weight recency heavily and readers of a compliance page have a fair
+   question about whether it still reflects the law. The date is generated from the
+   page's real last change, never hand-set, so it cannot drift into a lie. */
+.updated {
+  font-family: var(--font-mono);
+  font-size: .78rem;
+  color: var(--text-lo);
+  margin: -.6rem 0 1.6rem;
+}
