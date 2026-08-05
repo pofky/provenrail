@@ -108,8 +108,13 @@ document.querySelectorAll('.tour-card .tour-play').forEach(btn => {
       var sent = false;
       if (typeof fetch === 'function') {
         sent = true;
+        // no-cors: this is fire-and-forget, we never read the response, and a text/plain POST
+        // is a CORS-safelisted simple request so it still arrives intact. Under 'cors' the
+        // browser enforces the response headers, so any transient edge error at our host
+        // printed a CORS failure in the visitor's console. That is a console error on a real
+        // user's page caused by our analytics, which is a bad trade for telemetry we discard.
         fetch(ENDPOINT, {
-          method: 'POST', body: payload, mode: 'cors', credentials: 'omit', keepalive: true,
+          method: 'POST', body: payload, mode: 'no-cors', credentials: 'omit', keepalive: true,
           headers: { 'content-type': 'text/plain;charset=UTF-8' }
         }).catch(function () {});
       }
