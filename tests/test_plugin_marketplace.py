@@ -77,6 +77,18 @@ def test_hooks_reference_the_plugin_root_not_an_absolute_path() -> None:
 def test_hook_script_exists_and_is_executable() -> None:
     script = PLUGIN_DIR / "scripts" / "pr-guard-hook.sh"
     assert script.is_file()
+    if os.name == "nt":
+        # Windows has no execute bit, so st_mode carries nothing to assert. What still has to
+        # hold is that git records the bit, because that is what everyone else checks out. Ask
+        # git rather than the filesystem.
+        import subprocess
+        out = subprocess.run(["git", "ls-files", "-s", "--", str(script)],
+                             cwd=str(ROOT), capture_output=True, text=True)
+        if out.returncode == 0 and out.stdout.strip():
+            assert out.stdout.split()[0] == "100755", (
+                f"git has the hook script as {out.stdout.split()[0]}, not 100755; it will be "
+                f"checked out non-executable and every hook call will fail")
+        return
     mode = script.stat().st_mode
     assert mode & stat.S_IXUSR, "the hook script must be executable or every hook call fails"
 
@@ -107,7 +119,9 @@ def test_marketplace_is_not_gitignored() -> None:
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
     for pattern in (".claude-plugin", "plugins/"):
         assert pattern not in gitignore.split(), f"{pattern} is gitignored"
-    assert os.path.relpath(MARKETPLACE, ROOT) == ".claude-plugin/marketplace.json"
+    # as_posix(): the path this asserts is a repository path, which is separator-
+    # independent. os.path.relpath hands back backslashes on Windows.
+    assert MARKETPLACE.relative_to(ROOT).as_posix() == ".claude-plugin/marketplace.json"
 
 
 def test_hook_script_forwards_stderr_rather_than_discarding_it() -> None:
