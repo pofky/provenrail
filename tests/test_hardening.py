@@ -346,3 +346,94 @@ def test_pr_reports_its_own_version(capsys):
         cli_main(["--version"])
     assert e.value.code == 0
     assert __version__ in capsys.readouterr().out
+
+
+def test_report_writes_the_file_it_was_asked_for(tmp_path, capsys):
+    """`--out` was honoured only on the --html path. With --md or the default JSON it was
+    silently ignored and the report went to stdout, so the evidence file someone believed they
+    had saved did not exist, and nothing said so."""
+    import argparse
+    import json as _json
+
+    from provenrail.cli import _cmd_demo, _cmd_report
+
+    bundle = tmp_path / "b.json"
+    _cmd_demo(argparse.Namespace(out=str(bundle), pin=str(tmp_path / "pin.json"),
+                                 anchor="local", tsa=""))
+    capsys.readouterr()
+
+    for flag, name in ((("md", True), "r.md"), (("md", False), "r.json")):
+        out = tmp_path / name
+        rc = _cmd_report(argparse.Namespace(
+            bundle=str(bundle), regime="generic", pin=None, md=flag[1], html=False,
+            out=str(out), tlog_pubkey=None, witness_pubkeys=None))
+        assert rc in (0, 1)
+        assert out.is_file(), f"{name} was requested with --out and never written"
+        assert out.read_text(encoding="utf-8").strip(), f"{name} is empty"
+    _json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))   # valid JSON, not markdown
+    assert (tmp_path / "r.md").read_text(encoding="utf-8").startswith("#")
+
+
+def test_pack_lists_what_is_actually_in_the_archive(tmp_path, capsys):
+    """The summary was a hardcoded list that had drifted from the builder: it named an
+    "attestation" entry the pack does not contain and omitted the rendered report an auditor
+    opens first. A contents list that is not read from the archive is a guess."""
+    import argparse
+    import io
+    import zipfile
+
+    from provenrail.cli import _cmd_demo, _cmd_pack
+
+    bundle = tmp_path / "b.json"
+    _cmd_demo(argparse.Namespace(out=str(bundle), pin=str(tmp_path / "pin.json"),
+                                 anchor="local", tsa=""))
+    zip_path = tmp_path / "pack.zip"
+    capsys.readouterr()
+    _cmd_pack(argparse.Namespace(bundle=str(bundle), out=str(zip_path), regime="generic",
+                                 pin=None))
+    printed = capsys.readouterr().out
+    with zipfile.ZipFile(io.BytesIO(zip_path.read_bytes())) as z:
+        names = z.namelist()
+    assert names
+    for n in names:
+        assert n in printed, f"{n} is in the pack but not in the printed contents"
+    assert "attestation," not in printed, "the stale hardcoded entry is back"
+
+
+def test_diff_exits_nonzero_when_the_runs_differ(tmp_path, capsys):
+    """`pr diff` answers one question: did the rerun do the same thing? It exited 0 either way,
+    so that question could not be gated on in CI without parsing stdout. diff(1) convention."""
+    import argparse
+    import json as _json
+
+    from provenrail.cli import _cmd_demo, _cmd_diff
+
+    a, b = tmp_path / "a.json", tmp_path / "b.json"
+    for p in (a, b):
+        _cmd_demo(argparse.Namespace(out=str(p), pin=str(tmp_path / "pin.json"),
+                                     anchor="local", tsa=""))
+    capsys.readouterr()
+    assert _cmd_diff(argparse.Namespace(bundle_a=str(a), bundle_b=str(b), json=False)) == 0
+
+    changed = _json.loads(b.read_text(encoding="utf-8"))
+    for r in changed["records"]:
+        rec = r.get("record", r)
+        if rec.get("action_type") == "tool_call":
+            rec.setdefault("payload", {})["tool"] = "something_else"
+            break
+    b.write_text(_json.dumps(changed), encoding="utf-8")
+    capsys.readouterr()
+    assert _cmd_diff(argparse.Namespace(bundle_a=str(a), bundle_b=str(b), json=False)) == 1
+    assert "RUNS DIFFER" in capsys.readouterr().out
+    # --json must agree: same verdict, machine-readable.
+    assert _cmd_diff(argparse.Namespace(bundle_a=str(a), bundle_b=str(b), json=True)) == 1
+
+
+def test_the_sink_reports_the_version_it_is_actually_running():
+    """/v1/meta carried the literal "0.2.0" long after the package moved on, so every deployed
+    sink misreported itself. This is the field you read during an incident to answer "which
+    build is this?"."""
+    from provenrail import __version__
+
+    c = client()
+    assert c.get("/v1/meta").json()["version"] == __version__

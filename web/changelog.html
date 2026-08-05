@@ -91,6 +91,17 @@
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.24</span><span class="date">August 5, 2026</span><span class="tag">Reports and CI</span></div>
+      <ul>
+        <li><b><code>pr report --out</code> now writes the file for every format.</b> It was honoured only with <code>--html</code>. With <code>--md</code> or the default JSON the flag was silently ignored and the report went to standard output, so an evidence file you believed you had saved did not exist and nothing said so.</li>
+        <li><b><code>pr diff</code> exits 1 when the runs differ</b>, following the same convention as <code>diff</code> and <code>git diff --exit-code</code>. It used to exit 0 either way, so the one question it exists to answer, did the rerun do the same thing, could not be gated on without parsing its output.</li>
+        <li><b><code>pr pack</code> lists what is actually in the archive.</b> The printed contents were a hardcoded list that had drifted: it named an attestation file the pack does not contain and left out four that it does, including the rendered report an auditor opens first.</li>
+        <li><b>A sink reports the version it is running.</b> <code>/v1/meta</code> carried the literal 0.2.0 long after the package moved on, so every deployed sink misreported itself in the one field you read during an incident.</li>
+        <li><b><code>pr reconcile</code> documents what its exit code means:</b> 1 when the invoice bills for something that never went through the recorder, and unchanged by a price variance on a model you did record, because our figure there is an estimate from list prices.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.2.23</span><span class="date">August 5, 2026</span><span class="tag">Exit codes</span></div>
       <ul>
         <li><b>Writing a guardrail receipt is no longer reported as a failure.</b> <code>pr guard receipt</code> took its exit code from <code>pr risk</code>, which exits 1 when it finds blocked actions. Finding them is the reason you run it, so a successful export reported itself as a failure, with the same code as an export that produced nothing at all. It now exits 0 when the receipt was written. <code>pr risk</code> keeps the gating exit code for CI, and both are documented in <code>--help</code>.</li>

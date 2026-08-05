@@ -1186,8 +1186,12 @@ def create_app(
 
     @app.get("/v1/meta")
     def meta():
+        from .. import __version__
         from .alerts import EVENTS
-        return {"open_mode": not app.state.require_account, "version": "0.2.0",
+        # Was the literal "0.2.0" and had been since that release, so every sink reported a
+        # version it was not running. This is the field you read to answer "which build is
+        # this?" during an incident, which is precisely when a wrong answer costs the most.
+        return {"open_mode": not app.state.require_account, "version": __version__,
                 "alert_events": list(EVENTS),
                 "tlog_pubkey": app.state.scheduler.tlog_log_key.public_key_hex(),
                 "tlog_origin_prefix": app.state.scheduler.tlog_origin_prefix,

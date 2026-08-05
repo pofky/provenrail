@@ -365,9 +365,12 @@ def _cmd_diff(args) -> int:
     a = json.loads(open(args.bundle_a, encoding="utf-8").read())
     b = json.loads(open(args.bundle_b, encoding="utf-8").read())
     out = diff_runs(a, b)
+    # Exit 1 when the runs differ, like diff(1) and `git diff --exit-code`. It used to exit 0
+    # either way, so the one question this command exists to answer ("did the rerun do the same
+    # thing?") could not be gated on in CI without parsing stdout.
     if args.json:
         print(json.dumps(out, indent=2))
-        return 0
+        return 0 if out["summary"]["identical"] else 1
     s = out["summary"]
     if not out.get("verified_a", True) or not out.get("verified_b", True):
         print("WARNING: one or both bundles failed verification; diff may be over tampered data")
@@ -376,7 +379,7 @@ def _cmd_diff(args) -> int:
         mark = {"equal": "  ", "changed": " ~", "added": " +", "removed": " -"}[step["tag"]]
         print(f"{mark} {step['action_type']}: {step['primary']}")
     print("\nIDENTICAL" if s["identical"] else "\nRUNS DIFFER")
-    return 0
+    return 0 if s["identical"] else 1
 
 
 def _cmd_sidecar(args) -> int:
@@ -498,8 +501,13 @@ def _cmd_pack(args) -> int:
     with open(args.out, "wb") as f:
         f.write(data)
     print(f"Wrote {len(data)} byte evidence pack to {args.out} (regime={args.regime})")
-    print("Contents: bundle.json, attestation, VERIFY.txt, MANIFEST.json"
-          + (", pin.json" if pin else ""))
+    # Listed from the archive rather than from memory. The hardcoded list had drifted: it named
+    # an "attestation" file that is not in the pack and omitted four that are, including the
+    # rendered report an auditor is most likely to open first.
+    import io
+    import zipfile
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        print("Contents: " + ", ".join(sorted(z.namelist())))
     # The manifest inside the zip has always recorded the failure, so the recipient learns the
     # truth. The person who built the pack did not: they saw a success line and exit 0, and an
     # evidence pack is exactly the artifact you hand over believing it is sound. Say it here,
@@ -776,10 +784,17 @@ def _cmd_report(args) -> int:
             print(out)
         return 0
     att = generate_attestation(bundle, regime=args.regime, pin=pin)
-    if args.md:
-        print(render_markdown(att))
+    out = render_markdown(att) if args.md else json.dumps(att, indent=2)
+    # --out used to be honoured only on the --html path. With --md or the default JSON it was
+    # silently ignored and the report went to stdout, so the file the user asked for never
+    # appeared and nothing said why. An evidence report you believe you saved and did not is
+    # exactly the wrong thing to discover later.
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as f:
+            f.write(out + "\n")
+        print(f"Wrote {'markdown' if args.md else 'JSON'} evidence report to {args.out}")
     else:
-        print(json.dumps(att, indent=2))
+        print(out)
     return 0 if att["integrity"]["verified"] else 1
 
 
@@ -1060,7 +1075,15 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=_cmd_spend)
 
     rc = sub.add_parser("reconcile",
-                        help="compare recorded estimated spend against a provider invoice CSV")
+                        help="compare recorded estimated spend against a provider invoice CSV",
+                        formatter_class=argparse.RawDescriptionHelpFormatter,
+                        epilog="exit codes:\n"
+                               "  0  every invoice line matches a model the recorder saw.\n"
+                               "  1  the invoice bills for something that never went through the\n"
+                               "     recorder. That is the finding worth paging someone about.\n"
+                               "A price variance on a model you DID record does not change the exit\n"
+                               "code: our figure is an estimate from list prices, so a gap there is\n"
+                               "expected and is reported in the output for you to read, not gated on.")
     rc.add_argument("bundle")
     rc.add_argument("--invoice", required=True, metavar="CSV",
                     help="provider usage or billing export")
@@ -1096,7 +1119,12 @@ def build_parser() -> argparse.ArgumentParser:
     k.add_argument("--out", default="evidence.zip")
     k.set_defaults(func=_cmd_pack)
 
-    df = sub.add_parser("diff", help="diff two run bundles with provable fidelity")
+    df = sub.add_parser("diff", help="diff two run bundles with provable fidelity",
+                        formatter_class=argparse.RawDescriptionHelpFormatter,
+                        epilog="exit codes (same convention as diff(1)):\n"
+                               "  0  the runs are identical.\n"
+                               "  1  the runs differ. Gate a rerun check on this.\n"
+                               "  2  a bundle could not be read.")
     df.add_argument("bundle_a")
     df.add_argument("bundle_b")
     df.add_argument("--json", action="store_true")
