@@ -201,11 +201,17 @@ section { position: relative; }
   display: inline-flex; align-items: center; gap: .6rem; flex-wrap: wrap;
   margin-top: 1.6rem; padding: .6rem .95rem; border-radius: 12px;
   border: 1px solid var(--accent); background: var(--accent-glow-sm);
-  font-size: 1rem; color: var(--text-mid); line-height: 1.5; max-width: 60ch;
+  font-size: 1rem; color: var(--text-mid); line-height: 1.5; max-width: min(60ch, 100%);
 }
 .hero-deadline .hd-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-glow-sm); animation: hd-pulse 2.4s ease-in-out infinite; }
 .hero-deadline strong { color: var(--text-hi); font-weight: 600; }
 .hero-deadline a { color: var(--accent); white-space: nowrap; }
+/* That nowrap keeps the arrow attached to its sentence on a wide screen. On a phone the
+   link is 387px of unbreakable text inside a 375px viewport, which pushed the whole
+   callout to 437px wide. The page did not scroll sideways, so nothing looked wrong in a
+   document-level overflow check: the text was simply cut off at the edge, and the cut
+   text was the incident story that is the strongest thing on the page. */
+@media (max-width: 699px) { .hero-deadline a { white-space: normal; } }
 @keyframes hd-pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .hero-deadline .hd-dot { animation: none; } }
 
@@ -538,3 +544,11 @@ details > summary { min-height: 44px; display: flex; align-items: center; }
   color: var(--text-lo);
   margin: -.6rem 0 1.6rem;
 }
+
+/* A hard line break tuned for a wide screen becomes a ragged one on a phone: at 375px the
+   headline broke to four lines with "is one" stranded alone. The break is kept for wide
+   screens, where it is a deliberate choice, and below that the browser balances the lines
+   itself, which is what text-wrap: balance exists for. */
+br.wide-only { display: none; }
+@media (min-width: 700px) { br.wide-only { display: inline; } }
+@media (max-width: 699px) { .hero-title { text-wrap: balance; max-width: none; } }
