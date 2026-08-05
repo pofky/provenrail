@@ -95,15 +95,26 @@ document.querySelectorAll('.tour-card .tour-play').forEach(btn => {
         u: new URLSearchParams(location.search).get('utm_source'),
         v: window.innerWidth < 700 ? 'mobile' : 'desktop'
       });
-      // text/plain is CORS-safelisted, so sendBeacon needs no preflight (which it cannot
-      // perform: an application/json Blob makes sendBeacon fail silently). The endpoint
-      // parses the body as JSON regardless of the declared content type.
+      // text/plain is CORS-safelisted, so this needs no preflight. The endpoint parses the
+      // body as JSON regardless of the declared content type.
+      //
+      // fetch with credentials:'omit' is preferred over navigator.sendBeacon, which always
+      // issues in credentials mode "include". That forces the endpoint to answer
+      // Access-Control-Allow-Credentials, which in turn makes the browser process the
+      // Set-Cookie our host's edge attaches (__cf_bm, Domain=supabase.co). Firefox rejects
+      // that cookie and logs an error on every single page load. Nothing here wants a
+      // cookie: the beacon is deliberately cookieless, so it should not ask to carry one.
+      // keepalive keeps the request alive across the navigation a CTA click causes.
       var sent = false;
-      if (navigator.sendBeacon) {
-        sent = navigator.sendBeacon(ENDPOINT, new Blob([payload], { type: 'text/plain;charset=UTF-8' }));
+      if (typeof fetch === 'function') {
+        sent = true;
+        fetch(ENDPOINT, {
+          method: 'POST', body: payload, mode: 'cors', credentials: 'omit', keepalive: true,
+          headers: { 'content-type': 'text/plain;charset=UTF-8' }
+        }).catch(function () {});
       }
-      if (!sent) {
-        fetch(ENDPOINT, { method: 'POST', body: payload, headers: { 'content-type': 'text/plain;charset=UTF-8' }, keepalive: true }).catch(function () {});
+      if (!sent && navigator.sendBeacon) {
+        navigator.sendBeacon(ENDPOINT, new Blob([payload], { type: 'text/plain;charset=UTF-8' }));
       }
     } catch (e) { /* analytics must never break the page */ }
   }

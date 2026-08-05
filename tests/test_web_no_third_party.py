@@ -98,3 +98,18 @@ def test_the_self_hosted_fonts_are_present_and_licensed():
         assert (WEB / ref.lstrip("/")).is_file(), f"{ref} is referenced but not shipped"
     licence = WEB / "fonts" / "OFL.txt"
     assert licence.is_file() and "Open Font License" in licence.read_text(encoding="utf-8")
+
+
+#: Every third party that touches personal data has to be named on the privacy page. This list is
+#: the one we actually use; adding a service without adding it here is the failure mode, so the
+#: test exists to make that a red build rather than a discovery during an audit.
+DISCLOSED_PROCESSORS = ("Supabase", "Polar", "Brevo", "GitHub", "Google")
+
+
+@pytest.mark.parametrize("name", DISCLOSED_PROCESSORS)
+def test_the_privacy_page_names_every_processor_we_use(name):
+    """Brevo delivers every sign-in email and was not on this page. A processor you do not name is
+    one a reader cannot object to, which is the whole point of naming them."""
+    text = (WEB / "privacy.html").read_text(encoding="utf-8")
+    assert name in text, (
+        f"{name} processes personal data for us but is not disclosed on the privacy page")
