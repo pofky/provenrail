@@ -78,6 +78,11 @@ class ModelPrice:
     tier_at: int | None = None
     tier_input: float | None = None
     tier_output: float | None = None
+    #: Cache-read rate above the tier. A tiered model tiers its cached reads too: Gemini 2.5
+    #: Pro charges $0.125/M below 200k and $0.25/M above it. Holding the base rate across the
+    #: boundary undercharged every long-context cached read by half, on exactly the calls where
+    #: caching is worth using.
+    tier_cache_read: float | None = None
     #: Last date this rate is known to hold. A published future price change is not staleness:
     #: the table is freshly verified and still about to be wrong, so it needs its own flag.
     until: str = ""
@@ -110,7 +115,8 @@ def _o(input_: float, output: float, cache_ratio: float = 0.25,
 
 
 def _g(input_: float, output: float, as_of: str = VERIFIED, tier_at: int | None = None,
-       tier_input: float | None = None, tier_output: float | None = None) -> ModelPrice:
+       tier_input: float | None = None, tier_output: float | None = None,
+       tier_cache_read: float | None = None) -> ModelPrice:
     """Google: context-cache reads at 0.10x input, usage INCLUSIVE, and thinking tokens billed
     at the output rate ON TOP of `candidatesTokenCount`.
 
@@ -121,7 +127,10 @@ def _g(input_: float, output: float, as_of: str = VERIFIED, tier_at: int | None 
     """
     return ModelPrice(input_, output, round(input_ * 0.10, 6), None,
                       cache_inclusive=True, as_of=as_of, reasoning_additive=True,
-                      tier_at=tier_at, tier_input=tier_input, tier_output=tier_output)
+                      tier_at=tier_at, tier_input=tier_input, tier_output=tier_output,
+                      tier_cache_read=(tier_cache_read if tier_cache_read is not None
+                                       else (None if tier_input is None
+                                             else round(tier_input * 0.10, 6))))
 
 
 def _flat(input_: float, output: float, as_of: str = "2026-05-01") -> ModelPrice:
@@ -422,6 +431,8 @@ def cost_for(model: str, usage: dict[str, Any] | None,
 
     if price.cache_read is None:
         cache_read_rate, cache_basis = in_rate, "assumed_input_rate"
+    elif tiered and price.tier_cache_read is not None:
+        cache_read_rate, cache_basis = price.tier_cache_read, "explicit"
     else:
         cache_read_rate, cache_basis = price.cache_read, "explicit"
     cache_write_rate = price.cache_write if price.cache_write is not None else in_rate

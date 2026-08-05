@@ -144,12 +144,17 @@ def test_google_cache_read_is_a_tenth_of_input_not_a_quarter():
     """The cache rate was carried at 0.25x from an assumption. The published rates are
     $0.03 against $0.30 for flash, $0.01 against $0.10 for flash-lite, and $0.125 against
     $1.25 for pro: one tenth in every case. At 0.25x every Google cache hit was overcharged
-    by 150%."""
-    for model, expected in (("gemini-2.5-flash", 0.03), ("gemini-2.5-flash-lite", 0.01),
-                            ("gemini-2.5-pro", 0.125)):
+    by 150%.
+
+    Pro is measured below its 200k tier here, because above it the cached rate doubles along
+    with the input rate (see test_a_tiered_model_tiers_its_cached_reads_too)."""
+    for model, expected in (("gemini-2.5-flash", 0.03), ("gemini-2.5-flash-lite", 0.01)):
         c = cost_for(model, {"promptTokenCount": 1_000_000,
                              "cachedContentTokenCount": 1_000_000})
         assert c["cost_usd"] == pytest.approx(expected), model
+    pro = cost_for("gemini-2.5-pro", {"promptTokenCount": 100_000,
+                                      "cachedContentTokenCount": 100_000})
+    assert pro["cost_usd"] == pytest.approx(0.0125)
 
 
 def test_google_python_sdk_snake_case_usage_is_priced():
@@ -253,3 +258,36 @@ def test_negative_token_counts_cannot_reduce_a_budget():
 def test_bare_grok_is_recognised_as_known_unpriced():
     assert cost_for("grok", {"input": 10})["known_unpriced"] is True
     assert cost_for("grok-4", {"input": 10})["known_unpriced"] is True
+
+
+def test_a_tiered_model_tiers_its_cached_reads_too():
+    """Gemini 2.5 Pro charges $0.125/M for cached reads below 200k input tokens and $0.25/M
+    above it. The input and output rates crossed the boundary and the cache rate did not, so
+    every long-context cached read was billed at half price: exactly the calls where caching is
+    worth using, and exactly where a spend cap most needs to be right."""
+    from provenrail.pricing import PRICES, cost_for
+
+    price = PRICES["gemini-2.5-pro"]
+    assert price.cache_read == 0.125 and price.tier_cache_read == 0.25
+
+    above = cost_for("gemini-2.5-pro",
+                     {"input": 250_000, "output": 1_000, "cache_read": 100_000})
+    # 150k uncached at $2.50/M + 1k out at $15/M + 100k cached at $0.25/M
+    assert abs(above["cost_usd"] - (0.375 + 0.015 + 0.025)) < 1e-9
+
+    below = cost_for("gemini-2.5-pro",
+                     {"input": 100_000, "output": 1_000, "cache_read": 50_000})
+    # 50k uncached at $1.25/M + 1k out at $10/M + 50k cached at $0.125/M
+    assert abs(below["cost_usd"] - (0.0625 + 0.01 + 0.00625)) < 1e-9
+
+
+def test_o_series_cache_discounts_are_not_one_number():
+    """o3 and o4-mini are billed at 25% of input for a cached read, o1 and o3-mini at 50%.
+    Taking one default for all four halved the recorded cost of every cached call on the two
+    older reasoning models. Verified against developers.openai.com/api/docs/pricing 2026-08-05."""
+    from provenrail.pricing import PRICES
+
+    assert PRICES["o1"].cache_read == 7.50
+    assert PRICES["o3-mini"].cache_read == 0.55
+    assert PRICES["o3"].cache_read == 0.50
+    assert PRICES["o4-mini"].cache_read == 0.275

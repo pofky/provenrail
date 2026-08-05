@@ -169,3 +169,43 @@ def test_a_forced_delete_asks_and_a_recursive_one_refuses():
         assert verdict(asked) == "ask", asked
     for allowed in ("rm file.txt", "rm build/out.js", "ls -la"):
         assert verdict(allowed) == "allow", allowed
+
+
+def test_reading_production_is_not_deploying_to_it():
+    """`kubectl get pods --namespace prod` needed a human approval, because the rule matched any
+    kubectl command carrying the namespace rather than the verbs that change something. A rule
+    that stops people looking at production is a rule they turn off."""
+    for reading in ("kubectl get pods --namespace prod",
+                    "kubectl logs -f api --namespace production",
+                    "kubectl describe pod x --namespace prod",
+                    "helm list --namespace prod"):
+        assert "production.deploy-command" not in _fires(reading), reading
+    for changing in ("kubectl apply -f deploy.yaml --namespace prod",
+                     "kubectl delete deploy api --namespace prod",
+                     "kubectl rollout restart deploy/api --namespace production",
+                     "helm upgrade api ./chart --namespace production"):
+        assert "production.deploy-command" in _fires(changing), changing
+
+
+def test_a_quoted_table_name_is_still_a_table_name():
+    """`SELECT * FROM "users"` is what Postgres, Supabase and most ORM codegen emit, and the
+    unquoted-only character class left the name matching nothing, so the rule failed on the
+    commonest spelling of the thing it exists to catch."""
+    for text in ('SELECT * FROM "users"', "SELECT * FROM `users`", "SELECT * FROM users"):
+        assert "exfiltration.select-star-no-limit" in _fires(text), text
+    assert "exfiltration.select-star-no-limit" not in _fires("SELECT id FROM users WHERE id=1")
+
+
+def test_the_policy_engine_decides_rather_than_crashing_on_an_odd_payload():
+    """A caller using the policy API directly passes whatever the host handed them. `re.search`
+    raised TypeError on a list, a dict and None, so a guard could crash instead of deciding, and
+    a crashed guard blocks nothing."""
+    from provenrail.policy import Policy, Rule, SessionState
+
+    policy = Policy(rules=[Rule.from_dict(r) for r in rulesets.resolve(["destructive"])])
+    for payload in (["rm", "-rf", "/home"], {"command": "rm -rf /home"}, "rm -rf /home"):
+        d = policy.decide("tool_call", {"tool": "Bash", "match_text": payload}, SessionState())
+        assert d.effect.lower() == "deny", payload
+    for benign in (None, {}, [], 42, {"command": "ls -la"}):
+        d = policy.decide("tool_call", {"tool": "Bash", "match_text": benign}, SessionState())
+        assert d.effect.lower() != "deny", benign

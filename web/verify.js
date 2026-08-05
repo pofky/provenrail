@@ -700,15 +700,25 @@ const _a = (i, o) => ({ in: i, out: o, cr: i * 0.10, cw: i * 1.25, cw1h: i * 2.0
 const _o = (i, o, ratio = 0.25) => ({ in: i, out: o, cr: i * ratio, cw: null, incl: true });
 // Google: cache read 0.1x input, usage INCLUSIVE, thinking tokens billed at the output rate
 // ON TOP of candidatesTokenCount (totalTokenCount is defined as prompt + thoughts + candidates).
-const _g = (i, o, tier) => ({ in: i, out: o, cr: i * 0.10, cw: null, incl: true, radd: true, ...(tier || {}) });
+// A tiered model tiers its cached reads too: above the threshold Gemini 2.5 Pro charges
+// $0.25/M rather than $0.125/M. Derived from the tier input rate by the same 0.10 factor, so
+// the two implementations cannot drift apart by someone updating one number and not the other.
+const _g = (i, o, tier) => {
+  const t = tier || {};
+  return { in: i, out: o, cr: i * 0.10, cw: null, incl: true, radd: true, ...t,
+           ...(t.tierIn !== undefined && t.tierCr === undefined
+               ? { tierCr: Math.round(t.tierIn * 0.10 * 1e6) / 1e6 } : {}) };
+};
 const _flat = (i, o) => ({ in: i, out: o, cr: null, cw: null, incl: false });
 const JS_PRICES = {
   "gpt-4o-mini": _o(0.15, 0.60, 0.50), "gpt-4o": _o(2.50, 10.00, 0.50),
   "gpt-4.1-nano": _o(0.10, 0.40), "gpt-4.1-mini": _o(0.40, 1.60),
   "gpt-4.1": _o(2.00, 8.00), "gpt-4-turbo": _o(10.00, 30.00, 1.0),
   "gpt-3.5-turbo": _o(0.50, 1.50, 1.0), "o4-mini": _o(1.10, 4.40),
-  "o3-mini": _o(1.10, 4.40), "o3": _o(2.00, 8.00),
-  "o1-mini": _o(1.10, 4.40), "o1": _o(15.00, 60.00),
+  // The o-series cached-input discount is not one number: o3 and o4-mini are 25% of input,
+  // o1 and o3-mini 50%. Verified against developers.openai.com/api/docs/pricing 2026-08-05.
+  "o3-mini": _o(1.10, 4.40, 0.50), "o3": _o(2.00, 8.00),
+  "o1-mini": _o(1.10, 4.40), "o1": _o(15.00, 60.00, 0.50),
   "claude-3-5-haiku": _a(0.80, 4.00), "claude-3-5-sonnet": _a(3.00, 15.00),
   "claude-3-haiku": _a(0.25, 1.25), "claude-3-opus": _a(15.00, 75.00),
   "claude-haiku-4-5": _a(1.00, 5.00), "claude-haiku-4": _a(1.00, 5.00),
@@ -765,7 +775,8 @@ function estimateCost(model, usage) {
   const tiered = price.tierAt !== undefined && tin > price.tierAt;
   const pin = tiered && price.tierIn !== undefined ? price.tierIn : price.in;
   const pout = tiered && price.tierOut !== undefined ? price.tierOut : price.out;
-  const crRate = price.cr === null || price.cr === undefined ? pin : price.cr;
+  const crRate = price.cr === null || price.cr === undefined ? pin
+    : (tiered && price.tierCr !== undefined ? price.tierCr : price.cr);
   const cwRate = price.cw === null || price.cw === undefined ? pin : price.cw;
   // The 1h portion is INSIDE the reported write total, so split it out and reprice it rather
   // than adding it, or the same tokens are billed twice.

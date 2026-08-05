@@ -136,7 +136,16 @@ class Rule:
             return False
         if self.arg_contains:
             text = ctx.get("match_text", "")
-            if text is None or not re.search(self.arg_contains, text, re.IGNORECASE | re.DOTALL):
+            if not isinstance(text, str):
+                # A caller using this API directly can pass whatever the host handed them: an
+                # argv list, a dict, None. `re.search` raised TypeError on all of them, which
+                # meant a guard could crash rather than decide. An argv array IS a command line
+                # and is joined back into one; anything else is rendered rather than dropped,
+                # because an unrecognised shape must fail towards being READ, never towards
+                # being ignored.
+                from .sdk import _match_text
+                text = _match_text(text)
+            if not text or not re.search(self.arg_contains, text, re.IGNORECASE | re.DOTALL):
                 return False
         return True
 

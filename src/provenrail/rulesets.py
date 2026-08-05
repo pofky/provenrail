@@ -216,8 +216,14 @@ CATALOG: dict[str, dict[str, Any]] = {
                      "host called prod-replica also matches."},
             {"id": "production.deploy-command", "effect": "require_oversight",
              "event_type": "tool_call",
-             "arg_contains": r"\b((kubectl|helm)\s[^\n]*(--context|--namespace)[= ]\s*"
-                             r"[\"']?(prod|production)"
+             # Only the verbs that CHANGE production. The old pattern matched any kubectl or
+             # helm command carrying `--namespace prod`, so `kubectl get pods --namespace prod`,
+             # the most ordinary read there is, needed a human approval. A rule that stops people
+             # looking at production is a rule they turn off.
+             "arg_contains": r"\b((kubectl\s+(apply|delete|create|replace|patch|scale|rollout|"
+                             r"drain|cordon|taint|edit|set|annotate|label)|helm\s+(install|"
+                             r"upgrade|uninstall|rollback|delete))\s[^\n]*(--context|--namespace)"
+                             r"[= ]\s*[\"']?(prod|production)"
                              r"|(vercel|netlify|fly|wrangler|serverless|sls)\s+deploy\b"
                              r"|npx\s+wrangler\s+(pages\s+)?deploy\b"
                              r"|git\s+push\s+[^\n]*\b(production|prod)\b)",
@@ -277,8 +283,11 @@ CATALOG: dict[str, dict[str, Any]] = {
         "rules": [
             {"id": "exfiltration.select-star-no-limit", "effect": "require_oversight",
              "event_type": "tool_call",
-             # Same JSON-boundary handling as destructive.delete-without-where.
-             "arg_contains": r"\bSELECT\s+\*\s+FROM\s+[^\s;\"']+\s*(;|\"|'|$)",
+             # Same JSON-boundary handling as destructive.delete-without-where, INCLUDING the
+             # optional quoted identifier: `SELECT * FROM "users"` is what Postgres, Supabase and
+             # most ORM codegen emit, and the unquoted-only class left the name group matching
+             # nothing, so the whole rule failed on the commonest spelling.
+             "arg_contains": r"\bSELECT\s+\*\s+FROM\s+[\"'`]?[^\s;\"'`]+[\"'`]?\s*(;|\"|'|$)",
              "reason": "unbounded SELECT * with no WHERE or LIMIT",
              "note": "Fires on legitimate small-table reads too; oversight rather than deny."},
             {"id": "exfiltration.external-upload", "effect": "require_oversight",
