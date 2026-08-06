@@ -203,7 +203,6 @@ section { position: relative; }
   border: 1px solid var(--accent); background: var(--accent-glow-sm);
   font-size: 1rem; color: var(--text-mid); line-height: 1.5; max-width: min(60ch, 100%);
 }
-.hero-deadline .hd-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-glow-sm); animation: hd-pulse 2.4s ease-in-out infinite; }
 .hero-deadline strong { color: var(--text-hi); font-weight: 600; }
 .hero-deadline a { color: var(--accent); white-space: nowrap; }
 /* That nowrap keeps the arrow attached to its sentence on a wide screen. On a phone the
@@ -213,7 +212,6 @@ section { position: relative; }
    text was the incident story that is the strongest thing on the page. */
 @media (max-width: 699px) { .hero-deadline a { white-space: normal; } }
 @keyframes hd-pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .hero-deadline .hd-dot { animation: none; } }
 
 /* Rail visual: a track with sealed checkpoint nodes */
 .rail-visual { display: flex; align-items: center; gap: 0; margin-top: 3rem; max-width: 640px; }
@@ -450,7 +448,7 @@ section { position: relative; }
   .tour-card { flex-basis: 100%; max-width: 100%; }
 }
 
-/* Reduced motion covered the entrance fade and the pulsing dot, and then every card and button
+/* Reduced motion covered the entrance fade, and then every card and button
    still lifted under the cursor. Someone who has asked the OS for less motion has asked once, for
    all of it. Colour and border still change on hover, so nothing loses its affordance. */
 @media (prefers-reduced-motion: reduce) {

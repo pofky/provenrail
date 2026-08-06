@@ -72,11 +72,10 @@
     .verdict{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;border:1px solid var(--border);border-left-width:3px;border-radius:12px;padding:1.15rem 1.3rem;background:var(--bg-2)}
     .verdict.green{border-left-color:var(--accent)}.verdict.amber{border-left-color:var(--warn)}.verdict.red{border-left-color:var(--bad)}.verdict.neutral{border-left-color:var(--text-lo)}
     .vbadge{display:inline-flex;align-items:center;gap:.5rem;font-family:var(--font-mono);font-size:.8rem;font-weight:500;padding:.4rem .75rem;border-radius:999px;border:1px solid;white-space:nowrap}
-    .vbadge .bd{width:8px;height:8px;border-radius:50%}
-    .green .vbadge{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:var(--accent-glow)}.green .vbadge .bd{background:var(--accent)}
-    .amber .vbadge{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent);background:rgba(240,178,58,.12)}.amber .vbadge .bd{background:var(--warn)}
-    .red .vbadge{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent);background:rgba(240,106,93,.12)}.red .vbadge .bd{background:var(--bad)}
-    .neutral .vbadge{color:var(--text-lo);border-color:var(--border)}.neutral .vbadge .bd{background:var(--text-lo)}
+    .green .vbadge{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:var(--accent-glow)}
+    .amber .vbadge{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent);background:rgba(240,178,58,.12)}
+    .red .vbadge{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent);background:rgba(240,106,93,.12)}
+    .neutral .vbadge{color:var(--text-lo);border-color:var(--border)}
     .vmeta{flex:1;min-width:12rem}
     .vmeta .h{font-family:var(--font-mono);font-size:1rem;color:var(--text-hi)}
     .vmeta .s{font-size:1rem;color:var(--text-mid);margin-top:.15rem}
@@ -84,7 +83,6 @@
     .chk{display:inline-flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.72rem;color:var(--text-mid);border:1px solid var(--border);background:var(--bg-3);border-radius:999px;padding:.32rem .65rem}
     .chk.ok{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
     .chk.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
-    .chk .d{width:6px;height:6px;border-radius:50%;background:currentColor}
     .findings{margin-top:1.25rem;border:1px solid var(--border);border-radius:12px;overflow:hidden}
     .f{display:flex;gap:.85rem;align-items:flex-start;padding:.7rem 1.1rem;border-bottom:1px solid var(--border)}
     .f:last-child{border-bottom:0}
@@ -225,7 +223,7 @@
         ['Trusted time', codes.has('anchor_rfc3161_unchecked') ? null : (has('anchor_root_mismatch', 'anchor_bad_sig') ? false : null)],
       ];
       return items.filter(([, ok]) => ok !== null).map(([label, ok]) =>
-        `<span class="chk ${ok ? 'ok' : 'bad'}"><span class="d"></span>${label}</span>`).join('');
+        `<span class="chk ${ok ? 'ok' : 'bad'}">${label}</span>`).join('');
     }
 
     function render(rep, opts) {
@@ -237,7 +235,7 @@
       result.className = `result ${st.k}`;
       result.innerHTML =
         `<div class="verdict ${st.k}">
-           <span class="vbadge"><span class="bd"></span>${st.label}</span>
+           <span class="vbadge">${st.label}</span>
            <div class="vmeta"><div class="h">${{ verified: 'Bundle verified', unconfirmed: 'Could not confirm', malformed: 'Not a bundle', empty: 'No records' }[rep.result] || 'Verification failed'}</div><div class="s">${st.sub}</div></div>
          </div>
          ${checks ? `<div class="checks">${checks}</div>` : ''}
@@ -249,13 +247,13 @@
     async function verify(bundle, opts) {
       result.hidden = false;
       result.className = 'result';
-      result.innerHTML = `<div class="verdict neutral"><span class="vbadge"><span class="bd"></span><span class="spin"></span> Verifying locally</span></div>`;
+      result.innerHTML = `<div class="verdict neutral"><span class="vbadge"><span class="spin"></span> Verifying locally</span></div>`;
       try {
         const rep = await verifyBundle(bundle, bundle.__pin || null, opts || {});
         render(rep, opts);
       } catch (e) {
         result.className = 'result neutral';
-        result.innerHTML = `<div class="verdict neutral"><span class="vbadge"><span class="bd"></span>Could not verify</span><div class="vmeta"><div class="s">${esc(e.message || e)}</div></div></div>`;
+        result.innerHTML = `<div class="verdict neutral"><span class="vbadge">Could not verify</span><div class="vmeta"><div class="s">${esc(e.message || e)}</div></div></div>`;
       }
     }
 
@@ -267,7 +265,7 @@
       result.hidden = false;
       result.className = 'result neutral';
       result.innerHTML =
-        `<div class="verdict neutral"><span class="vbadge"><span class="bd"></span>Not a JSON file</span>
+        `<div class="verdict neutral"><span class="vbadge">Not a JSON file</span>
            <div class="vmeta"><div class="h">Nothing was verified</div><div class="s">${esc(err.message || err)}. A bundle is the <code>bundle.json</code> that <code>pr demo</code> or an export writes.</div></div>
          </div>`;
       result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

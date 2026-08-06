@@ -188,7 +188,6 @@
         </div>
 
         <p class="hero-deadline">
-          <span class="hd-dot" aria-hidden="true"></span>
           <span><strong>In April 2026 an AI coding agent deleted a production database and every backup in nine seconds.</strong> There was no forensic record of what it was asked to do. <a href="/ai-agent-incidents">The incidents, and what would have stopped them &rarr;</a></span>
         </p>
 
@@ -307,9 +306,6 @@
       .prove-card[data-state="bad"]{border-color:#c2502f}
       .prove-card[data-state="ok"]{border-color:#3f7a52}
       .prove-verdict{display:flex;align-items:center;gap:.7rem;font-family:var(--font-mono);font-weight:600;font-size:clamp(1.05rem,3.4vw,1.4rem);letter-spacing:-.01em}
-      .prove-dot{width:.72rem;height:.72rem;border-radius:50%;flex:0 0 auto;background:var(--text-lo)}
-      [data-state="ok"] .prove-dot{background:#6fcf86;box-shadow:0 0 0 4px rgba(111,207,134,.16)}
-      [data-state="bad"] .prove-dot{background:#e0653f;box-shadow:0 0 0 4px rgba(224,101,63,.16)}
       [data-state="ok"] .prove-verdict{color:#6fcf86}
       [data-state="bad"] .prove-verdict{color:#e0653f}
       .prove-meta{color:var(--text-mid);font-size:1rem;margin:.7rem 0 0;line-height:1.55;min-height:2.6em}
@@ -326,7 +322,7 @@
           <p class="section-sub">Below is a real Provenrail record, verified live in your browser. Flip a single character and the open-source verifier rejects it. This is the whole idea, and you do not have to trust us to see it.</p>
         </div>
         <div class="prove-card reveal" id="prove-card" data-state="loading">
-          <div class="prove-verdict"><span class="prove-dot"></span><span id="prove-badge">Verifying the record...</span></div>
+          <div class="prove-verdict"><span id="prove-badge">Verifying the record...</span></div>
           <p class="prove-meta" id="prove-meta">Recomputing every hash, signature, Merkle anchor, and witness cosignature locally.</p>
           <div class="prove-actions">
             <button class="btn-primary" id="prove-tamper" disabled>Flip one byte</button>
