@@ -338,13 +338,20 @@ section { position: relative; }
 
 /* ---------- Footer ---------- */
 .footer { border-top: 1px solid var(--border); padding-top: clamp(3rem, 6vw, 4.5rem); margin-top: 2rem; }
-.footer-inner { display: grid; grid-template-columns: 1.4fr 1fr; gap: 3rem; max-width: var(--max-w); margin-inline: auto; padding-inline: var(--gutter); }
+/* Brand column narrowed from 1.4fr so the three nav columns sit on one row.
+   At 1140px max width that leaves roughly 640px for the nav, which fits three
+   columns plus their gaps without the longest label ("Claude Code guardrails")
+   wrapping. */
+.footer-inner { display: grid; grid-template-columns: 1fr 1.5fr; gap: 3rem; max-width: var(--max-w); margin-inline: auto; padding-inline: var(--gutter); }
 .footer-brand { display: flex; align-items: center; gap: .55rem; font-weight: 600; font-size: 1.05rem; letter-spacing: -.02em; }
 .footer-tagline { color: var(--text-mid); font-size: .9rem; line-height: 1.65; margin: 1rem 0 1.3rem; max-width: 42ch; }
 .footer-links { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; }
 .footer-links a { font-size: .87rem; color: var(--text-mid); transition: color .2s; }
 .footer-links a:hover { color: var(--accent); }
-.footer-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+/* Three groups in two columns is what pushed Legal onto its own row and left the
+   tall empty block beside it. minmax(0, 1fr) rather than 1fr so a long link
+   cannot blow the track out past its share. */
+.footer-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.75rem; }
 .footer-nav-label { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-lo); margin-bottom: .9rem; }
 .footer-nav-links { display: flex; flex-direction: column; gap: .6rem; }
 .footer-nav-links a { font-size: .88rem; color: var(--text-mid); transition: color .2s; }
@@ -379,9 +386,17 @@ section { position: relative; }
   .split, .audience-grid, .steps-grid, .diff-grid { grid-template-columns: 1fr; }
   .audience-grid.reverse .audience-visual { order: 0; }
   .pricing-grid { grid-template-columns: 1fr; }
+  /* The brand column drops away here, so the nav gets the full width and the
+     three columns still fit comfortably. */
   .footer-inner { grid-template-columns: 1fr; gap: 2rem; }
   .rail-visual { flex-wrap: wrap; gap: .4rem; }
   .rail-link { min-width: 16px; }
+}
+@media (max-width: 560px) {
+  /* Below this, three columns leave about 100px each and "Claude Code
+     guardrails" breaks across three lines. Two columns keeps every label to at
+     most two. */
+  .footer-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
 }
 @media (max-width: 420px) {
   .hero-title { letter-spacing: -.03em; }
