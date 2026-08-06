@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pricing | Provenrail</title>
+  <meta name="description" content="Provenrail pricing: free forever at 50k events a month, Builder $29/mo, Team $99/mo, Enterprise custom. Hash-chain integrity and the open-source verifier on every tier.">
+  <link rel="canonical" href="https://provenrail.com/pricing">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Pricing | Provenrail">
+  <meta name="twitter:description" content="Free forever at 50k events a month. Builder $29/mo, Team $99/mo, Enterprise custom. No email gate, no hidden fees, cancel anytime.">
+  <meta name="twitter:image" content="https://provenrail.com/og.png">
+  <meta name="robots" content="index,follow">
+  <meta property="og:title" content="Provenrail pricing: start free, scale when you need to">
+  <meta property="og:description" content="Free forever at 50k events a month. Builder $29/mo, Team $99/mo, Enterprise custom. No email gate, no hidden fees, cancel anytime.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://provenrail.com/pricing">
+  <meta property="og:image" content="https://provenrail.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Provenrail: the verifiable audit trail for AI agents.">
+  <meta property="og:site_name" content="Provenrail">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0b0a08">
+  <!-- Fonts are self-hosted (see styles.css): no third-party request, and preloading
+       them here means the real typeface is in place before first paint instead of
+       swapping in afterwards and shifting the page. -->
+  <link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/dm-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    /* This page reuses the shared plan cards from styles.css. Nothing here is
+       set to `.reveal`: pricing must be readable with JavaScript switched off. */
+    /* Wide enough that the headline breaks after "free." instead of orphaning "to."
+       on a line of its own at desktop widths. */
+    .price-head { text-align: center; max-width: 760px; margin-inline: auto; padding: clamp(2.5rem, 6vw, 4.5rem) 0 2.5rem; }
+    .price-head p { max-width: 46ch; margin-inline: auto; }
+    .price-head h1 { font-size: clamp(1.9rem, 5vw, 3rem); font-weight: 600; letter-spacing: -.03em; line-height: 1.12; margin: .6rem 0 .8rem; }
+    .price-head p { color: var(--text-mid); font-size: 1.05rem; }
+    .price-note { max-width: 68ch; margin: 2.2rem auto 0; text-align: center; font-family: var(--font-mono); font-size: 1rem; color: var(--text-lo); line-height: 1.7; }
+    .price-section { padding-bottom: clamp(3rem, 7vw, 5rem); }
+    .price-table-wrap { overflow-x: auto; margin-top: 1.2rem; }
+    table.cmp { width: 100%; border-collapse: collapse; font-size: .95rem; min-width: 640px; }
+    table.cmp th, table.cmp td { text-align: left; padding: .7rem .8rem; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-mid); }
+    table.cmp thead th { color: var(--text-hi); font-weight: 600; font-size: .85rem; white-space: nowrap; }
+    table.cmp td:first-child { color: var(--text-hi); }
+    table.cmp td:not(:first-child) { text-align: center; font-family: var(--font-mono); white-space: nowrap; }
+    table.cmp .yes { color: var(--accent); }
+    .faq-block { max-width: 780px; margin-inline: auto; }
+    .faq-block h2 { font-size: 1.5rem; font-weight: 600; letter-spacing: -.02em; margin-bottom: 1.2rem; }
+    .faq-block dt { color: var(--text-hi); font-weight: 600; margin-top: 1.4rem; }
+    .faq-block dd { color: var(--text-mid); margin: .35rem 0 0; padding: 0; }
+    .faq-block code { font-family: var(--font-mono); font-size: .85em; background: var(--bg-3); padding: .12em .42em; border-radius: 5px; color: var(--text-hi); }
+    .back { display: inline-block; margin-top: 2.5rem; font-family: var(--font-mono); font-size: .82rem; color: var(--text-lo); text-decoration: none; }
+    .back:hover { color: var(--accent); }
+  </style>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+    {"@type":"ListItem","position":1,"name":"Home","item":"https://provenrail.com/"},
+    {"@type":"ListItem","position":2,"name":"Pricing","item":"https://provenrail.com/pricing"}]}
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": "Provenrail",
+    "description": "Guardrails for AI agents, with a receipt. Blocks destructive tool calls before they run and signs every decision into an off-box, hash-chained record anyone can verify.",
+    "brand": { "@type": "Organization", "name": "Provenrail", "url": "https://provenrail.com/" },
+    "url": "https://provenrail.com/pricing",
+    "offers": [
+      { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "50k events per month, single project, hash-chain integrity, open-source verifier." },
+      { "@type": "Offer", "name": "Builder", "price": "29", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "500k events per month, RFC 3161 trusted timestamps, shareable proof links and live badge." },
+      { "@type": "Offer", "name": "Team", "price": "99", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "2M events per month, up to 10 members with roles and SSO, unlimited projects, data exports, one-click evidence packs." }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <header>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="/" class="nav-logo" aria-label="Provenrail home">
+        <img class="seal" src="/assets/logo-mark.png" alt="" width="30" height="30">
+        <span>proven<span class="rail-accent">rail</span></span>
+      </a>
+      <button id="nav-toggle" class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M2 5h16M2 10h16M2 15h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div id="nav-links" class="nav-links" role="navigation">
+        <a href="/#how-it-works">How it works</a>
+        <a href="/#see-it">Watch</a>
+        <a href="/compare">Compare</a>
+        <a href="/#differentiators">Why Provenrail</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/start">Start here</a>
+        <a href="/docs">Docs</a>
+        <a href="https://github.com/pofky/provenrail" rel="noopener">GitHub</a>
+        <a href="/account">Sign in</a>
+        <a href="/account" class="btn-nav">Start free</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="price-section" aria-labelledby="pricing-heading">
+      <div class="container">
+        <div class="price-head">
+          <div class="section-eyebrow" style="justify-content:center">Pricing</div>
+          <h1 id="pricing-heading">Start free. Scale when you need to.</h1>
+          <p>No email gate on pricing. No hidden fees. Cancel anytime.</p>
+        </div>
+
+        <div class="pricing-grid">
+          <article class="plan-card" aria-labelledby="plan-free-name">
+            <div class="plan-name" id="plan-free-name">Free</div>
+            <div class="plan-price">$0</div>
+            <div class="plan-period">forever</div>
+            <ul class="plan-features" aria-label="Free plan features">
+              <li class="plan-feature">50k events per month (roughly 200 to 500 agent runs)</li>
+              <li class="plan-feature">Single project, single user</li>
+              <li class="plan-feature">Hash-chain integrity (local timestamps)</li>
+              <li class="plan-feature">Open-source verifier, offline or hosted</li>
+              <li class="plan-feature">Regime mapping reports via CLI (<code>pr report</code>), run on a bundle you export yourself</li>
+              <li class="plan-feature">Self-contained evidence packs via CLI (<code>pr pack</code>), the same way</li>
+              <li class="plan-feature">Prove a transcript is authentic (<code>pr verify-content</code>)</li>
+              <li class="plan-feature">Community support</li>
+            </ul>
+            <a href="/account" class="btn-plan">Get started</a>
+          </article>
+
+          <article class="plan-card popular" aria-labelledby="plan-builder-name">
+            <div class="plan-popular-badge" aria-label="Most popular plan">Most popular</div>
+            <div class="plan-name" id="plan-builder-name">Builder</div>
+            <div class="plan-price">$29<span>/mo</span></div>
+            <div class="plan-period">billed monthly</div>
+            <ul class="plan-features" aria-label="Builder plan features">
+              <li class="plan-feature">500k events per month</li>
+              <li class="plan-feature">RFC 3161 trusted timestamps</li>
+              <li class="plan-feature">Shareable client proof links + live badge</li>
+              <li class="plan-feature">Single project, single user</li>
+              <li class="plan-feature">Email support</li>
+            </ul>
+            <a href="/account" class="btn-plan">Start Builder</a>
+          </article>
+
+          <article class="plan-card" aria-labelledby="plan-team-name">
+            <div class="plan-name" id="plan-team-name">Team</div>
+            <div class="plan-price">$99<span>/mo</span></div>
+            <div class="plan-period">billed monthly</div>
+            <ul class="plan-features" aria-label="Team plan features">
+              <li class="plan-feature">2M events per month</li>
+              <li class="plan-feature">Everything in Builder</li>
+              <li class="plan-feature">Up to 10 team members, roles + SSO</li>
+              <li class="plan-feature">Unlimited projects</li>
+              <li class="plan-feature">Data exports (NDJSON / SIEM)</li>
+              <li class="plan-feature">Evidence packs mapped to EU AI Act Article 12 and HIPAA audit-control requirements, from the dashboard in one click, no export step first (the CLI versions are on every plan)</li>
+              <li class="plan-feature">Priority email support</li>
+            </ul>
+            <a href="/account" class="btn-plan">Start Team</a>
+          </article>
+
+          <article class="plan-card" aria-labelledby="plan-enterprise-name">
+            <div class="plan-name" id="plan-enterprise-name">Enterprise</div>
+            <div class="plan-price" style="font-size:1.4rem">Custom</div>
+            <div class="plan-period">volume + support</div>
+            <ul class="plan-features" aria-label="Enterprise plan features">
+              <li class="plan-feature">Unlimited events</li>
+              <li class="plan-feature">Everything in Team</li>
+              <li class="plan-feature">Unlimited members + SSO</li>
+              <li class="plan-feature">Private / self-hosted deployment</li>
+              <li class="plan-feature">Support terms by agreement</li>
+              <li class="plan-feature">Dedicated support</li>
+            </ul>
+            <a href="mailto:support@provenrail.com" class="btn-plan">Contact sales</a>
+          </article>
+        </div>
+
+        <p class="price-note">
+          Every plan includes full hash-chain integrity and the open-source verifier, identical on
+          every tier. Paid plans add RFC 3161 trusted timestamps, shareable proof links and a live
+          badge (Builder); then up to 10 team members with roles and SSO, data exports, and
+          evidence packs mapped to EU AI Act Article 12 and HIPAA audit-control requirements (Team).
+          Limits apply to the licensed build you run. We host no agent records. 14-day refund on paid plans.
+        </p>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <section class="price-section" aria-labelledby="compare-heading" style="padding-top:clamp(2.5rem,6vw,4rem)">
+      <div class="container">
+        <div class="faq-block">
+          <h2 id="compare-heading">What changes between tiers</h2>
+          <p style="color:var(--text-mid)">The cryptography does not. Integrity, the chain and the verifier are the same code on every tier, including free. Paid tiers add external time, sharing and team scale.</p>
+          <div class="price-table-wrap">
+            <table class="cmp">
+              <thead>
+                <tr><th>Capability</th><th>Free</th><th>Builder</th><th>Team</th><th>Enterprise</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Events per month</td><td>50k</td><td>500k</td><td>2M</td><td>Unlimited</td></tr>
+                <tr><td>Hash-chain integrity</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Open-source verifier</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Guardrails that block tool calls</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Evidence packs and reports (CLI)</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>RFC 3161 trusted timestamps</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Shareable proof links + live badge</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Team members</td><td>1</td><td>1</td><td>Up to 10</td><td>Unlimited</td></tr>
+                <tr><td>Roles + SSO</td><td>No</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Projects</td><td>1</td><td>1</td><td>Unlimited</td><td>Unlimited</td></tr>
+                <tr><td>Data exports (NDJSON / SIEM)</td><td>No</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>One-click evidence packs in the dashboard</td><td>No</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Private / self-hosted deployment</td><td>Self-host the AGPL server</td><td>Self-host the AGPL server</td><td>Self-host the AGPL server</td><td class="yes">By agreement</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <section class="price-section" aria-labelledby="pricing-faq-heading" style="padding-top:clamp(2.5rem,6vw,4rem)">
+      <div class="container">
+        <div class="faq-block">
+          <h2 id="pricing-faq-heading">Pricing questions</h2>
+          <dl>
+            <dt>What counts as an event?</dt>
+            <dd>One record written into the chain. A tool call, a guardrail decision, a prompt, a completion, a redaction, a run boundary. A typical coding-agent run writes somewhere between 100 and 250 events, so 50k a month covers roughly 200 to 500 runs on the free plan.</dd>
+
+            <dt>What happens when I hit the limit?</dt>
+            <dd>Nothing is deleted and no record is dropped silently. Limits apply to the licensed build you run, and the CLI tells you when you are near the cap so you can upgrade or keep running self-hosted under the AGPL.</dd>
+
+            <dt>Does the free plan expire?</dt>
+            <dd>No. Free is free forever at 50k events a month. There is no trial clock and no card required to reach it.</dd>
+
+            <dt>Is the cryptography weaker on the free plan?</dt>
+            <dd>No. Hash-chain integrity, Ed25519 signatures and the open-source verifier are identical on every tier. Paid plans add RFC 3161 timestamps from an external time authority, which prevents back-dating; they do not make the chain itself any stronger.</dd>
+
+            <dt>Do you store my agent records?</dt>
+            <dd>No. Provenrail hosts identity and billing only. Agent records live in your own sink, on your own infrastructure. That is a deliberate design choice, and it is why the verifier runs entirely in your browser at <a href="/verify">provenrail.com/verify</a> with no upload.</dd>
+
+            <dt>Can I self-host instead of paying?</dt>
+            <dd>Yes. The client, SDK, verifier and spec are MIT-licensed and the server is AGPL-3.0-or-later. Run the whole thing yourself at no cost. Paid plans exist for hosted convenience, external timestamps and team features, not to unlock the core.</dd>
+
+            <dt>How do refunds work?</dt>
+            <dd>14 days on paid plans, no questions. Billing runs through Polar as merchant of record, so cancellation and refunds are handled from the same portal you subscribed in.</dd>
+
+            <dt>Can I pay annually, or in euros?</dt>
+            <dd>Plans are billed monthly in US dollars today. If annual billing or another currency is a blocker for you, write to <a href="mailto:support@provenrail.com">support@provenrail.com</a> and say so; that is the kind of request that decides what ships next.</dd>
+          </dl>
+
+          <div class="cta" style="display:flex;flex-wrap:wrap;gap:.7rem;margin:2rem 0 0">
+            <a href="/account" class="btn-primary" style="text-decoration:none">Start free</a>
+            <a href="/verify?demo" class="btn-secondary" style="text-decoration:none">See a verified run first</a>
+          </div>
+
+          <a href="/" class="back">&larr; Back to home</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer" aria-label="Site footer">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block">
+        </div>
+        <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Designed for audits and incident reconstruction.</p>
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="/docs">Documentation</a>
+          <a href="/pricing">Pricing</a>
+          <a href="/#faq">FAQ</a>
+          <a href="/verify">Verify a record</a>
+          <a href="mailto:support@provenrail.com">support@provenrail.com</a>
+        </nav>
+      </div>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Product</div>
+          <div class="footer-nav-links">
+            <a href="/start">Start here (beginners)</a>
+            <a href="/compare">Compare</a>
+            <a href="/#how-it-works">How it works</a>
+            <a href="/#differentiators">Why Provenrail</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/docs">Quickstart</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Legal</div>
+          <div class="footer-nav-links">
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+            <a href="/disclaimer">Disclaimer</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+    <div class="footer-copy container">
+      <p>Copyright 2026 Provenrail. All rights reserved.</p>
+      <p><span style="color:var(--accent)">pr-verify</span>, the SDK and the spec are open-source under MIT; the server under AGPL-3.0</p>
+    </div>
+    <div class="footer-copy container" style="margin-top:0;border-top:0;padding-top:0">
+      <p style="max-width:64ch;color:var(--text-lo);font-family:var(--font-body)">Provenrail is evidence tooling, not legal advice or a compliance guarantee. It makes recorded events tamper-evident and independently verifiable; it never claims completeness. Compliance references describe technical evidence mapping, not certification. Comparisons reflect public information as of June 2026 and describe the category, not any single product. All third-party product and company names are trademarks of their respective owners; Provenrail is not affiliated with, endorsed by, or sponsored by any of them. Software provided as-is, without warranty.</p>
+    </div>
+  </footer>
+  <script src="/main.js" defer></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      { "@type": "Question", "name": "What counts as an event in Provenrail pricing?", "acceptedAnswer": { "@type": "Answer", "text": "One record written into the chain: a tool call, a guardrail decision, a prompt, a completion, a redaction or a run boundary. A typical coding-agent run writes 100 to 250 events, so the free plan's 50k a month covers roughly 200 to 500 runs." } },
+      { "@type": "Question", "name": "Does the Provenrail free plan expire?", "acceptedAnswer": { "@type": "Answer", "text": "No. Free is free forever at 50k events per month. There is no trial clock and no card required." } },
+      { "@type": "Question", "name": "Is the cryptography weaker on the free plan?", "acceptedAnswer": { "@type": "Answer", "text": "No. Hash-chain integrity, Ed25519 signatures and the open-source verifier are identical on every tier. Paid plans add RFC 3161 timestamps from an external time authority, which prevents back-dating; they do not strengthen the chain itself." } },
+      { "@type": "Question", "name": "Does Provenrail store my agent records?", "acceptedAnswer": { "@type": "Answer", "text": "No. Provenrail hosts identity and billing only. Agent records live in your own sink on your own infrastructure, which is why the verifier runs entirely in the browser with no upload." } },
+      { "@type": "Question", "name": "Can I self-host Provenrail instead of paying?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The client, SDK, verifier and spec are MIT-licensed and the server is AGPL-3.0-or-later, so you can run the whole system yourself at no cost. Paid plans add hosted convenience, external timestamps and team features." } },
+      { "@type": "Question", "name": "How do Provenrail refunds work?", "acceptedAnswer": { "@type": "Answer", "text": "14 days on paid plans. Billing runs through Polar as merchant of record, so cancellation and refunds are handled from the same portal you subscribed in." } }
+    ]
+  }
+  </script>
+</body>
+</html>

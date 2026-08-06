@@ -2,3 +2,11 @@
 # /docs.html -> /docs). Do NOT add `/docs /docs.html 200` style rewrites here: they
 # collide with that built-in behavior and cause a redirect loop. Add only real
 # redirects below (e.g. moved pages).
+
+# One canonical host. Both of these previously answered 200 with the full site, which
+# splits ranking signals across three hostnames and, worse, lets someone sign in on a
+# host that is not in the Supabase Auth redirect allow-list (only provenrail.com is), so
+# their magic link would bounce. Domain-scoped rules match the request host; per-deploy
+# preview URLs (<hash>.provenrail.pages.dev) are a different host and stay reachable.
+https://www.provenrail.com/* https://provenrail.com/:splat 301
+https://provenrail.pages.dev/* https://provenrail.com/:splat 301

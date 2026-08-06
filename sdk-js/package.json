@@ -1,6 +1,6 @@
 {
   "name": "provenrail",
-  "version": "0.1.2",
+  "version": "0.2.30",
   "description": "Verifiable audit trail for AI agents, for TypeScript and Node. Capture every model and tool call your agent makes, hash-chain and sign it off-box, and verify it with the same open-source verifiers as the Python SDK.",
   "type": "module",
   "main": "src/index.js",
@@ -13,7 +13,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "cd .. && uv run pytest tests/test_js_sdk.py -q"
   },
   "keywords": [
     "ai", "ai-agents", "agents", "audit-trail", "audit-log", "observability",

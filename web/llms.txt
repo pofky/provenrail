@@ -125,7 +125,7 @@ All paid plans include a 14-day refund window.
 ## Key pages
 
 - Homepage: https://provenrail.com
-- Pricing: https://provenrail.com/#pricing
+- Pricing (full tier comparison and pricing FAQ): https://provenrail.com/pricing
 - Documentation: https://provenrail.com/docs
 - Quickstart: https://provenrail.com/start
 - Security and threat model: https://provenrail.com/security

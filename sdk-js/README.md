@@ -80,6 +80,14 @@ or in the browser at `/verify`. Both verifiers run the same algorithm and are te
 frozen public conformance-vector suite, and against runs produced by THIS SDK
 (`tests/test_js_sdk.py`).
 
+## Versioning
+
+This package tracks the Python package version exactly. `provenrail@0.2.30` on npm and
+`provenrail==0.2.30` on PyPI are the same release of the same record format, so a version
+you can read off one registry tells you what the other one speaks. Releases before 0.2.30
+used an independent number line for this package (0.1.x); the record format did not change
+across that jump.
+
 ## License
 
 MIT.

@@ -3,6 +3,16 @@
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
   Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  # Everything this site loads is same-origin: fonts, the vendored supabase-js, the verifier,
+  # the videos. The single cross-origin destination is our own Supabase project, which the
+  # account page and the analytics beacon talk to. `unsafe-inline` on script-src is honest
+  # rather than cosmetic: several pages carry inline `type="module"` blocks, and pretending
+  # otherwise with a nonce we cannot generate on a static host would only break them. The
+  # directives that do the real work here are frame-ancestors, base-uri, form-action,
+  # object-src and connect-src, which bound where content can be framed, where a rewritten
+  # base or form can send a visitor, and where any script may exfiltrate to.
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'self' https://jzgamrptvsdxnwtuascx.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
 /verify.js
   Cache-Control: public, max-age=600
 /demo-bundle.json

@@ -387,7 +387,7 @@ wheels = [
 
 [[package]]
 name = "provenrail"
-version = "0.2.17"
+version = "0.2.30"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },

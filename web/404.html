@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Page not found | Provenrail</title>
   <meta name="description" content="That page does not exist on provenrail.com. Here is where the docs, the live verifier and the guardrails guide actually live.">
-  
+  <!-- A 404 must never be indexed and has no canonical of its own: it is not a page,
+       it is the absence of one. noindex,follow keeps the outbound links crawlable. -->
+  <meta name="robots" content="noindex,follow">
   <meta property="og:title" content="Page not found | Provenrail">
   <meta property="og:description" content="That page does not exist on provenrail.com. Here is where the docs, the live verifier and the guardrails guide actually live.">
   
@@ -80,12 +82,12 @@
         <a href="/#see-it">Watch</a>
         <a href="/#for-agencies">Use cases</a>
         <a href="/#differentiators">Why Provenrail</a>
-        <a href="/#pricing">Pricing</a>
+        <a href="/pricing">Pricing</a>
         <a href="/#faq">FAQ</a>
         <a href="/docs">Docs</a>
         <a href="https://github.com/pofky/provenrail" rel="noopener">GitHub</a>
         <a href="/account">Sign in</a>
-        <a href="/#pricing" class="btn-nav">Start free</a>
+        <a href="/pricing" class="btn-nav">Start free</a>
       </div>
     </nav>
   </header>
@@ -116,7 +118,7 @@
         <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Designed for audits and incident reconstruction.</p>
         <nav class="footer-links" aria-label="Footer links">
           <a href="/docs">Documentation</a>
-          <a href="/#pricing">Pricing</a>
+          <a href="/pricing">Pricing</a>
           <a href="/#faq">FAQ</a>
           <a href="/verify">Verify a record</a>
           <a href="mailto:support@provenrail.com">support@provenrail.com</a>
@@ -129,7 +131,7 @@
             <a href="/#how-it-works">How it works</a>
             <a href="/#see-it">Watch it work</a>
             <a href="/#differentiators">Why Provenrail</a>
-            <a href="/#pricing">Pricing</a>
+            <a href="/pricing">Pricing</a>
             <a href="/docs">Quickstart</a>
           </div>
         </div>
