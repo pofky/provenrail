@@ -17,3 +17,12 @@ verify_jwt = false
 # prices. Broken the same way as polar-webhook on 2026-08-04 and caught by the same check.
 [functions.polar-prices]
 verify_jwt = false
+
+# The analytics beacon is posted by every visitor's browser, and by the /pv edge proxy, neither
+# of which has a Supabase JWT. It was originally deployed with `--no-verify-jwt` on the command
+# line and never written down here, so the very next `supabase functions deploy pageview` put the
+# gateway check back and every pageview started bouncing with 401 before the function ran. That
+# is exactly the failure mode the two blocks above already describe: the flag belongs in this
+# file, not in a command somebody has to remember. Caught on 2026-08-10, by a redeploy.
+[functions.pageview]
+verify_jwt = false

@@ -84,7 +84,15 @@ document.querySelectorAll('.tour-card .tour-play').forEach(btn => {
 // Stores no cookie, no IP, no device or cross-site identifier, so it needs no consent
 // banner under GDPR/ePrivacy. Fails silently and never blocks rendering.
 (function () {
-  var ENDPOINT = 'https://jzgamrptvsdxnwtuascx.supabase.co/functions/v1/pageview';
+  // Same-origin first. The edge proxy at /pv is the only place the visitor's country can be
+  // read: Cloudflare fronts our Supabase host but does not forward cf-ipcountry to it, so a
+  // beacon posted straight to Supabase can never record where the traffic came from (it
+  // recorded NULL for every one of the first 2,204 pageviews). The proxy adds the country at
+  // the edge and forwards the body unchanged.
+  var ENDPOINT = '/pv';
+  var FALLBACK = 'https://jzgamrptvsdxnwtuascx.supabase.co/functions/v1/pageview';
+  // One failure of the same-origin path is enough to stop trying it for this page load.
+  var proxyDown = false;
 
   function send(event) {
     try {
@@ -95,6 +103,24 @@ document.querySelectorAll('.tour-card .tour-play').forEach(btn => {
         u: new URLSearchParams(location.search).get('utm_source'),
         v: window.innerWidth < 700 ? 'mobile' : 'desktop'
       });
+      if (!proxyDown && typeof fetch === 'function') {
+        // Same-origin, so there is no CORS to fail and the response IS readable: a broken or
+        // missing proxy is detectable here, unlike the cross-origin no-cors path below, and
+        // falls back rather than silently dropping the event.
+        fetch(ENDPOINT, {
+          method: 'POST', body: payload, credentials: 'omit', keepalive: true,
+          headers: { 'content-type': 'text/plain;charset=UTF-8' }
+        }).then(function (res) {
+          if (!res || res.status === 404 || res.status >= 500) { proxyDown = true; direct(payload); }
+        }).catch(function () { proxyDown = true; direct(payload); });
+        return;
+      }
+      direct(payload);
+    } catch (e) { /* analytics must never break the page */ }
+  }
+
+  function direct(payload) {
+    try {
       // text/plain is CORS-safelisted, so this needs no preflight. The endpoint parses the
       // body as JSON regardless of the declared content type.
       //
@@ -113,16 +139,26 @@ document.querySelectorAll('.tour-card .tour-play').forEach(btn => {
         // browser enforces the response headers, so any transient edge error at our host
         // printed a CORS failure in the visitor's console. That is a console error on a real
         // user's page caused by our analytics, which is a bad trade for telemetry we discard.
-        fetch(ENDPOINT, {
+        fetch(FALLBACK, {
           method: 'POST', body: payload, mode: 'no-cors', credentials: 'omit', keepalive: true,
           headers: { 'content-type': 'text/plain;charset=UTF-8' }
         }).catch(function () {});
       }
       if (!sent && navigator.sendBeacon) {
-        navigator.sendBeacon(ENDPOINT, new Blob([payload], { type: 'text/plain;charset=UTF-8' }));
+        navigator.sendBeacon(FALLBACK, new Blob([payload], { type: 'text/plain;charset=UTF-8' }));
       }
     } catch (e) { /* analytics must never break the page */ }
   }
+
+  // Pages with their own scripts (the verifier) report their own events. main.js is deferred,
+  // so a module that runs earlier may call this before it exists: those calls queue on
+  // window.prQ and are flushed here, which is what makes the /verify?demo deep link countable.
+  window.prTrack = send;
+  try {
+    var q = window.prQ || [];
+    window.prQ = { push: send };
+    for (var i = 0; i < q.length; i++) send(q[i]);
+  } catch (e) { /* ignore */ }
 
   send('pageview');
 
@@ -138,6 +174,28 @@ document.querySelectorAll('.tour-card .tour-play').forEach(btn => {
     else if (href.indexOf('/verify') === 0) send('cta_verify');
     else if (href.indexOf('/docs') === 0 || href.indexOf('/start') === 0) send('cta_docs');
   }, true);
+})();
+
+// Keep the shared top nav honest about auth state on every page, not just /account.
+// The nav is static HTML, so a signed-in visitor was invited to "Sign in" again everywhere
+// else on the site, which reads as if the session had been lost. /account does this properly
+// from its live Supabase session; here we only read the token supabase-js already persisted,
+// so no SDK is loaded and no request is made. It is a label, never an access decision:
+// /account re-checks the real session and corrects this on arrival.
+(function () {
+  if (location.pathname.indexOf('/account') === 0) return;  // that page paints its own nav
+  var link = document.querySelector('.nav-links a[href="/account"]');
+  if (!link) return;
+  try {
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (!k || k.indexOf('sb-') !== 0 || k.indexOf('-auth-token') < 0) continue;
+      var t = JSON.parse(localStorage.getItem(k) || 'null');
+      // expires_at is seconds since epoch. An expired token still refreshes on /account, so
+      // treat it as signed in; only a missing or unparseable token means signed out.
+      if (t && (t.access_token || t.refresh_token)) { link.textContent = 'Account'; return; }
+    }
+  } catch (e) { /* leave the static label alone */ }
 })();
 
 /* WCAG 2.1.1 Keyboard: a <pre> that scrolls horizontally is a scrollable region, and a

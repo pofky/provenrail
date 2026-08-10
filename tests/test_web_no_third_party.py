@@ -103,7 +103,7 @@ def test_the_self_hosted_fonts_are_present_and_licensed():
 #: Every third party that touches personal data has to be named on the privacy page. This list is
 #: the one we actually use; adding a service without adding it here is the failure mode, so the
 #: test exists to make that a red build rather than a discovery during an audit.
-DISCLOSED_PROCESSORS = ("Supabase", "Polar", "Brevo", "GitHub", "Google")
+DISCLOSED_PROCESSORS = ("Supabase", "Polar", "Brevo", "GitHub", "Google", "Cloudflare")
 
 
 @pytest.mark.parametrize("name", DISCLOSED_PROCESSORS)

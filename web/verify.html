@@ -194,6 +194,14 @@
       maxCosigAgeDays: 36500,
     };
 
+    // Analytics: this page IS the product, so a verification that actually ran is the single
+    // most important signal on the site, and it was the one event nothing emitted. main.js is
+    // deferred and this module runs first, so queue until it installs the real sender.
+    const track = (e) => {
+      try { (window.prTrack || ((x) => (window.prQ = window.prQ || []).push(x)))(e); }
+      catch (_e) { /* analytics must never break the verifier */ }
+    };
+
     const result = document.getElementById('result');
     const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -244,13 +252,17 @@
       result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
-    async function verify(bundle, opts) {
+    // `own` distinguishes a visitor verifying a bundle they brought (real intent) from one
+    // clicking the built-in demo. Only the fact and the verdict are counted: the bundle itself
+    // never leaves the device, which is the promise printed at the top of this page.
+    async function verify(bundle, opts, own) {
       result.hidden = false;
       result.className = 'result';
       result.innerHTML = `<div class="verdict neutral"><span class="vbadge"><span class="spin"></span> Verifying locally</span></div>`;
       try {
         const rep = await verifyBundle(bundle, bundle.__pin || null, opts || {});
         render(rep, opts);
+        track(own ? 'verify_own' : 'verify_run');
       } catch (e) {
         result.className = 'result neutral';
         result.innerHTML = `<div class="verdict neutral"><span class="vbadge">Could not verify</span><div class="vmeta"><div class="s">${esc(e.message || e)}</div></div></div>`;
@@ -274,7 +286,7 @@
     function verifyText(text, opts) {
       let bundle;
       try { bundle = JSON.parse(text); } catch (err) { showNotJson(err); return; }
-      verify(bundle, opts);
+      verify(bundle, opts, true);
     }
 
     async function loadAndVerify(url, opts) {

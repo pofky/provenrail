@@ -428,15 +428,44 @@
     })();
 
     // Subscribe
+    async function startCheckout(plan, btn) {
+      if (btn) btn.disabled = true;
+      try {
+        const { url } = await callFn("polar-checkout", { plan });
+        location.href = url;
+      } catch (e) { toast(e.message, true); if (btn) btn.disabled = false; }
+    }
+
     document.querySelectorAll("[data-plan]").forEach((b) => {
-      b.addEventListener("click", async () => {
-        b.disabled = true;
-        try {
-          const { url } = await callFn("polar-checkout", { plan: b.dataset.plan });
-          location.href = url;
-        } catch (e) { toast(e.message, true); b.disabled = false; }
-      });
+      b.addEventListener("click", () => startCheckout(b.dataset.plan, b));
     });
+
+    // Plan intent carried from the pricing CTAs (/account?plan=builder). Someone who clicked
+    // "Start Builder" has already chosen; landing them on a page that asks them to choose again
+    // is a step between intent and card for no reason. Sign-in can happen in between (the magic
+    // link may even open in another tab), so the choice is parked in localStorage with a short
+    // TTL rather than in the URL or the tab. Cleared before use: a failed or abandoned checkout
+    // must never leave the account page redirecting to Polar on every visit.
+    const PLAN_INTENT_KEY = "pr_plan_intent";
+    const PLAN_INTENT_TTL_MS = 30 * 60 * 1000;
+
+    function rememberPlanIntent(plan) {
+      if (!["builder", "team"].includes(plan)) return;
+      try { localStorage.setItem(PLAN_INTENT_KEY, JSON.stringify({ plan, at: Date.now() })); }
+      catch { /* private mode: the visitor just picks the plan again */ }
+    }
+
+    function readPlanIntent(consume) {
+      try {
+        const raw = localStorage.getItem(PLAN_INTENT_KEY);
+        if (consume) localStorage.removeItem(PLAN_INTENT_KEY);
+        const v = raw && JSON.parse(raw);
+        if (!v || !["builder", "team"].includes(v.plan)) return null;
+        return Date.now() - (v.at || 0) < PLAN_INTENT_TTL_MS ? v.plan : null;
+      } catch { return null; }
+    }
+    const takePlanIntent = () => readPlanIntent(true);
+    const peekPlanIntent = () => readPlanIntent(false);
 
     // Manage billing
     $("portal-btn").addEventListener("click", async () => {
@@ -483,10 +512,22 @@
       toast("Confirming your subscription...");
       history.replaceState({}, "", "/account");
     }
+    // Park the plan before anything can reload or redirect this page, and drop it from the URL
+    // so a bookmark or a shared link does not become a checkout trigger.
+    if (params.get("plan")) {
+      rememberPlanIntent(params.get("plan"));
+      history.replaceState({}, "", "/account");
+    }
 
     let started = false;
     async function boot(session) {
-      if (!session) { paint(null); return; }
+      if (!session) {
+        paint(null);
+        // Say why the sign-in screen appeared, so the plan they picked does not just vanish.
+        const wanted = peekPlanIntent();
+        if (wanted) toast(`Sign in to start ${wanted === "team" ? "Team" : "Builder"}. Checkout opens right after.`);
+        return;
+      }
       if (started) { paint(session, await fetchProfile(session.user.id)); return; }
       started = true;
       paint(session, null);  // show the account shell immediately, then fill it in
@@ -514,6 +555,16 @@
         }
       }
       paint(session, profile);
+
+      // Now that the account is painted and the real plan is known, honour a carried intent.
+      // Never for someone who is already paying: they clicked a marketing CTA out of habit, and
+      // sending them to a second checkout would be the worst possible reading of that click.
+      // Always consumed, so it can never fire on some later, unrelated visit.
+      const wanted = takePlanIntent();
+      if (wanted && !justCheckedOut && !nowActive) {
+        toast(`Opening checkout for ${wanted === "team" ? "Team" : "Builder"}...`);
+        startCheckout(wanted, document.querySelector(`[data-plan="${wanted}"]`));
+      }
     }
     sb.auth.onAuthStateChange((_e, session) => boot(session));
     const { data: { session } } = await sb.auth.getSession();

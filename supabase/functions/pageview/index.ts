@@ -17,8 +17,24 @@ const ALLOWED_EVENTS = new Set([
   "cta_checkout_team",
   "cta_verify",
   "cta_docs",
-  "verify_run",
+  "verify_run",   // the in-browser verifier ran against the built-in demo or tampered fixture
+  "verify_own",   // ...against a bundle the visitor brought, which is the real intent signal
 ]);
+
+// Country. Cloudflare fronts this host but does NOT forward cf-ipcountry to it (checked against
+// the live endpoint: cf-connecting-ip, cf-ray and cf-visitor arrive, cf-ipcountry does not), so
+// reading that header here recorded NULL for every one of the first 2,204 pageviews. The country
+// is read at our own Pages edge instead and forwarded by web/functions/pv.js.
+//
+// It is only trusted when the proxy proves itself with the shared secret, otherwise anyone could
+// post a made-up country straight to this endpoint. No secret configured means no country, which
+// is exactly the behaviour this replaced, so a missing env var degrades instead of breaking.
+function proxiedCountry(req: Request): string | null {
+  const secret = Deno.env.get("PV_PROXY_SECRET");
+  if (!secret || req.headers.get("x-pv-secret") !== secret) return null;
+  const cc = (req.headers.get("x-pv-country") || "").toUpperCase();
+  return /^[A-Z]{2}$/.test(cc) ? cc : null;
+}
 
 function cors(origin: string | null) {
   const allow = origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://provenrail.com";
@@ -86,7 +102,7 @@ Deno.serve(async (req: Request) => {
       event,
       ref_host: refHost(body?.r),
       utm_source: cleanShort(body?.u, 40),
-      country: (req.headers.get("cf-ipcountry") || "").slice(0, 2) || null,
+      country: proxiedCountry(req),
       viewport: cleanShort(body?.v, 12),
     });
 

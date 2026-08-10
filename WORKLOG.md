@@ -8,6 +8,7 @@ _No active work._
 
 | Date | Project | Description |
 |------|---------|-------------|
+| 2026-08-10 | provenrail | Health check + fixes: verifier runs now counted (`verify_run`/`verify_own`), `/pv` edge proxy so `country` is finally recorded, pricing CTAs carry the plan straight to checkout, nav honest about auth on every page, `pageview` verify_jwt pinned in config.toml after a redeploy 401'd it; 870 tests |
 | 2026-08-06 | provenrail | Prod sweep: /pricing page, canonical-host redirects, CSP + HSTS, npm 0.2.30 lockstep, IndexNow submit, live verification |
 | 2026-08-06 | provenrail | Audit: 857 tests green, site live, on-page SEO strong; found zero external traffic, no `/pricing` page, npm version drift |
 | 2026-08-05 | provenrail | Web polish: footer nav on one row, decorative status dots removed |

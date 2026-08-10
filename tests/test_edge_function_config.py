@@ -71,19 +71,53 @@ def test_webhook_keeps_its_signature_check() -> None:
     assert "status: 403" in src, "an unsigned or badly signed delivery must be rejected with 403"
 
 
-def test_verify_jwt_is_pinned_for_public_functions() -> None:
-    """Both publicly-called functions must have the gateway JWT check disabled in config.toml.
+#: Functions any caller reaches without a Supabase JWT. Each MUST pin verify_jwt = false in
+#: config.toml, or the gateway answers 401 before the function runs.
+PUBLIC_FUNCTIONS = ("polar-webhook", "polar-prices", "pageview")
 
-    Polar sends no Supabase JWT, and the marketing site fetches prices before anyone signs in.
-    Deploying either without it returns 401 at the gateway and breaks billing or pricing with no
-    visible error. This was a real 10-minute outage on 2026-08-04.
+#: Functions that require a signed-in user and therefore keep the gateway check on.
+AUTHENTICATED_FUNCTIONS = ("polar-checkout", "polar-portal")
+
+
+def _deployed_function_names() -> set[str]:
+    return {p.name for p in FUNCTIONS.iterdir() if p.is_dir() and (p / "index.ts").is_file()}
+
+
+def test_verify_jwt_is_pinned_for_public_functions() -> None:
+    """Every publicly-called function must have the gateway JWT check disabled in config.toml.
+
+    Polar sends no Supabase JWT, the marketing site fetches prices before anyone signs in, and
+    the analytics beacon is posted by every visitor's browser. Deploying any of them without it
+    returns 401 at the gateway and breaks billing, pricing or analytics with no visible error.
+    This was a real 10-minute outage on 2026-08-04 (billing and pricing) and it happened again on
+    2026-08-10 to `pageview`, which had been deployed with `--no-verify-jwt` on the command line
+    and never written down here, so the next routine redeploy silently switched the check back on.
     """
     config = FUNCTIONS.parent / "config.toml"
     assert config.is_file(), "supabase/config.toml is missing"
     text = config.read_text(encoding="utf-8")
-    for fn in ("polar-webhook", "polar-prices"):
+    for fn in PUBLIC_FUNCTIONS:
         block = re.search(rf"\[functions\.{re.escape(fn)}\](.*?)(?=\n\[|\Z)", text, flags=re.S)
         assert block, f"config.toml has no [functions.{fn}] block"
         assert re.search(r"verify_jwt\s*=\s*false", block.group(1)), (
             f"[functions.{fn}] must set verify_jwt = false"
         )
+
+
+def test_every_function_is_classified_public_or_authenticated() -> None:
+    """A new edge function must be a deliberate choice, not an inherited default.
+
+    The `pageview` gap survived because the list above was written by hand and never revisited
+    when a function was added. Comparing it against what is actually on disk makes the next
+    author answer the question instead of discovering the answer in production.
+    """
+    classified = set(PUBLIC_FUNCTIONS) | set(AUTHENTICATED_FUNCTIONS)
+    on_disk = _deployed_function_names()
+    assert on_disk - classified == set(), (
+        f"edge function(s) {sorted(on_disk - classified)} are not classified in this test. Decide "
+        f"whether each is publicly callable (add to PUBLIC_FUNCTIONS and pin verify_jwt = false "
+        f"in supabase/config.toml) or requires a signed-in user (add to AUTHENTICATED_FUNCTIONS)."
+    )
+    assert classified - on_disk == set(), (
+        f"{sorted(classified - on_disk)} is classified here but no longer exists on disk"
+    )
