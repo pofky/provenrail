@@ -223,6 +223,18 @@ def _bundle_leaves(bundle: dict) -> list[str]:
     return leaves
 
 
+def _process_is_alive(pid: str) -> bool:
+    """Whether a recorded pid still names a running process. Signal 0 asks the kernel without
+    delivering anything."""
+    try:
+        os.kill(int(pid), 0)
+    except (ValueError, ProcessLookupError):
+        return False
+    except PermissionError:
+        return True   # exists, owned by someone else
+    return True
+
+
 def _cmd_anchor_push(args) -> int:
     """Send the root of a locally-held chain to an anchor service, and keep nothing else there.
 
@@ -483,11 +495,18 @@ def _cmd_quickstart(args) -> int:
         # way left to stop it.
         if pid_file.is_file():
             existing = pid_file.read_text().strip()
-            print(f"a local sink is already recorded as running (pid {existing}).",
+            if _process_is_alive(existing):
+                print(f"a local sink is already recorded as running (pid {existing}).",
+                      file=sys.stderr)
+                print("Run `pr quickstart --stop` first, or use --port for a second one.",
+                      file=sys.stderr)
+                return 1
+            # A stale file from a sink that died or was killed. Blocking on it sent a new user
+            # to `--stop`, which had nothing to stop, and left them with no way forward except
+            # deleting a file nobody told them about.
+            print(f"clearing a stale record of pid {existing}, which is no longer running.",
                   file=sys.stderr)
-            print("Run `pr quickstart --stop` first, or use --port for a second one.",
-                  file=sys.stderr)
-            return 1
+            pid_file.unlink(missing_ok=True)
         proc = subprocess.Popen(
             [sys.executable, "-m", "provenrail.cli", "serve", "--open",
              "--port", str(args.port), "--db", args.db, "--anchor", args.anchor],
@@ -502,8 +521,14 @@ def _cmd_quickstart(args) -> int:
                 pass
             time.sleep(0.2)
         else:
+            # Leaving the pid file behind here is what turned one failure into a wedged setup:
+            # the next quickstart refused to start because of a pid that was already dead.
             proc.terminate()
-            print("the local sink did not become healthy in time")
+            pid_file.unlink(missing_ok=True)
+            print(f"the local sink did not become healthy in time on port {args.port}.",
+                  file=sys.stderr)
+            print(f"Something else may be using it. Try `pr quickstart --port {args.port + 1}`.",
+                  file=sys.stderr)
             return 1
         prov = provision_stream(url, label=args.label)
         cfg = write_config(CONFIG_FILENAME, endpoint=url,

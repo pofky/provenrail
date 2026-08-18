@@ -70,6 +70,11 @@
   --ease: cubic-bezier(.16, 1, .3, 1);
   --shadow-card: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 18px 40px -24px rgba(0, 0, 0, .8);
   --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+  /* Verdict colours for comparison tables. Defined here rather than per page: three pages each
+     carried their own copy and the "no" red had already drifted between two of them. */
+  --yes: #6fcf86;
+  --no: #e06040;
+  --amber: #e0b040;
 }
 
 @media (prefers-color-scheme: light) {
@@ -89,6 +94,9 @@
     --text-mid: #515b67;
     --text-lo: #5f6974;
     --shadow-card: 0 1px 2px rgba(16, 24, 40, .04), 0 14px 36px -22px rgba(16, 24, 40, .28);
+    --yes: #1f7038;
+    --no: #a13c22;
+    --amber: #7e6428;
   }
 }
 
@@ -118,7 +126,7 @@ a { color: inherit; text-decoration: none; }
 code, .mono { font-family: var(--font-mono); }
 
 /* ---------- Reveal ---------- */
-.reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity .32s var(--ease), transform .32s var(--ease); }
 .reveal.visible { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
 

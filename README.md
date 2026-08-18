@@ -333,9 +333,14 @@ pr anchor-verify bundle.json receipt.json
 # RESULT: VERIFIED. These records existed in this order at that time.
 ```
 
-Edit a record afterwards and the root stops matching. Drop the tail and the receipt says how many
-records it covered, so the gap shows. Neither you nor we can make a rewritten history match a root
-that was already published.
+`anchor-verify` checks three things, and all three are needed. The receipt is a real, unforged
+commitment to a root, checked with the same code `pr verify` uses. The bundle hashes to that root,
+which ties the receipt to these records and not to some other set the same signer once anchored.
+And the bundle's own chain verifies, because the root commits to record hashes, not to record
+contents: without that check, editing a payload while leaving its hash alone would slip through.
+
+Drop the tail and the receipt says how many records it covered, so the gap shows. Neither you nor
+we can make a rewritten history match a root that was already published.
 
 Coverage is monotonic per stream. If a stream is anchored to 1000 records, an anchor covering 400
 is refused, and so is a second anchor at 1000 with a different root. Refusing to sign a shorter or

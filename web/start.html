@@ -329,7 +329,7 @@ with fr.record(<span class="g">"billing-agent"</span>, clients=[client]):
     <p>Anthropic works the same way: pass your Anthropic client in <code>clients=[...]</code>. LangChain and MCP are supported too, and anything else records with one explicit line. Full reference lives in the <a href="/docs">docs</a>.</p>
 
     <h2 id="hosted">7. Share a proof and go live</h2>
-    <p>Everything so far ran free on your own machine. When you want a teammate, a client, or an auditor to verify a run without installing anything, Provenrail can host the record behind a shareable proof link and add a trusted timestamp from an independent authority. That is the paid tier.</p>
+    <p>Everything so far ran free on your own machine, and it stays that way. Your records never move. What a paid plan adds is the one thing you cannot produce yourself: an independent party who wrote down what your chain looked like, at a time you did not choose. You send the root of your chain, 32 bytes, and keep every record. Your client or auditor gets a receipt they can check without an account and without trusting you, plus a trusted timestamp from an independent time authority.</p>
     <ol>
       <li>Go to <a href="/account">provenrail.com/account</a> and sign in with your email (you get a one-click magic link, no password).</li>
       <li>Pick a plan. After payment your account page shows a license key that starts with <code>prl_live_</code>.</li>
@@ -367,7 +367,7 @@ with fr.record(<span class="g">"billing-agent"</span>, clients=[client]):
       <dt>Do I have to keep the terminal open?</dt>
       <dd>Keep it open while you work through the guide. The local recorder from <code>pr quickstart</code> runs until you run <code>pr quickstart --stop</code> or close the terminal. Installed tools like <code>pr</code> and <code>uv</code> stay installed forever; you do not reinstall them.</dd>
       <dt>Is any of my data sent to Provenrail?</dt>
-      <dd>Not in this guide. Installing, recording, and verifying all happen on your own machine and work offline. Data only leaves your machine if you later choose a hosted plan to share proof links.</dd>
+      <dd>No, and not on a paid plan either. Installing, recording and verifying all happen on your own machine and work offline. Your agent records stay in your own sink. A paid plan sends one thing: the Merkle root of your chain and how many records it covers. There is no field in that request a record could travel in.</dd>
       <dt>Does this work on Windows?</dt>
       <dd>Yes. Use the Windows lines where this page shows them (opening the terminal, and the uv install command). Everything else is identical.</dd>
       <dt>What is the difference between this and the docs?</dt>
@@ -456,7 +456,7 @@ with fr.record(<span class="g">"billing-agent"</span>, clients=[client]):
           { "@type": "Question", "name": "Do I need Python installed?", "acceptedAnswer": { "@type": "Answer", "text": "No. uv brings its own Python, and the uv run command uses it. You never install or manage Python yourself." } },
           { "@type": "Question", "name": "Does it matter which folder I am in?", "acceptedAnswer": { "@type": "Answer", "text": "Not for installing. For recording your own run, make a folder and cd into it first so the config file and your script live together, because the recorder reads its config from the folder you run your script in." } },
           { "@type": "Question", "name": "Do I have to keep the terminal open?", "acceptedAnswer": { "@type": "Answer", "text": "Keep it open while you work through the guide. The local recorder from pr quickstart runs until you stop it or close the terminal. Installed tools like pr and uv stay installed permanently." } },
-          { "@type": "Question", "name": "Is any of my data sent to Provenrail?", "acceptedAnswer": { "@type": "Answer", "text": "Not in this guide. Installing, recording, and verifying all happen on your own machine and work offline. Data only leaves your machine if you later choose a hosted plan to share proof links." } },
+          { "@type": "Question", "name": "Is any of my data sent to Provenrail?", "acceptedAnswer": { "@type": "Answer", "text": "No, and not on a paid plan either. Installing, recording and verifying all happen on your own machine and work offline. Your agent records stay in your own sink. A paid plan sends one thing: the Merkle root of your chain and how many records it covers." } },
           { "@type": "Question", "name": "Does this work on Windows?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Use the Windows lines for opening the terminal and installing uv. Everything else is identical across macOS, Windows, and Linux." } }
         ]
       }

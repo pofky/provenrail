@@ -549,3 +549,31 @@ def test_a_malformed_trust_key_is_an_argument_error_not_a_tampering_verdict(caps
     # A well-formed key that simply is not the log's key must still reach the real check.
     capsys.readouterr()
     assert verify_main([str(bundle), "--tlog-pubkey", good]) != 2
+
+
+def test_a_dead_sink_does_not_wedge_the_next_quickstart(tmp_path, monkeypatch, capsys):
+    """A quickstart whose sink never came up left its pid file behind, so the NEXT quickstart
+    refused to start ("already recorded as running") naming a pid that was already dead. The fix
+    it suggested, `--stop`, had nothing to stop. A new user's second command wedged them, and the
+    only way out was deleting a file nobody had mentioned."""
+    import os
+
+    from provenrail.cli import _process_is_alive
+    from provenrail.cli import main as cli_main
+
+    # The liveness check is the whole fix, so it is checked directly and honestly.
+    assert _process_is_alive(str(os.getpid())) is True
+    assert _process_is_alive("2147483646") is False     # above any real pid on these platforms
+    assert _process_is_alive("not-a-pid") is False
+
+    monkeypatch.chdir(tmp_path)
+    pid_file = tmp_path / ".provenrail.pid"
+    pid_file.write_text("2147483646")                   # the corpse the old code tripped over
+
+    capsys.readouterr()
+    # It must get past the stale file. Whatever happens next (it will try to bind a port), the
+    # one thing it must not do is refuse because of a pid that is not running.
+    cli_main(["quickstart", "--port", "18931", "--db", str(tmp_path / "q.db")])
+    err = capsys.readouterr().err
+    assert "already recorded as running" not in err
+    assert "stale record" in err
