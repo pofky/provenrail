@@ -106,10 +106,11 @@
 .skip-link { position: absolute; top: 0; left: 0; transform: translateY(-120%); background: var(--accent); color: var(--accent-ink); padding: .6rem 1.2rem; border-radius: 0 0 10px 0; font-weight: 600; font-size: .9rem; text-decoration: none; z-index: 9999; transition: transform .15s; }
 .skip-link:focus { transform: translateY(0); }
 
-html { font-size: 16px; scroll-behavior: smooth; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+html { font-size: 16px; scroll-behavior: smooth; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; font-optical-sizing: auto; }
 
 body {
   font-family: var(--font-body);
+  font-feature-settings: 'ss01' 1, 'ss02' 1;
   color: var(--text-hi);
   background: var(--bg);
   line-height: 1.6;
@@ -573,3 +574,17 @@ details > summary { min-height: 44px; display: flex; align-items: center; }
 br.wide-only { display: none; }
 @media (min-width: 700px) { br.wide-only { display: inline; } }
 @media (max-width: 699px) { .hero-title { text-wrap: balance; max-width: none; } }
+
+
+/* ---------- Horizontal scroll affordance ---------- */
+/* Pure CSS, no JS: the `local` gradients ride the content and cover the `scroll` shadows when
+   there is nothing further that way, so the hint appears only on the side that has more. */
+.table-wrap, .price-table-wrap, .cmp-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background:
+    linear-gradient(to right, var(--bg) 30%, transparent) left center / 34px 100% no-repeat local,
+    linear-gradient(to left, var(--bg) 30%, transparent) right center / 34px 100% no-repeat local,
+    linear-gradient(to right, var(--accent-glow), transparent) left center / 18px 100% no-repeat scroll,
+    linear-gradient(to left, var(--accent-glow), transparent) right center / 18px 100% no-repeat scroll;
+}
