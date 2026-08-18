@@ -1,6 +1,6 @@
 # HANDOFF
 
-Last updated 2026-08-18. Branch `main`, in sync with `origin/main` at `e9996c9`.
+Last updated 2026-08-18. Branch `main`, in sync with `origin/main` at `9277304`.
 Read this first, then `WORKLOG.md` for history.
 
 ## Where things stand
@@ -43,6 +43,22 @@ it was the pricing page promising something the seller could not carry.
   exit 1 on a shell typo), `LicenseInfo` is falsy when invalid, `FlightRecorder.session_id`
   exists, the starlette/httpx warning is filtered.
 - **EU AI Act page** no longer says Article 50 is "three days away" 16 days after it took force.
+
+## Open, and why
+
+- **The nav carries 12 items on the homepage**, where Linear ships 5 and Stripe 6, and five of
+  them are `/#anchor` links that jump back to the homepage from every other page. Cutting it is
+  an information-architecture decision across 20 pages, so it was left for a deliberate pass
+  rather than folded into a fix-up commit. `docs/ux-audit-2026-08-18.md` finding 4.
+- **DM Sans is a widely used free Google font.** Optical sizing and its stylistic alternates are
+  now on, which fixes the flatness, but the design research asks for a typeface that is not one
+  click away for everyone. Evaluate Satoshi, General Sans or Clash Display for display headings.
+- **Server auth and RBAC have never been verified against live Supabase**, only in-process.
+- **RFC 3161 receipts are unreachable through `pr anchor-push` in open mode**: the endpoint falls
+  back to the local anchor when there is no account, and `--anchor rfc3161` on the server only
+  affects the scheduler. Documented nowhere. `docs/live-journey-2026-08-18.md` finding 5.
+- **Float metadata raises `CanonicalError` at emit time** with no pre-check and no mention in the
+  docstrings or the quickstart, so anyone passing a confidence score hits it on their first run.
 
 ## Next in order
 
