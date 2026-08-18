@@ -321,6 +321,8 @@ pr anchor-push bundle.json --url "$ANCHOR_URL" --key "$ACCOUNT_KEY" \
   --receipt-out receipt.json
 ```
 
+These two commands arrived in 0.2.31; on an older install they exit with `invalid choice`.
+
 `$ANCHOR_URL` is any Provenrail server reachable by both you and whoever checks your evidence.
 Run `pr serve` on a second machine and point at that, and the mechanism works end to end today,
 which is the honest way to try it. Note what that does and does not buy you: a service you run

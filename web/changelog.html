@@ -88,7 +88,18 @@
     <p class="eyebrow">Changelog</p>
     <h1>What changed, and when</h1>
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
-    <p class="updated">Last updated <time datetime="2026-08-05">5 August 2026</time></p>
+    <p class="updated">Last updated <time datetime="2026-08-18">18 August 2026</time></p>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.31</span><span class="date">August 18, 2026</span><span class="tag">Anchoring</span></div>
+      <ul>
+        <li><b>Anchor your chain without handing over your records.</b> <code>pr anchor-push</code> sends the Merkle root of a local bundle and how far it reaches, and nothing else: the endpoint that receives it has no field a record could arrive in. <code>pr anchor-verify</code> then proves a receipt covers a bundle offline, without calling the service that issued the receipt, because a check that asks the issuer whether its own receipt is good proves nothing. Coverage of a stream can only grow, so a shorter or forked history is refused rather than signed.</li>
+        <li><b>A verdict now says what it does not mean.</b> The browser verifier put the completeness limitation at the bottom, below jargon, while the badge at the top said "Verified". Every word was true and the impression was wrong. What a result confirms and what it cannot now sit beside the verdict, in plain language, and the time and witness lines move between those columns depending on what was actually checked.</li>
+        <li><b>Instrumentation that cannot record now says so.</b> A published example passed the wrong object as the recorder: instrumentation succeeded, every model call succeeded, nothing was recorded, and the exception was swallowed. Wiring a recorder without <code>record_model_call</code> now fails immediately, and a capture that fails at runtime warns instead of passing in silence.</li>
+        <li><b>A typo in a trust flag is an argument error, not a tampering verdict.</b> <code>pr verify --tlog-pubkey none</code> used to print TAMPERING DETECTED and exit 1, so a shell typo raised a security alarm and gated a build. <code>--tsa-root</code> and <code>--max-cosig-age</code> also work on <code>pr verify</code> now, not just on the <code>pr-verify</code> script.</li>
+        <li><b>A dead sink no longer wedges the next <code>pr quickstart</code>.</b> A failed start left its pid file behind, and the next attempt refused to run naming a process that no longer existed.</li>
+      </ul>
+    </div>
 
     <div class="rel">
       <div class="rel-head"><span class="ver">0.2.30</span><span class="date">August 5, 2026</span><span class="tag">Onboarding</span></div>
