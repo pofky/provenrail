@@ -80,6 +80,16 @@
     .vmeta .h{font-family:var(--font-mono);font-size:1rem;color:var(--text-hi)}
     .vmeta .s{font-size:1rem;color:var(--text-mid);margin-top:.15rem}
     .checks{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+    .meaning{display:grid;grid-template-columns:1fr;gap:1px;margin-top:1.1rem;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--border)}
+    @media(min-width:720px){.meaning{grid-template-columns:1fr 1fr}}
+    .m-col{background:var(--bg-2);padding:1rem 1.1rem}
+    .m-h{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-lo);margin-bottom:.55rem}
+    .m-col.ok .m-h{color:var(--accent)}
+    .m-col.not .m-h{color:var(--warn)}
+    .m-col ul{margin:0;padding-left:1.05rem}
+    .m-col li{font-size:.94rem;line-height:1.55;color:var(--text-mid);margin-bottom:.5rem}
+    .m-col li:last-child{margin-bottom:0}
+    .m-col strong{color:var(--text-hi);font-weight:600}
     .chk{display:inline-flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.72rem;color:var(--text-mid);border:1px solid var(--border);background:var(--bg-3);border-radius:999px;padding:.32rem .65rem}
     .chk.ok{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
     .chk.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
@@ -211,10 +221,50 @@
       if (rep.result === 'unconfirmed') return { k: 'amber', label: 'Not confirmed', sub: 'The record is intact, but a transparency-log or witness key you supplied did not match (wrong or stale key, or a proof from a different log). This is not evidence of tampering.' };
       const codes = new Set(rep.findings.map(f => f.code));
       if (codes.has('tlog_inclusion_witnessed_ok'))
-        return { k: 'green', label: 'Verified and witnessed', sub: 'Every record is intact and the transparency log was cosigned by an independent witness.' };
+        return { k: 'green', label: 'Verified and witnessed', sub: 'Every record is intact and the transparency log was cosigned by a separate witness.' };
       if (rep.warn > 0)
         return { k: 'amber', label: 'Verified, with notes', sub: 'Records are intact and signed; see the advisory notes below.' };
       return { k: 'green', label: 'Verified', sub: 'Every record is intact, signed, and hash-chained.' };
+    }
+
+    // What this result establishes, and what it cannot, in the reader's language. Rendered
+    // before any code, because the limitation is only honest if it arrives with the verdict.
+    // Time and witness statements move between the two columns: a checked RFC 3161 timestamp
+    // belongs under what IS confirmed, a self-asserted clock under what is not.
+    function plainMeaning(rep) {
+      if (rep.result !== 'verified') return '';
+      const codes = new Set(rep.findings.map(f => f.code));
+      const rfc = codes.has('anchor_rfc3161');
+      const localOnly = codes.has('anchor_local_only');
+      const witnessed = codes.has('tlog_inclusion_witnessed_ok');
+
+      const yes = [
+        'Every record in this file is exactly as it was when signed. Nothing was altered, reordered, deleted or inserted afterwards.',
+        'The records were signed by the holder of the recording key, and the receiving server independently chained them on arrival.'
+      ];
+      const no = [
+        '<strong>That the agent recorded everything it did.</strong> This proves what was recorded is intact. An agent that never wrote an action down leaves no trace here, and no tool of this kind can show otherwise.'
+      ];
+
+      if (rfc) {
+        yes.push('<strong>When this happened.</strong> An independent timestamping authority signed the time, so it cannot have been back-dated, not even by Provenrail.');
+      } else if (localOnly) {
+        no.push('<strong>When this happened.</strong> The time comes from the recording machine\u2019s own clock, not an independent authority, so it is not proof of the date.');
+      } else {
+        no.push('<strong>When this happened.</strong> No independent time source was checked in this file, so treat the timestamps as self-asserted.');
+      }
+
+      if (witnessed) {
+        yes.push('A separate witness cosigned the transparency log, so the operator cannot show one history to you and a different one to someone else.');
+      } else {
+        no.push('That the operator has shown you the same history it shows everyone else. No witness cosignature was checked here.');
+      }
+
+      const li = xs => xs.map(x => `<li>${x}</li>`).join('');
+      return `<div class="meaning">
+        <div class="m-col ok"><div class="m-h">What this confirms</div><ul>${li(yes)}</ul></div>
+        <div class="m-col not"><div class="m-h">What this does not confirm</div><ul>${li(no)}</ul></div>
+      </div>`;
     }
 
     function checkRow(rep) {
@@ -244,6 +294,7 @@
            <div class="vmeta"><div class="h">${{ verified: 'Bundle verified', unconfirmed: 'Could not confirm', malformed: 'Not a bundle', empty: 'No records' }[rep.result] || 'Verification failed'}</div><div class="s">${st.sub}</div></div>
          </div>
          ${checks ? `<div class="checks">${checks}</div>` : ''}
+         ${plainMeaning(rep)}
          ${findings ? `<div class="findings">${findings}</div>` : ''}`;
       result.hidden = false;
       result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

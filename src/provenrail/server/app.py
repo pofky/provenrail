@@ -637,13 +637,23 @@ def create_app(
         return stored
 
     @app.get("/v1/anchors/{anchor_id}")
-    def get_anchor(anchor_id: str = Path(...)):
+    def get_anchor(anchor_id: str = Path(...), accept: str = Header(default="")):
         """Public on purpose. The customer hands an auditor an anchor id, and the auditor must be
         able to check it without an account, without our permission, and without asking the
-        customer again. There is nothing here to protect: a root, a time, and a signature."""
+        customer again. There is nothing here to protect: a root, a time, and a signature.
+
+        A browser gets a page instead of the JSON. The reader who follows this link is usually
+        the least technical person in the chain, and raw JSON hid the two facts that decide what
+        the receipt is worth: whether the time came from an independent authority or from the
+        recording machine's own clock, and that a receipt says nothing about completeness. Both
+        were technically present in the payload and invisible in practice."""
         found = store.get_external_anchor(anchor_id)
         if found is None:
+            if "text/html" in (accept or ""):
+                return HTMLResponse(_render_anchor_missing(anchor_id), status_code=404)
             raise HTTPException(404, "no such anchor")
+        if "text/html" in (accept or ""):
+            return HTMLResponse(_render_anchor_page(found))
         return found
 
     @app.get("/v1/anchors")
@@ -1540,6 +1550,127 @@ def _proof_event_label(rec: dict) -> tuple[str, str]:
     if effect == "deny":
         return (f"Policy blocked: {target}" if target else "Policy blocked an action"), " ev-deny"
     return (f"Policy allowed: {target}" if target else "Policy decision"), ""
+
+
+_ANCHOR_CSS = """
+  :root{color-scheme:light dark;--bg:#0b0a08;--fg:#f3f5f7;--mid:#99a2af;--line:#29221a;
+        --ok:#6fcf86;--warn:#e0b040;--card:#12100c}
+  @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--fg:#0c0f14;--mid:#515b67;
+        --line:#e9e2d5;--ok:#1f7038;--warn:#7e6428;--card:#f6f3ed}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,sans-serif;
+       padding:2rem 1.1rem}
+  main{max-width:44rem;margin:0 auto}
+  h1{font-size:1.5rem;line-height:1.25;margin:0 0 .4rem}
+  .lede{color:var(--mid);margin:0 0 1.6rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1rem 1.1rem;
+        margin-bottom:1rem}
+  .k{color:var(--mid);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+  .v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;font-size:.92rem}
+  ul{margin:.4rem 0 0;padding-left:1.1rem}li{margin-bottom:.45rem;color:var(--mid)}
+  li strong{color:var(--fg)}
+  .h-ok{color:var(--ok);font-weight:600}.h-warn{color:var(--warn);font-weight:600}
+  a{color:inherit}
+  footer{color:var(--mid);font-size:.85rem;margin-top:2rem;border-top:1px solid var(--line);
+         padding-top:1rem}
+"""
+
+
+def _render_anchor_missing(anchor_id: str) -> str:
+    return (f"<!doctype html><meta charset=utf-8><title>No such anchor record</title>"
+            f"<meta name=viewport content='width=device-width,initial-scale=1'>"
+            f"<style>{_ANCHOR_CSS}</style><main><h1>No anchor record with that id</h1>"
+            f"<p class=lede>Nothing here has been published under "
+            f"<code>{html.escape(anchor_id)}</code>. Check the link you were given: an id that "
+            f"does not resolve is not evidence of anything, in either direction.</p></main>")
+
+
+def _render_anchor_page(a: dict[str, Any]) -> str:
+    """The auditor's view of one anchor record.
+
+    Written for the person least equipped to read the JSON. It leads with what the record proves
+    and what it does not, because the difference between an independently timestamped root and a
+    self-signed one is the whole question, and in raw JSON it was one null field nobody notices."""
+    receipt = a.get("receipt") or {}
+    kind = receipt.get("kind")
+    independent = kind == "rfc3161"
+    tsa = receipt.get("tsa_url")
+    esc = html.escape
+
+    if independent:
+        time_line = (f"<span class='h-ok'>Independently timestamped.</span> The time below was "
+                     f"signed by {esc(str(tsa))}, a third-party timestamping authority, so it "
+                     f"cannot have been back-dated by the customer or by us.")
+    else:
+        time_line = ("<span class='h-warn'>Self-asserted time.</span> This record was signed with "
+                     "our own key against our own clock, not by an independent timestamping "
+                     "authority. It proves the root was published here, in this order, relative "
+                     "to the other records in this stream. It is not independent proof of the "
+                     "calendar date.")
+
+    return f"""<!doctype html><html lang=en><meta charset=utf-8>
+<title>Anchor record {esc(a['anchor_id'])}</title>
+<meta name=viewport content='width=device-width,initial-scale=1'>
+<meta name=robots content='noindex'>
+<style>{_ANCHOR_CSS}</style>
+<main>
+  <h1>Anchor record</h1>
+  <p class=lede>Someone gave you this link so you could check their claim without taking their
+  word for it, and without an account here.</p>
+
+  <div class=card>
+    <div class=k>Fingerprint of their records</div>
+    <div class=v>{esc(a['merkle_root'])}</div>
+  </div>
+  <div class=card>
+    <div class=k>Covers</div>
+    <div class=v>{a['covers_up_to']} records</div>
+  </div>
+  <div class=card>
+    <div class=k>Published here at</div>
+    <div class=v>{esc(str(receipt.get('gen_time', 'unknown')))}</div>
+  </div>
+
+  <div class=card>
+    <div class=k>What this record proves</div>
+    <ul>
+      <li>{time_line}</li>
+      <li><strong>It cannot be changed after the fact.</strong> Coverage of a stream can only
+      grow here. We refuse to publish a shorter history for a stream than one already published,
+      and we refuse two different fingerprints for the same length.</li>
+      <li><strong>We never received their records.</strong> Only the fingerprint above and the
+      count. There is no field in the request their data could have travelled in, so we cannot
+      show it to you, and we could not have altered it.</li>
+    </ul>
+  </div>
+
+  <div class=card>
+    <div class=k>What this record does not prove</div>
+    <ul>
+      <li><strong>That they recorded everything.</strong> This shows that what they recorded has
+      not been altered. It cannot show that an action was never written down in the first place.
+      No record of this kind can.</li>
+      <li><strong>That the records say what they told you.</strong> Ask them for the records
+      themselves, then check the fingerprint matches.</li>
+    </ul>
+  </div>
+
+  <div class=card>
+    <div class=k>How to check it yourself</div>
+    <ul>
+      <li>Ask them for their exported bundle file.</li>
+      <li>Run <code>pr anchor-verify bundle.json receipt.json</code>. It recomputes the
+      fingerprint from their records and compares it with the one above, offline, without asking
+      us anything.</li>
+      <li>If the two do not match, the records you were shown are not the records that were
+      published here.</li>
+    </ul>
+  </div>
+
+  <footer>Machine-readable version of this page: add <code>Accept: application/json</code>.
+  Provenrail is evidence tooling. It is not legal advice, a compliance guarantee, or an audit
+  opinion.</footer>
+</main></html>"""
 
 
 def _render_proof(stream_id: str, records: list[dict], anchors: list[dict], report,

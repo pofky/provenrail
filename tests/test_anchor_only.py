@@ -449,3 +449,55 @@ def test_a_conflicting_anchor_costs_no_timestamp_and_no_quota():
         "stream_id": "s", "merkle_root": merkle_root(hashes(10)), "covers_up_to": 10})
     assert r.status_code == 409
     assert calls == [], "a refused anchor still spent a timestamp"
+
+
+def test_a_browser_gets_a_page_and_a_script_gets_json():
+    """The person who follows an anchor link is usually the least technical in the chain. Raw
+    JSON hid the two facts that decide what the receipt is worth: whether the time came from an
+    independent authority or from our own clock, and that a receipt says nothing about
+    completeness. Both were in the payload and invisible in practice."""
+    c = client()
+    h = account(c)
+    anchor_id = c.post("/v1/anchors", headers=h, json={
+        "stream_id": "s", "merkle_root": merkle_root(hashes(6)), "covers_up_to": 6,
+    }).json()["anchor_id"]
+
+    api = c.get(f"/v1/anchors/{anchor_id}")
+    assert api.headers["content-type"].startswith("application/json")
+    assert api.json()["merkle_root"] == merkle_root(hashes(6))
+
+    page = c.get(f"/v1/anchors/{anchor_id}", headers={"Accept": "text/html"})
+    assert page.status_code == 200
+    assert page.headers["content-type"].startswith("text/html")
+    body = page.text
+    # The limitation must be on the page, not only in the docs.
+    assert "That they recorded everything" in body
+    assert "No record of this kind can" in body
+    # A local anchor must never be described as independently timestamped.
+    assert "Self-asserted time" in body
+    assert "Independently timestamped" not in body
+    # And it must say we never held their records, which is the product's whole shape.
+    assert "We never received their records" in body
+    # It must disclaim the authority we do not hold. Whitespace-normalised because the source
+    # wraps, and a test that depends on where a line breaks is a test that fails on reflow.
+    flat = " ".join(body.split())
+    for disclaimed in ("not legal advice, a compliance guarantee, or an audit opinion",):
+        assert disclaimed in flat
+
+    missing = c.get("/v1/anchors/anc_nope", headers={"Accept": "text/html"})
+    assert missing.status_code == 404
+    assert "not evidence of anything" in missing.text
+
+
+def test_an_rfc3161_anchor_page_says_the_time_is_independent():
+    """The inverse of the test above: when the time really is third-party signed, the page must
+    say so, or the honest disclosure becomes noise the reader learns to skip."""
+    from provenrail.server.app import _render_anchor_page
+    page = _render_anchor_page({
+        "anchor_id": "anc_x", "merkle_root": "ab" * 32, "covers_up_to": 4,
+        "receipt": {"kind": "rfc3161", "merkle_root": "ab" * 32,
+                    "gen_time": "2026-08-18T00:00:00Z", "tsa_url": "https://freetsa.org/tsr"},
+        "created_at": "2026-08-18T00:00:00Z"})
+    assert "Independently timestamped" in page
+    assert "freetsa.org" in page
+    assert "Self-asserted time" not in page

@@ -119,9 +119,9 @@
       <div class="card guard"><h3>Tamper-evident</h3><p>Altering, reordering, or deleting any record breaks the chain and the verifier reports it. A coherent rewrite of the whole chain is caught by the independent server receipt chain and the anchor.</p></div>
       <div class="card guard"><h3>Independently dated</h3><p>The hash chain seals ordering on every plan. Builder and higher plans add RFC 3161 timestamps from an external authority, so the timing cannot be back-dated even by Provenrail.</p></div>
       <div class="card guard"><h3>Verifiable by anyone</h3><p>The proof travels with the record. A third party recomputes every hash, signature, receipt, and anchor with an open-source tool, offline, trusting neither the agent, the sink, nor Provenrail.</p></div>
-      <div class="card guard"><h3>Witnessed</h3><p>On Builder and higher plans, the transparency log is cosigned by independent witnesses, so the log operator cannot show different histories to different parties without detection. On the Free plan the log is append-only and internally consistent, but not independently witnessed.</p></div>
+      <div class="card guard"><h3>Witnessable</h3><p>The transparency log implements the C2SP witness protocol, so cosigners you nominate can sign what they saw and the log operator cannot then show different histories to different parties without detection. Independence is a property of who runs the witness, so it is your choice, not ours to assert: a witness operated by Provenrail is not independent of Provenrail. Builder and higher plans carry witness cosignatures; no plan ships with a witness we have declared independent on your behalf.</p></div>
     </div>
-    <p>Hash-chain tamper-evidence holds on every plan, including the free tier, and never depends on a commercial license. RFC 3161 anti-backdating and independent witness cosignatures are Builder and higher, because they bring in external third parties. The core integrity is in the math, not in the subscription.</p>
+    <p>Hash-chain tamper-evidence holds on every plan, including the free tier, and never depends on a commercial license. RFC 3161 anti-backdating and witness cosignatures are Builder and higher, because they bring in an external party. The core integrity is in the math, not in the subscription.</p>
 
     <h2 id="scope">What it deliberately does not claim</h2>
     <p>Overclaiming is how evidence tooling loses credibility. Provenrail is explicit about its limits:</p>
@@ -149,7 +149,7 @@
       <li><strong>Signing:</strong> Ed25519 over canonical record bytes.</li>
       <li><strong>Chaining:</strong> SHA-256 hash chains, with an independent server receipt chain so a coherent client-side rewrite is still caught.</li>
       <li><strong>Trusted time:</strong> RFC 3161 timestamps from an external timestamping authority (Builder and higher).</li>
-      <li><strong>Transparency log:</strong> an append-only log, with independent witness cosignatures on Builder and higher.</li>
+      <li><strong>Transparency log:</strong> an append-only log, with witness cosignatures on Builder and higher, from cosigners you nominate.</li>
       <li><strong>Redaction:</strong> fields can be redacted while remaining verifiable, with operator-held openings to disclose them later.</li>
     </ul>
     <p>The SDKs, the verifier, and the spec are open source under MIT; the server is AGPL-3.0. You can read exactly how every check works.</p>
