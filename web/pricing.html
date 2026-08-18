@@ -141,8 +141,9 @@
             <ul class="plan-features" aria-label="Builder plan features">
               <li class="plan-feature">500k events per month</li>
               <li class="plan-feature">RFC 3161 trusted timestamps</li>
-              <li class="plan-feature">Independent anchoring: send the root of your chain, keep every record (<code>pr anchor-push</code>)</li>
+              <li class="plan-feature">Anchoring built in: send the root of your chain, keep every record (<code>pr anchor-push</code>). Works today against a server you run; the hosted independent service is not open yet</li>
               <li class="plan-feature">A public anchor receipt your client or auditor can check without an account</li>
+              <li class="plan-feature">Priced now, so joining today locks this rate when the hosted service opens</li>
               <li class="plan-feature">Shareable client proof links + live badge</li>
               <li class="plan-feature">Single project, single user</li>
               <li class="plan-feature">Email support</li>
@@ -211,7 +212,7 @@
                 <tr><td>Open-source verifier</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Guardrails that block tool calls</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Evidence packs and reports (CLI)</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>Independent anchoring of your chain (root only)</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Anchoring of your chain (root only)<span class="sub">against a server you run; hosted service not open yet</span></td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Public anchor receipt for an auditor</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>RFC 3161 trusted timestamps</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Shareable proof links + live badge</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
@@ -257,7 +258,10 @@
             <dd>Your records are hashed into a chain. Independent anchoring sends us the single root of that chain, 32 bytes, plus how many records it covers. Nothing else is sent, because the endpoint has no field anything else could arrive in. We timestamp that root, keep an append-only history of it, and publish it at a URL anyone can read without an account. Your client or auditor recomputes the root from the records you show them and checks it matches. If you later edit or delete a record, it stops matching, and neither you nor we can make it match again.</dd>
 
             <dt>Why can I not just anchor my own chain?</dt>
-            <dd>You can, and the tooling is free. What you cannot do is be your own independent party. A timestamp you produced yourself proves the chain is internally consistent, not that it existed before the dispute. That is the only thing a paid plan sells that self-hosting cannot reproduce.</dd>
+            <dd>You can, and the tooling is free. What you cannot do is be your own independent party. A timestamp you produced yourself proves the chain is internally consistent, not that it existed before the dispute. That is the only thing a paid plan will sell that self-hosting cannot reproduce.</dd>
+
+            <dt>Is the hosted anchor service running today?</dt>
+            <dd>No, and we would rather say so than let you find out after paying. The code ships and works: point <code>pr anchor-push</code> at any Provenrail server and the receipts, the append-only coverage history and the offline check all work end to end. What is not open yet is us running that server as the independent party, which is the half you cannot build for yourself. Everything else a paid plan lists works now. If independent anchoring is the reason you are here, write to <a href="mailto:support@provenrail.com">support@provenrail.com</a> and we will tell you the moment it opens.</dd>
 
             <dt>How do refunds work?</dt>
             <dd>14 days on paid plans, no questions. Billing runs through Polar as merchant of record, so cancellation and refunds are handled from the same portal you subscribed in.</dd>

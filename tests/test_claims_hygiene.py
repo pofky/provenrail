@@ -137,3 +137,37 @@ def test_the_pricing_page_still_says_where_records_live():
     pricing = (ROOT / "web" / "pricing.html").read_text(encoding="utf-8").lower()
     assert "your own sink" in pricing or "your own infrastructure" in pricing
     assert "no. provenrail hosts identity and billing only" in pricing
+
+
+def test_no_page_points_a_customer_at_a_host_that_does_not_exist():
+    """README told people to run `pr anchor-push --url https://anchor.provenrail.com`. That host
+    has never existed. An instruction that cannot work is worse than a missing one: the reader
+    assumes they got it wrong.
+
+    This is deliberately a check on hostnames rather than on availability, because a test cannot
+    ask the internet. When the service does open, add its host here in the same commit that
+    starts advertising it, which is the point: the two facts move together or the build fails."""
+    live_hosts = {"provenrail.com", "www.provenrail.com", "github.com", "pypi.org",
+                  "npmjs.com", "www.npmjs.com", "freetsa.org", "docs.astral.sh"}
+    promised = re.compile(r"https://([a-z0-9.-]*provenrail\.com)")
+    offences = []
+    for path in _shipped_files():
+        for n, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+            for host in promised.findall(line):
+                if host not in live_hosts:
+                    offences.append(f"{path.relative_to(ROOT)}:{n} points at {host}, which does "
+                                    f"not exist. Do not ship an instruction that cannot work.")
+    assert not offences, "copy names a host we do not run:\n  " + "\n  ".join(offences)
+
+
+def test_the_hosted_anchor_service_is_not_described_as_available():
+    """The paid tiers list anchoring. The code ships, but nobody operates the independent service
+    yet, and a customer who pays for independence and gets a URL they have to run themselves has
+    been sold something. Every page that lists it must say so in the same breath."""
+    for name in ("pricing.html", "index.html"):
+        page = (ROOT / "web" / name).read_text(encoding="utf-8").lower()
+        if "anchoring" not in page:
+            continue
+        assert "not open yet" in page, (
+            f"web/{name} advertises anchoring without saying the hosted service is not open yet. "
+            f"When it opens, change this test in the same commit.")

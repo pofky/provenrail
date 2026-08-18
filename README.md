@@ -317,9 +317,16 @@ curl -H "Authorization: Bearer $READ_TOKEN" \
   http://127.0.0.1:8000/v1/streams/$STREAM/export > bundle.json
 
 # 32 bytes leave this machine: the Merkle root over your record hashes, and how far it reaches.
-pr anchor-push bundle.json --url https://anchor.provenrail.com --key $ACCOUNT_KEY \
+pr anchor-push bundle.json --url "$ANCHOR_URL" --key "$ACCOUNT_KEY" \
   --receipt-out receipt.json
 ```
+
+`$ANCHOR_URL` is any Provenrail server reachable by both you and whoever checks your evidence.
+Run `pr serve` on a second machine and point at that, and the mechanism works end to end today,
+which is the honest way to try it. Note what that does and does not buy you: a service you run
+yourself gives you the append-only history and the receipt, but it cannot make you independent of
+yourself. **Provenrail does not yet operate a public anchor service**, so the independence half of
+this is not something you can buy right now. When it opens, only the URL changes.
 
 The anchor service stores the root, the coverage and a timestamp, and publishes them at a URL
 anyone can read without an account. It has no field a record could arrive in, so it cannot receive
