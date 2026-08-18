@@ -207,6 +207,26 @@ class SeqConflict(Exception):
     """
 
 
+def coverage_went_backwards_message(have: int, offered: int) -> str:
+    return (f"this stream is already anchored to {have} records; an anchor covering only "
+            f"{offered} would drop the tail. Anchor the full chain, or open a new stream if "
+            f"you meant to start over.")
+
+
+def two_histories_message(covers: int) -> str:
+    return (f"this stream is already anchored at {covers} records with a different root. The "
+            f"same prefix cannot have two histories.")
+
+
+class DuplicateAnchor(Exception):
+    """An anchor identical to one already recorded. Carries the existing anchor_id so the caller
+    can answer the retry with the row that already exists."""
+
+    def __init__(self, anchor_id: str):
+        super().__init__(anchor_id)
+        self.anchor_id = anchor_id
+
+
 class CoverageWentBackwards(ValueError):
     """Raised when an anchor would cover less of a stream than that stream's newest anchor does.
 
@@ -1031,14 +1051,13 @@ class Storage:
             ).fetchone()
             if prev is not None and covers_up_to < prev["covers_up_to"]:
                 raise CoverageWentBackwards(
-                    f"this stream is already anchored to {prev['covers_up_to']} records; an "
-                    f"anchor covering only {covers_up_to} would drop the tail. Anchor the "
-                    f"full chain, or open a new stream if you meant to start over.")
-            if (prev is not None and covers_up_to == prev["covers_up_to"]
-                    and merkle_root != prev["merkle_root"]):
-                raise CoverageWentBackwards(
-                    f"this stream is already anchored at {covers_up_to} records with a "
-                    f"different root. The same prefix cannot have two histories.")
+                    coverage_went_backwards_message(prev["covers_up_to"], covers_up_to))
+            if prev is not None and covers_up_to == prev["covers_up_to"]:
+                if merkle_root != prev["merkle_root"]:
+                    raise CoverageWentBackwards(two_histories_message(covers_up_to))
+                # An exact duplicate that raced past the endpoint's pre-check. Refusing it would
+                # fail a legitimate retry, and inserting it would mint a second id for one fact.
+                raise DuplicateAnchor(prev["anchor_id"])
             self._db.execute(
                 "INSERT INTO external_anchors(anchor_id, account_id, stream_id, merkle_root, "
                 "covers_up_to, receipt, created_at) VALUES (?,?,?,?,?,?,?)",
@@ -1048,6 +1067,20 @@ class Storage:
             self._db.commit()
         return {"anchor_id": anchor_id, "stream_id": stream_id, "merkle_root": merkle_root,
                 "covers_up_to": covers_up_to, "receipt": receipt, "created_at": created_at}
+
+    def newest_external_anchor(self, account_id: str, stream_id: str) -> dict[str, Any] | None:
+        """The furthest-reaching anchor for a stream, or None. Lets the endpoint settle a
+        conflict before spending a TSA round-trip on a request it is going to refuse."""
+        row = self._db.execute(
+            "SELECT anchor_id, stream_id, merkle_root, covers_up_to, receipt, created_at "
+            "FROM external_anchors WHERE account_id=? AND stream_id=? "
+            "ORDER BY covers_up_to DESC LIMIT 1", (account_id, stream_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return {"anchor_id": row["anchor_id"], "stream_id": row["stream_id"],
+                "merkle_root": row["merkle_root"], "covers_up_to": row["covers_up_to"],
+                "receipt": json.loads(row["receipt"]), "created_at": row["created_at"]}
 
     def get_external_anchor(self, anchor_id: str) -> dict[str, Any] | None:
         """Read one attestation by id. Deliberately does NOT return account_id: this backs the

@@ -19,7 +19,7 @@ from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Path, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .. import anchor as anchor_mod
 from .. import redaction
@@ -58,7 +58,10 @@ class AnchorRootIn(BaseModel):
     personal data even if a caller wanted to send it."""
     stream_id: str
     merkle_root: str
-    covers_up_to: int
+    # Bounded because SQLite stores a signed 64-bit integer and an unbounded int reached the
+    # INSERT as an OverflowError, after a live TSA round-trip had already been spent on it.
+    # 2^53 is far past any real stream and stays exact in JSON consumers.
+    covers_up_to: int = Field(ge=1, le=2**53)
 
 
 class ApprovalIn(BaseModel):
@@ -583,6 +586,23 @@ def create_app(
             raise HTTPException(422, str(e)) from None
 
         account_id = None if principal is None else principal["account_id"]
+
+        # Everything that can refuse this request runs before the timestamp is minted. A 409 used
+        # to cost a live TSA round-trip and a rate-limit token at the TSA, so a client retrying a
+        # conflicting anchor in a loop burned a shared external resource to be told no.
+        existing = store.newest_external_anchor(account_id or "open", stream_id)
+        if existing is not None:
+            if body.covers_up_to < existing["covers_up_to"]:
+                raise HTTPException(409, storage_mod.coverage_went_backwards_message(
+                    existing["covers_up_to"], body.covers_up_to))
+            if body.covers_up_to == existing["covers_up_to"]:
+                if existing["merkle_root"] != root:
+                    raise HTTPException(409, storage_mod.two_histories_message(body.covers_up_to))
+                # Same account, same stream, same coverage, same root: this is a retry, not a new
+                # anchor. Return the one that already exists so a client with retry logic does not
+                # accumulate a row per attempt, and so the anchor id it was given stays valid.
+                return existing
+
         if account_id is not None:
             plan = _effective_plan(account_id)
             if plans.would_exceed(plan, "anchors", store.get_usage(account_id)["anchors"], 1):
@@ -603,6 +623,9 @@ def create_app(
                 receipt=asdict(receipt),
                 created_at=_utc_now_iso(),
             )
+        except storage_mod.DuplicateAnchor as e:
+            # Two identical requests raced past the pre-check; the loser answers with the winner.
+            return store.get_external_anchor(e.anchor_id)
         except storage_mod.CoverageWentBackwards as e:
             # 409, not 400: the request is well formed, it conflicts with history. The receipt
             # minted above is simply discarded; nothing was recorded.

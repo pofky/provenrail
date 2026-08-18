@@ -280,16 +280,44 @@ def _cmd_anchor_verify(args) -> int:
     """Prove that an anchor receipt covers this bundle, using nothing but the two files.
 
     This is what an auditor runs. It deliberately does not call the anchor service: a check that
-    depends on asking the issuing party whether its own receipt is good proves nothing."""
+    depends on asking the issuing party whether its own receipt is good proves nothing.
+
+    Two things are checked, and both are needed. The receipt must be a valid, unforged
+    commitment to a root, which is `_verify_anchor_receipt` in the verifier, the same code
+    `pr verify` uses, not a second implementation that could drift or be weaker. And the bundle
+    must actually hash to that root, which is what ties the receipt to these records rather than
+    to some other set the same signer once anchored.
+
+    It also runs the bundle's own integrity check. A first version did not, and the root is
+    computed over `server_record_hash` values, so editing a record's payload without touching its
+    hash left the root unchanged and the receipt read VERIFIED over a doctored bundle. Coverage
+    alone was never the whole question: the auditor is asking whether these records are what was
+    anchored, and that needs the chain checked too."""
     import json as _json
 
     from .anchor import merkle_root
-    from .keys import verify_signature
+    from .verifier.verify import Report, _verify_anchor_receipt, verify_bundle
     bundle = _json.loads(Path(args.bundle).read_text(encoding="utf-8"))
     att = _json.loads(Path(args.receipt).read_text(encoding="utf-8"))
     receipt = att.get("receipt") or att
-    claimed_root = att.get("merkle_root") or receipt.get("merkle_root")
     covers = att.get("covers_up_to")
+
+    problems: list[str] = []
+    warnings: list[str] = []
+
+    # The outer envelope is convenience, not evidence. If the service's stated root and the
+    # signed root disagree, the envelope was edited after signing, and trusting either one would
+    # let a valid signature over some other root vouch for this bundle.
+    outer_root = att.get("merkle_root")
+    signed_root = receipt.get("merkle_root")
+    if outer_root is not None and signed_root is not None and outer_root != signed_root:
+        problems.append(f"this receipt states root {outer_root} but its signature covers "
+                        f"{signed_root}: the two disagree, so the receipt has been altered")
+    root_under_signature = signed_root or outer_root
+    if not root_under_signature:
+        print("[FAIL] this file carries no Merkle root, so it is not an anchor receipt.",
+              file=sys.stderr)
+        return 1
 
     try:
         leaves = _bundle_leaves(bundle)
@@ -297,43 +325,54 @@ def _cmd_anchor_verify(args) -> int:
         print(f"[FAIL] {e}", file=sys.stderr)
         return 1
 
-    problems: list[str] = []
-    if covers is not None and covers != len(leaves):
-        # Not automatically a failure: an older receipt legitimately covers a prefix. It is a
-        # failure only if the prefix root does not match, which the root check below decides.
+    if covers is not None:
         if covers > len(leaves):
             problems.append(f"this receipt covers {covers} records but the bundle holds only "
                             f"{len(leaves)}: records are missing from the bundle")
+        elif covers < len(leaves):
+            warnings.append(f"this receipt covers the first {covers} of {len(leaves)} records; "
+                            f"the {len(leaves) - covers} newer ones are not covered by it")
         leaves = leaves[:covers]
     actual = merkle_root(leaves)
-    if claimed_root != actual:
-        problems.append(f"the anchored root is {claimed_root}, but these records hash to "
-                        f"{actual}: this receipt does not describe this bundle")
-    if receipt.get("kind") == "local":
-        signed = (receipt.get("merkle_root", "") + "|" + receipt.get("gen_time", ""))
-        if not verify_signature(receipt.get("anchor_pubkey", ""), signed.encode("utf-8"),
-                                receipt.get("signature", "")):
-            problems.append("this receipt's signature does not verify against the anchor key "
-                            "it names")
-    elif receipt.get("kind") == "rfc3161":
-        if not receipt.get("token_b64"):
-            problems.append("this claims to be an RFC 3161 anchor but carries no token")
-    else:
-        problems.append(f"unknown anchor receipt kind {receipt.get('kind')!r}")
+    if root_under_signature != actual:
+        problems.append(f"the anchored root is {root_under_signature}, but these records hash "
+                        f"to {actual}: this receipt does not describe this bundle")
+
+    # The same receipt check `pr verify` performs, not a second, weaker one written here.
+    receipt_rep = Report()
+    trust = _verify_anchor_receipt(receipt, receipt_rep, seq=att.get("anchor_id", "receipt"))
+    for f in receipt_rep.findings:
+        (problems if f.severity == "fail" else warnings).append(f.detail)
+
+    # And the bundle's own chain, because a root over record hashes says nothing about whether
+    # the records under those hashes were edited.
+    bundle_rep = verify_bundle(bundle)
+    if bundle_rep.result != "verified":
+        problems.append("the bundle itself does not verify, so what the receipt covers cannot be "
+                        "trusted either. Run `pr verify` on it for the detail.")
 
     if args.json:
         print(_json.dumps({"result": "fail" if problems else "verified",
-                           "merkle_root": actual, "covers_up_to": covers,
-                           "problems": problems}, indent=2))
+                           "trust": trust, "merkle_root": actual, "covers_up_to": covers,
+                           "bundle_result": bundle_rep.result,
+                           "problems": problems, "warnings": warnings}, indent=2))
     else:
-        for p in problems:
-            print(f"[FAIL] {p}")
+        for w in warnings:
+            print(f"[warn] {w}")
+        for pr_ in problems:
+            print(f"[FAIL] {pr_}")
         if problems:
             print("\nRESULT: THIS RECEIPT DOES NOT COVER THIS BUNDLE")
         else:
             print(f"[info] root {actual} over {len(leaves)} records")
             print(f"[info] anchored at {receipt.get('gen_time')} ({receipt.get('kind')})")
-            print("\nRESULT: VERIFIED. These records existed in this order at that time.")
+            print(f"[info] the bundle's own chain verifies: {bundle_rep.result}")
+            if trust == "trusted":
+                print("\nRESULT: VERIFIED. These records existed in this order at that time, "
+                      "and the time is proved by a third party.")
+            else:
+                print("\nRESULT: VERIFIED, but the time is self-asserted. The records match the "
+                      "anchored root; nothing independent proves when it was anchored.")
     return 1 if problems else 0
 
 

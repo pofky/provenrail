@@ -239,24 +239,16 @@ def test_the_anchor_only_path_stores_no_records():
 
 def test_the_whole_path_end_to_end_through_the_cli(tmp_path, capsys, monkeypatch):
     """The customer's real journey: they hold a bundle, they push only its root, an auditor
-    checks the receipt against the bundle offline, and a customer who edits a record after
-    the fact can no longer make the two agree."""
+    checks the receipt against the bundle offline, and a customer who edits or truncates the
+    bundle afterwards can no longer make the two agree."""
     import json
 
     from provenrail.cli import main as cli_main
 
     service = client()
     h = account(service)
-
-    # A self-hoster's exported bundle. Only server_record_hash is load-bearing here.
-    leaves = hashes(12)
-    bundle_path = tmp_path / "bundle.json"
-    bundle_path.write_text(json.dumps({
-        "format": "provenrail/1", "stream_id": "invoice-agent",
-        "records": [{"recv_seq": i, "server_record_hash": leaf}
-                    for i, leaf in enumerate(leaves)],
-        "anchors": [],
-    }), encoding="utf-8")
+    bundle_path, bundle = _real_bundle(tmp_path)
+    leaves = [r["server_record_hash"] for r in bundle["records"]]
 
     # The CLI imports httpx inside the command, so swapping the module entry points its POST at
     # the in-process test server without touching the command's code.
@@ -269,35 +261,191 @@ def test_the_whole_path_end_to_end_through_the_cli(tmp_path, capsys, monkeypatch
 
     monkeypatch.setitem(__import__("sys").modules, "httpx", _Httpx)
 
-    att_path = tmp_path / "receipt.json"
+    receipt_path = tmp_path / "receipt.json"
     capsys.readouterr()
     assert cli_main(["anchor-push", str(bundle_path), "--url", "http://svc", "--key",
-                     h["Authorization"].split()[1], "--receipt-out", str(att_path)]) == 0
+                     h["Authorization"].split()[1], "--receipt-out", str(receipt_path)]) == 0
     out = capsys.readouterr().out
-    assert "anchored 12 records" in out
+    assert f"anchored {len(leaves)} records" in out
     assert "/v1/anchors/anc_" in out          # the auditor URL is handed to the customer
     for leaf in leaves:
         assert leaf not in out                # and the records are not in what we printed
 
     # The auditor's check: two files, no network, no account.
     capsys.readouterr()
-    assert cli_main(["anchor-verify", str(bundle_path), str(att_path)]) == 0
+    assert cli_main(["anchor-verify", str(bundle_path), str(receipt_path)]) == 0
     assert "RESULT: VERIFIED" in capsys.readouterr().out
 
-    # Now the customer quietly rewrites history and tries again.
-    doctored = json.loads(bundle_path.read_text(encoding="utf-8"))
-    doctored["records"][7]["server_record_hash"] = hashes(1, salt="forged")[0]
-    forged_path = tmp_path / "doctored.json"
-    forged_path.write_text(json.dumps(doctored), encoding="utf-8")
-    capsys.readouterr()
-    assert cli_main(["anchor-verify", str(forged_path), str(att_path)]) == 1
-    assert "does not describe this bundle" in capsys.readouterr().out
-
-    # And dropping the tail is caught too, because the receipt says how far it reached.
+    # Dropping the tail is caught, because the receipt records how far it reached.
     truncated = json.loads(bundle_path.read_text(encoding="utf-8"))
-    truncated["records"] = truncated["records"][:9]
+    truncated["records"] = truncated["records"][:-2]
     short_path = tmp_path / "truncated.json"
     short_path.write_text(json.dumps(truncated), encoding="utf-8")
     capsys.readouterr()
-    assert cli_main(["anchor-verify", str(short_path), str(att_path)]) == 1
+    assert cli_main(["anchor-verify", str(short_path), str(receipt_path)]) == 1
     assert "records are missing" in capsys.readouterr().out
+
+
+def _real_bundle(tmp_path):
+    """A bundle whose chain actually verifies, so anchor-verify's bundle check is exercised
+    rather than short-circuited. Built by driving the real sink through the real SDK."""
+    import json
+
+    from provenrail.ingest_client import provision_stream
+    from provenrail.sdk import FlightRecorder
+    from provenrail.server.app import create_app
+
+    c = TestClient(create_app(":memory:", anchor=LocalAnchor(), require_account=False))
+    prov = provision_stream("http://t", http=c)
+    fr = FlightRecorder(endpoint="http://t", write_token=prov["write_token"],
+                        stream_id=prov["stream_id"], http=c)
+    with fr.session({"agent": "audit-demo"}):
+        fr.record_model_call("openai", "gpt-x", {"prompt": "hi"}, {"text": "hello"},
+                             usage={"in": "5", "out": "3"})
+        fr.record_tool_call("add", {"a": "2", "b": "3"}, "5")
+        fr.record_decision("proceed", reason="looks good")
+    bundle = c.get(f"/v1/streams/{prov['stream_id']}/export",
+                   headers={"Authorization": f"Bearer {prov['read_token']}"}).json()
+    path = tmp_path / "bundle.json"
+    path.write_text(json.dumps(bundle), encoding="utf-8")
+    return path, bundle
+
+
+def test_a_signature_over_a_different_root_cannot_vouch_for_this_bundle(tmp_path, capsys):
+    """The forgery that mattered. The receipt envelope states one root and the signature covers
+    another; a first version compared the bundle against the envelope while checking the
+    signature against the inner field, so any valid signature over any root passed for any
+    bundle. That is the entire product promise, so it gets a test that reproduces the attack."""
+    import json
+
+    from provenrail.anchor import LocalAnchor
+    from provenrail.cli import main as cli_main
+
+    bundle_path, bundle = _real_bundle(tmp_path)
+    leaves = [r["server_record_hash"] for r in bundle["records"]]
+
+    # The attacker holds a genuine signature, just over something else entirely.
+    genuine_elsewhere = LocalAnchor().anchor(hashes(3, salt="some other stream"))
+    forged = {
+        "anchor_id": "anc_forged",
+        "merkle_root": merkle_root(leaves),      # what the bundle really hashes to
+        "covers_up_to": len(leaves),
+        "receipt": {"kind": "local", "merkle_root": genuine_elsewhere.merkle_root,
+                    "gen_time": genuine_elsewhere.gen_time,
+                    "signature": genuine_elsewhere.signature,
+                    "anchor_pubkey": genuine_elsewhere.anchor_pubkey},
+    }
+    forged_path = tmp_path / "forged.json"
+    forged_path.write_text(json.dumps(forged), encoding="utf-8")
+
+    capsys.readouterr()
+    assert cli_main(["anchor-verify", str(bundle_path), str(forged_path)]) == 1
+    out = capsys.readouterr().out
+    assert "the two disagree" in out or "does not describe this bundle" in out
+
+
+def test_editing_a_record_under_its_hash_is_caught(tmp_path, capsys):
+    """The root commits to record hashes, not to record contents. Editing a payload without
+    touching its hash left the root unchanged, and the first version of this command reported
+    VERIFIED over a doctored bundle. An auditor running only this command got a false green."""
+    import json
+
+    from provenrail.cli import main as cli_main
+
+    bundle_path, bundle = _real_bundle(tmp_path)
+    leaves = [r["server_record_hash"] for r in bundle["records"]]
+    receipt = {"anchor_id": "anc_1", "merkle_root": merkle_root(leaves),
+               "covers_up_to": len(leaves),
+               "receipt": _receipt_over(merkle_root(leaves))}
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    capsys.readouterr()
+    assert cli_main(["anchor-verify", str(bundle_path), str(receipt_path)]) == 0
+    assert "RESULT: VERIFIED" in capsys.readouterr().out
+
+    doctored = json.loads(bundle_path.read_text(encoding="utf-8"))
+    rec = doctored["records"][2]["record"]
+    rec[next(k for k, v in rec.items() if isinstance(v, str))] = "edited after the fact"
+    bad = tmp_path / "doctored.json"
+    bad.write_text(json.dumps(doctored), encoding="utf-8")
+
+    capsys.readouterr()
+    assert cli_main(["anchor-verify", str(bad), str(receipt_path)]) == 1
+    assert "the bundle itself does not verify" in capsys.readouterr().out
+
+
+def _receipt_over(root: str) -> dict:
+    from dataclasses import asdict
+
+    from provenrail.anchor import LocalAnchor
+    return asdict(LocalAnchor().anchor_root(root))
+
+
+def test_a_garbage_rfc3161_token_is_not_a_trusted_timestamp(tmp_path, capsys):
+    """Presence of a token was accepted as proof of one. It has to be decoded and its imprint
+    matched against the root, which is what the verifier has always done for bundles."""
+    import json
+
+    from provenrail.cli import main as cli_main
+
+    bundle_path, bundle = _real_bundle(tmp_path)
+    leaves = [r["server_record_hash"] for r in bundle["records"]]
+    root = merkle_root(leaves)
+    receipt = {"anchor_id": "anc_1", "merkle_root": root, "covers_up_to": len(leaves),
+               "receipt": {"kind": "rfc3161", "merkle_root": root,
+                           "gen_time": "2026-08-18T00:00:00.000000Z",
+                           "token_b64": "bm90LWEtdG9rZW4=",   # "not-a-token"
+                           "tsa_url": "https://freetsa.org/tsr"}}
+    path = tmp_path / "receipt.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    capsys.readouterr()
+    assert cli_main(["anchor-verify", str(bundle_path), str(path)]) == 1
+    assert "RESULT: THIS RECEIPT DOES NOT COVER THIS BUNDLE" in capsys.readouterr().out
+
+
+def test_an_identical_retry_returns_the_same_anchor_rather_than_a_second_one():
+    """A client with retry logic must not accumulate one anchor per attempt. The same account,
+    stream, coverage and root describe one fact, and one fact gets one id."""
+    c = client()
+    h = account(c)
+    body = {"stream_id": "s", "merkle_root": merkle_root(hashes(9)), "covers_up_to": 9}
+    first = c.post("/v1/anchors", headers=h, json=body).json()
+    for _ in range(4):
+        again = c.post("/v1/anchors", headers=h, json=body)
+        assert again.status_code == 200
+        assert again.json()["anchor_id"] == first["anchor_id"]
+    assert len(c.get("/v1/anchors?stream_id=s", headers=h).json()["anchors"]) == 1
+
+
+def test_an_absurd_coverage_is_refused_before_a_timestamp_is_spent():
+    """covers_up_to reached the INSERT unbounded and overflowed SQLite's signed 64-bit integer,
+    after a live TSA round-trip had already been spent on the request."""
+    c = client()
+    h = account(c)
+    for bad in (2**63, 2**64, 10**30):
+        r = c.post("/v1/anchors", headers=h, json={
+            "stream_id": "s", "merkle_root": merkle_root(hashes(2)), "covers_up_to": bad})
+        assert r.status_code == 422, f"{bad} was accepted"
+
+
+def test_a_conflicting_anchor_costs_no_timestamp_and_no_quota():
+    """The refusal path must be cheap. Minting a receipt for a request we are about to reject
+    burns a shared external resource (the TSA) to say no."""
+    c = client()
+    h = account(c)
+    c.post("/v1/anchors", headers=h, json={
+        "stream_id": "s", "merkle_root": merkle_root(hashes(50)), "covers_up_to": 50})
+
+    calls = []
+    real = c.app.state.scheduler.local_anchor.anchor_root
+
+    def counting(root):
+        calls.append(root)
+        return real(root)
+
+    c.app.state.scheduler.local_anchor.anchor_root = counting
+    r = c.post("/v1/anchors", headers=h, json={
+        "stream_id": "s", "merkle_root": merkle_root(hashes(10)), "covers_up_to": 10})
+    assert r.status_code == 409
+    assert calls == [], "a refused anchor still spent a timestamp"
