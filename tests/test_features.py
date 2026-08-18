@@ -2,6 +2,7 @@ import copy
 import json
 import types
 
+import pytest
 from fastapi.testclient import TestClient
 
 from provenrail import cli
@@ -170,13 +171,46 @@ def test_instrument_anthropic_captures():
 
 
 def test_instrument_is_idempotent():
-    fr = object()
+    # A bare object() used to be accepted here, which is exactly the mistake the published
+    # example made: instrumentation succeeded and nothing was ever recorded. The stub now has
+    # the one method a recorder must have.
+    fr = types.SimpleNamespace(record_model_call=lambda *a, **k: None)
     client = types.SimpleNamespace(
         messages=types.SimpleNamespace(create=lambda **kw: None))
     instrument_anthropic(client, fr)
     first = client.messages.create
     instrument_anthropic(client, fr)
     assert client.messages.create is first  # not double-wrapped
+
+
+def test_instrumenting_with_something_that_cannot_record_fails_loudly():
+    """The bug a published example shipped: passing the provenrail module instead of the
+    recorder. Every model call then succeeded and none were recorded, so the operator believed
+    they had an audit trail and had none. It must fail where the mistake is made."""
+    import provenrail
+
+    client = types.SimpleNamespace(
+        messages=types.SimpleNamespace(create=lambda **kw: None))
+    with pytest.raises(TypeError, match="cannot record"):
+        instrument_anthropic(client, provenrail)
+
+
+def test_a_capture_failure_is_never_silent(caplog):
+    """Capture must not break the agent's call path, but it must not be quiet about failing
+    either. Silence here is indistinguishable from working."""
+    import logging
+
+    from provenrail.integrations import _common
+
+    class Broken:
+        def record_model_call(self, *a, **k):
+            raise RuntimeError("sink exploded")
+
+    _common._warned.clear()
+    with caplog.at_level(logging.WARNING):
+        _common._capture(Broken(), "anthropic", "messages", {"model": "m"}, {"ok": True})
+    assert "was NOT recorded" in caplog.text
+    assert "sink exploded" in caplog.text
 
 
 # ---- attestation reports ----

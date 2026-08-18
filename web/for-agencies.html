@@ -317,11 +317,15 @@ pr quickstart</pre>
 with fr.record("client-project"):
     # Your agent runs here. Model calls and tool calls are captured automatically.
     result = run_agent(task)</pre>
-    <p>If you use the Anthropic or OpenAI SDK directly, you can also instrument the client object rather than wrapping the loop:</p>
-    <pre>from provenrail.integrations import instrument_anthropic
+    <p>If you use the Anthropic or OpenAI SDK directly, hand the client to the session and every call it makes is recorded:</p>
+    <pre>import anthropic
+import provenrail as fr
 
 client = anthropic.Anthropic()
-instrument_anthropic(client, fr)  # every call now recorded automatically</pre>
+
+with fr.record("client-project", clients=[client]):
+    # every call this client makes is now recorded
+    result = run_agent(task)</pre>
     <p>Each run is a separate sealed session on the same stream. The first run creates <code>.provenrail.key</code>, a device signing key. Keep it out of version control alongside <code>.provenrail.json</code>.</p>
 
     <h3>Step 3: export and verify</h3>

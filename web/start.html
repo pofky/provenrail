@@ -190,7 +190,10 @@
 <span class="c">Installed 3 executables: pr, pr-server, pr-verify</span></code></pre>
     <p>Check it is there by running <code>pr</code> on its own. It prints its list of commands, which means it is installed and working:</p>
     <pre><code><span class="p">$ </span><span class="g">pr</span>
-<span class="c">usage: pr [-h] {serve,activate,demo,verify,disclose,report,pack,diff,quickstart,...} ...</span></code></pre>
+<span class="c">Provenrail: a tamper-evident, independently verifiable record of what your AI agent did.</span>
+
+<span class="c">Start here (no account, nothing leaves your machine):</span>
+<span class="c">  pr demo            create a sample sealed run</span></code></pre>
     <div class="note">If <code>pr</code> says <code>command not found</code>, close and reopen the terminal once (the same PATH reason as uv), then try again. Still stuck? See <a href="#trouble">troubleshooting</a>.</div>
 
     <h2 id="firstproof">4. Your first proof, with no code at all</h2>
@@ -265,8 +268,10 @@ print(<span class="g">"Done. The run was captured and sealed off-box."</span>)</
 <span class="g">with fr.record("my-first-agent") as run:</span>
 <span class="g">    run.record_model_call("anthropic", "claude-opus-4-8",</span>
 <span class="g">        request={"prompt": "Summarize the contract."},</span>
-<span class="g">        response={"text": "Three key risks: A, B, C."})</span>
-<span class="g">    run.record_decision("grounded; returning to user", confidence="high")</span>
+<span class="g">        response={"text": "Three key risks: A, B, C."},</span>
+<span class="g">        usage={"input": "640", "output": "180"})</span>
+<span class="g">    run.record_decision("answer is grounded; returning to user", confidence="high")</span>
+<span class="g">    run.record_human_oversight("approved", approver="me@example.com")</span>
 <span class="g">print("Done. The run was captured and sealed off-box.")</span>
 <span class="g">EOF</span></code></pre>
     </div></div>
@@ -284,7 +289,7 @@ print(<span class="g">"Done. The run was captured and sealed off-box."</span>)</
       <h3 style="margin-top:0">Verify your own run, free and offline</h3>
       <p>Now close the loop on your <strong>own</strong> data. <code>pr export</code> pulls your sealed run out of the recorder into a bundle; <code>pr verify</code> then recomputes every hash and signature and confirms it is intact, trusting nobody.</p>
       <pre><code><span class="p">$ </span><span class="g">pr export my-run.json</span>
-<span class="c">wrote my-run.json (4 records, 1 anchors). Verify it yourself with:</span>
+<span class="c">wrote my-run.json (5 records, 1 anchors). Verify it yourself with:</span>
 <span class="c">    pr verify my-run.json</span>
 
 <span class="p">$ </span><span class="g">pr verify my-run.json</span>
@@ -301,7 +306,7 @@ print(<span class="g">"Done. The run was captured and sealed off-box."</span>)</
       <p><strong>A self-contained evidence package for an auditor:</strong></p>
       <pre><code><span class="p">$ </span><span class="g">pr pack my-run.json --out evidence.zip</span>
 <span class="c">Wrote 12893 byte evidence pack to evidence.zip (regime=generic)   # exact size varies by run</span>
-<span class="c">Contents: bundle.json, evidence summary, VERIFY.txt, MANIFEST.json</span></code></pre>
+<span class="c">Contents: MANIFEST.json, VERIFY.txt, bundle.json, cover.html, evidence-report-generic.json, evidence-report-generic.md, report.html</span></code></pre>
       <p>Hand over <code>evidence.zip</code>. It carries the run, a written evidence summary, and a <code>VERIFY.txt</code> that tells the recipient exactly how to check it themselves with the open-source verifier, trusting nothing you say. That is the whole pitch: you do not ask them to trust you, you hand them proof they can verify.</p>
     </div></div>
 

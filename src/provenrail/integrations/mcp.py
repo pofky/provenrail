@@ -17,7 +17,7 @@ import functools
 from typing import Any
 
 from ..chain import MCP_CALL
-from ._common import jsonable
+from ._common import jsonable, recorder_or_raise
 
 _MARK = "_provenrail_mcp_instrumented"
 
@@ -32,6 +32,7 @@ def _record(recorder: Any, name: str, arguments: Any, result: Any, outcome: str)
 
 def instrument_mcp(session: Any, recorder: Any) -> Any:
     """Wrap an MCP client session's async `call_tool` so each call is recorded. Idempotent."""
+    recorder_or_raise(recorder)
     if getattr(session, _MARK, False):
         return session
     original = getattr(session, "call_tool", None)

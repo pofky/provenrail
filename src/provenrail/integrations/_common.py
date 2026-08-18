@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import functools
 import inspect
+import logging
 from typing import Any
+
+_log = logging.getLogger(__name__)
 
 
 def _capture(recorder, provider: str, op: str, kwargs: dict, response: Any) -> None:
@@ -18,8 +21,44 @@ def _capture(recorder, provider: str, op: str, kwargs: dict, response: Any) -> N
         else:
             recorder.record_model_call(provider, model, request, jsonable(response),
                                        usage=extract_usage(response), op=op)
-    except Exception:
-        pass  # capture must never break the agent's call path
+    except Exception as exc:
+        # Capture must never break the agent's call path. But silence here is how someone ends
+        # up believing they have an audit trail and having none: the call succeeds, the agent
+        # behaves normally, and nothing is recorded. Warn once per process per reason, loudly
+        # enough to be seen in a log, without turning a hot loop into a wall of text.
+        _warn_capture_failed(provider, op, exc)
+
+
+_warned: set[str] = set()
+
+
+def _warn_capture_failed(provider: str, op: str, exc: Exception) -> None:
+    key = f"{provider}.{op}.{type(exc).__name__}"
+    if key in _warned:
+        return
+    _warned.add(key)
+    _log.warning(
+        "provenrail: a %s %s call completed but was NOT recorded (%s: %s). The agent is running "
+        "unrecorded. The usual cause is passing the wrong object as the recorder: it must be the "
+        "object with .record_model_call, not the provenrail module or a FlightRecorder you have "
+        "not opened a session on. Further identical warnings are suppressed.",
+        provider, op, type(exc).__name__, exc)
+
+
+def recorder_or_raise(recorder: Any) -> Any:
+    """Reject a recorder that cannot record, at the moment it is wired rather than at the moment
+    it is needed.
+
+    Passing the wrong object here used to be invisible: instrumentation succeeded, every model
+    call succeeded, and the capture failed silently inside the call path. Published examples had
+    this exact bug, which is the argument for failing here instead."""
+    if not hasattr(recorder, "record_model_call"):
+        raise TypeError(
+            f"provenrail: {type(recorder).__name__} cannot record. Pass the recorder object "
+            f"(the one with .record_model_call), not a module or a class. With the context "
+            f"manager that is the value it yields: `with fr.session(): instrument_...(client, fr)`."
+        )
+    return recorder
 
 
 def make_wrapper(method, recorder, provider: str, op: str):

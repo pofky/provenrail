@@ -577,3 +577,35 @@ def test_a_dead_sink_does_not_wedge_the_next_quickstart(tmp_path, monkeypatch, c
     err = capsys.readouterr().err
     assert "already recorded as running" not in err
     assert "stale record" in err
+
+
+def test_pr_verify_accepts_every_flag_pr_verify_the_script_does(capsys):
+    """`pr verify` and the `pr-verify` console script are two doors onto the same verifier, and
+    the docs do not distinguish them. --tsa-root existed on one and not the other, so a
+    documented command worked or failed depending on which door the reader used."""
+    import contextlib
+    import io
+    import re
+
+    from provenrail.cli import build_parser
+    from provenrail.verifier.verify import main as verify_main
+
+    def flags_of(parser_help: str) -> set[str]:
+        return set(re.findall(r"--[a-z0-9][a-z0-9-]+", parser_help))
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.suppress(SystemExit):
+        verify_main(["--help"])
+    standalone = flags_of(buf.getvalue())
+
+    sub_help = io.StringIO()
+    with contextlib.redirect_stdout(sub_help), contextlib.suppress(SystemExit):
+        build_parser().parse_args(["verify", "--help"])
+    subcommand = flags_of(sub_help.getvalue())
+
+    # --help itself and output-only flags are shared; anything the standalone verifier accepts
+    # that changes what is CHECKED must be reachable from the subcommand too.
+    trust_flags = {f for f in standalone
+                   if any(k in f for k in ("pubkey", "tsa", "pin", "openings", "bitcoin", "cosig"))}
+    missing = trust_flags - subcommand
+    assert not missing, f"`pr verify` cannot pass these to the verifier: {sorted(missing)}"

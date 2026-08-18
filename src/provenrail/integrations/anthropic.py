@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from ._common import make_wrapper
+from ._common import make_wrapper, recorder_or_raise
 
 _MARK = "_provenrail_instrumented"
 
 
 def instrument_anthropic(client: Any, recorder: Any) -> Any:
     """Patch a client's messages.create and beta.messages.create (sync or async)."""
+    recorder_or_raise(recorder)
     if getattr(client, _MARK, False):
         return client
     targets = []

@@ -153,6 +153,10 @@ def _cmd_verify(args) -> int:
         argv += ["--registry-pubkey", args.registry_pubkey]
     for hdr in getattr(args, "bitcoin_header", None) or []:
         argv += ["--bitcoin-header", hdr]
+    for root in getattr(args, "tsa_root", None) or []:
+        argv += ["--tsa-root", root]
+    if getattr(args, "max_cosig_age", None) is not None:
+        argv += ["--max-cosig-age", str(args.max_cosig_age)]
     if args.json:
         argv += ["--json"]
     return verify_main(argv)
@@ -1194,6 +1198,11 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--witness-pubkeys", help="comma-separated name=hexpubkey pairs of trusted "
                    "transparency-log witnesses")
     v.add_argument("--registry-pubkey", help="agent identity registry public key")
+    v.add_argument("--max-cosig-age", type=float, default=None,
+                   help="reject witness cosignatures older than this many days (default 30)")
+    v.add_argument("--tsa-root", action="append", metavar="HOST=CERT.pem",
+                   help="trust an extra TSA root: HOST is a substring of the TSA URL, CERT.pem "
+                        "the root certificate. Repeatable.")
     v.add_argument("--bitcoin-header", action="append", metavar="HEIGHT=MERKLE_ROOT",
                    help="a trusted Bitcoin header as height=merkle_root_hex (repeatable), to confirm "
                    "an OpenTimestamps proof against the chain")
