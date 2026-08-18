@@ -275,6 +275,12 @@ class FlightRecorder:
                 }
         self._write_pin()
 
+    @property
+    def session_id(self) -> str:
+        """The current session's id. The chain owns it, and it is reset per session, so read it
+        here rather than caching a copy at construction time."""
+        return self.chain.session_id
+
     def flush(self) -> None:
         """Block until every buffered record has reached the sink."""
         if self._mode == "async" and self._flush:

@@ -70,6 +70,11 @@ provenrail = ["trust/*.pem"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    # Starlette's TestClient warns that httpx is deprecated in favour of httpx2. It is a
+    # transitive test-only dependency we do not choose, and the warning is noise on every run.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
 
 [tool.ruff]
 line-length = 110

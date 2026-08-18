@@ -148,3 +148,12 @@ def test_invalid_license_does_not_unlock(monkeypatch):
     h = {"Authorization": f"Bearer {key}"}
     assert c.get("/v1/usage", headers=h).json()["plan"] == "free"
     assert c.get(f"/v1/streams/{prov['stream_id']}/export.ndjson", headers=h).status_code == 402
+
+
+def test_invalid_license_is_falsy():
+    """`if verify_license(tok):` must not pass for an invalid token. A dataclass is truthy by
+    default, so this binds truthiness to `.valid` and keeps a future caller out of the trap."""
+    priv, pub = _keypair()
+    good = lic.sign_license({"account": "a", "plan": "team", "iat": 1, "exp": None}, priv)
+    assert bool(lic.verify_license(good, public_key_hex=pub)) is True
+    assert bool(lic.verify_license("not-a-license", public_key_hex=pub)) is False

@@ -1128,6 +1128,26 @@ def main(argv: list[str] | None = None) -> int:
     # A malformed trust flag used to be skipped in silence, and the run then printed VERIFIED
     # without ever performing the check the flag asked for. That is worse than an error: the
     # operator believes they checked a witness, or Bitcoin, and they did not. Refuse instead.
+    def _bad_key(flag: str, value: str) -> bool:
+        # An Ed25519 public key is 32 bytes, so 64 hex characters. A key that is not that is a
+        # typo in the command line, not evidence about the bundle, and it must never be reported
+        # as tampering: the operator would chase an attack that did not happen.
+        try:
+            raw = bytes.fromhex(value)
+        except ValueError:
+            print(f"{flag} expects a hex Ed25519 public key, got {value!r}. "
+                  f"Nothing was verified against it.", file=sys.stderr)
+            return True
+        if len(raw) != 32:
+            print(f"{flag} expects a 32-byte Ed25519 public key (64 hex characters), got "
+                  f"{len(raw)} bytes. Nothing was verified against it.", file=sys.stderr)
+            return True
+        return False
+
+    if args.tlog_pubkey and _bad_key("--tlog-pubkey", args.tlog_pubkey):
+        return 2
+    if args.registry_pubkey and _bad_key("--registry-pubkey", args.registry_pubkey):
+        return 2
     witnesses: dict[str, str] = {}
     if args.witness_pubkeys:
         for pair in args.witness_pubkeys.split(","):
@@ -1136,6 +1156,8 @@ def main(argv: list[str] | None = None) -> int:
                       f"Nothing was verified against it.", file=sys.stderr)
                 return 2
             name, hexkey = pair.split("=", 1)
+            if _bad_key(f"--witness-pubkeys {name.strip()}", hexkey.strip()):
+                return 2
             witnesses[name.strip()] = hexkey.strip()
     bitcoin_headers: dict[int, str] = {}
     if args.bitcoin_header:

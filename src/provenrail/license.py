@@ -74,6 +74,12 @@ class LicenseInfo:
     expires_at: int | None = None
     reason: str | None = None  # human-readable failure cause when valid is False
 
+    def __bool__(self) -> bool:
+        # Without this, `if verify_license(token):` is always True, because a dataclass instance
+        # is truthy. A licence check that silently passes for an invalid token is the worst
+        # possible default, so truthiness is bound to `valid`.
+        return self.valid
+
 
 def sign_license(payload: dict, private_key_hex: str) -> str:
     """Mint a token. Used by tests and by any Python-side issuance; production issuance happens

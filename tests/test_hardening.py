@@ -1,5 +1,6 @@
 
 import io
+import pathlib
 
 import pytest
 from fastapi.testclient import TestClient
@@ -516,3 +517,35 @@ def test_quickstart_offers_a_zero_code_first_step(tmp_path, monkeypatch, capsys)
     assert "pr demo" in printed, "quickstart never offers the zero-code demo"
     assert printed.index("pr demo") < printed.index("import provenrail as fr"), (
         "quickstart must lead with the zero-code demo, not a code sample")
+
+
+def test_a_malformed_trust_key_is_an_argument_error_not_a_tampering_verdict(capsys):
+    """A typo in --tlog-pubkey used to reach the checkpoint check, fail the signature, and print
+    TAMPERING DETECTED with exit 1. That sends an operator hunting an attack that never happened,
+    and in CI it gates the build on a shell typo. A key that is not 32 hex-encoded bytes is a bad
+    argument: exit 2, say so, verify nothing."""
+    from provenrail.cli import main as cli_main
+    from provenrail.verifier.verify import main as verify_main
+
+    bundle = pathlib.Path(__file__).resolve().parents[1] / "web" / "demo-bundle.json"
+    assert bundle.exists(), "the demo bundle the homepage ships is the fixture here"
+    good = "ab" * 32  # right length, wrong key: that IS a verdict, not an argument error
+
+    for flag in ("--tlog-pubkey", "--registry-pubkey"):
+        for bad in ("none", "zz" * 32, "ab" * 16):  # not hex, not hex, right hex wrong length
+            capsys.readouterr()
+            assert verify_main([str(bundle), flag, bad]) == 2
+            err = capsys.readouterr().err
+            assert flag in err and "Nothing was verified against it." in err
+
+    capsys.readouterr()
+    assert cli_main(["verify", str(bundle), "--tlog-pubkey", "none"]) == 2
+    assert "TAMPERING" not in capsys.readouterr().out
+
+    capsys.readouterr()
+    assert verify_main([str(bundle), "--witness-pubkeys", "w=none"]) == 2
+    assert "Nothing was verified against it." in capsys.readouterr().err
+
+    # A well-formed key that simply is not the log's key must still reach the real check.
+    capsys.readouterr()
+    assert verify_main([str(bundle), "--tlog-pubkey", good]) != 2
