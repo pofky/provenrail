@@ -16,11 +16,13 @@ manufacture for themselves, and it is sellable today with no company, no certifi
 insurance. See `docs/cost-to-execute-2026-08-18.md` for the liability ladder and where the line
 is, and `docs/PRD-anchor-only-service.md` for the design.
 
-Three audits ran this session (CLI/SDK flows, web flows, competitive) and the product came out of
-them in good shape. The defects found were small and are fixed. The largest problem was not a bug,
-it was the pricing page promising something the seller could not carry.
+Six audits ran this session: CLI/SDK flows, web flows, competitive, cost-to-execute, an
+adversarial review of the new anchor code, and a live end-to-end journey against real servers.
+The last two found real defects in code that had shipped hours earlier, and they are the reason
+to keep running an adversarial pass over anything new: `pr anchor-verify` reported VERIFIED over
+bundles it should have refused, three separate ways. All three are fixed and reproduced by tests.
 
-889 tests pass, 2 skipped. Ruff clean.
+896 tests pass, 2 skipped. Ruff clean.
 
 ## Done and verified
 
@@ -31,7 +33,13 @@ it was the pricing page promising something the seller could not carry.
   refused. Driven end to end through the CLI in `tests/test_anchor_only.py`, including the two
   attacks that matter: an edited record and a dropped tail both stop matching the receipt.
 - **`pr anchor-push` / `pr anchor-verify`.** Verify is deliberately offline and never calls the
-  issuing service.
+  issuing service. It calls `_verify_anchor_receipt`, the same code `pr verify` uses, and also
+  runs the bundle's own chain check. It did neither at first, and each omission was a hole: a
+  signature over any other root passed for any bundle, a garbage RFC 3161 token counted as a
+  trusted timestamp, and editing a payload under its unchanged hash read as VERIFIED. See
+  `docs/adversarial-anchor-review-2026-08-18.md`.
+- **Anchor conflicts and duplicates settle before the timestamp is minted**, so a refusal costs
+  no TSA round-trip, and an identical retry returns the existing anchor instead of a new id.
 - **Pricing repositioned** away from hosted storage, HIPAA claim removed, "hosted convenience"
   contradiction fixed. Pinned by two tests in `tests/test_claims_hygiene.py`.
 - **The word "attestation" is gone** from shipped copy and CLI output. It names a licensed
@@ -43,6 +51,11 @@ it was the pricing page promising something the seller could not carry.
   exit 1 on a shell typo), `LicenseInfo` is falsy when invalid, `FlightRecorder.session_id`
   exists, the starlette/httpx warning is filtered.
 - **EU AI Act page** no longer says Article 50 is "three days away" 16 days after it took force.
+- **`/start` no longer says Provenrail can host the record**, which contradicted the whole
+  liability position in the guide aimed at the least experienced reader. Homepage plan copy and
+  its JSON-LD now match `/pricing`.
+- **A dead sink no longer wedges the next `pr quickstart`**: the pid is checked for liveness and
+  a stale file is cleared with a line saying so.
 
 ## Open, and why
 
@@ -76,6 +89,9 @@ it was the pricing page promising something the seller could not carry.
 
 ## Traps
 
+- **Never write a second verifier.** All three anchor-verify holes came from reimplementing in
+  the CLI what `verifier/verify.py` already did correctly. The weaker copy looked right and was
+  not. If a check exists, call it.
 - **Do not sell hosted record storage.** Tier 5 and 6 on the liability ladder need a company
   first. `tests/test_claims_hygiene.py::test_no_page_sells_a_liability_the_operator_cannot_carry`
   will fail the build if the copy drifts back; do not weaken it to make a page pass.
