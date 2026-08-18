@@ -302,6 +302,45 @@ Privacy default is **store-hash-not-content**: prompts and outputs are SHA-256 h
 stored, unless you pass `capture_content=True`. Tokens are scoped strictly: `write` can only
 append, `read` can only read, `share` is public read-only, and no delete scope exists.
 
+## Independent anchoring: keep your records, buy the one thing you cannot make
+
+You can run every part of this yourself, and most people should. But there is one thing
+self-hosting cannot give you, by construction: you cannot be your own independent party. A
+timestamp you produced yourself proves your chain is internally consistent. It does not prove the
+chain existed before the dispute that made anyone ask.
+
+So send the root, not the records.
+
+```bash
+# Your sink, your machine, your data. Export as usual.
+curl -H "Authorization: Bearer $READ_TOKEN" \
+  http://127.0.0.1:8000/v1/streams/$STREAM/export > bundle.json
+
+# 32 bytes leave this machine: the Merkle root over your record hashes, and how far it reaches.
+pr anchor-push bundle.json --url https://anchor.provenrail.com --key $ACCOUNT_KEY \
+  --receipt-out receipt.json
+```
+
+The anchor service stores the root, the coverage and a timestamp, and publishes them at a URL
+anyone can read without an account. It has no field a record could arrive in, so it cannot receive
+your prompts or outputs even if you tried to send them.
+
+Your client, your auditor, or anyone else then checks the two files against each other, offline,
+without asking us anything:
+
+```bash
+pr anchor-verify bundle.json receipt.json
+# RESULT: VERIFIED. These records existed in this order at that time.
+```
+
+Edit a record afterwards and the root stops matching. Drop the tail and the receipt says how many
+records it covered, so the gap shows. Neither you nor we can make a rewritten history match a root
+that was already published.
+
+Coverage is monotonic per stream. If a stream is anchored to 1000 records, an anchor covering 400
+is refused, and so is a second anchor at 1000 with a different root. Refusing to sign a shorter or
+forked history is the service, not a limitation of it.
+
 ## What is in the box
 
 Integrity core
@@ -316,6 +355,11 @@ Integrity core
 - Append-only sink with an independent server receipt chain, account API keys, strictly
   scoped per-stream tokens (no delete scope), per-stream and signup rate limits, DoS caps,
   idempotent ingest, WAL concurrency, and automatic anchoring on a schedule.
+- Anchor-only trust service: `POST /v1/anchors` takes a Merkle root and a coverage count and
+  nothing else, enforces monotonic coverage per stream, and publishes the result at a public,
+  unauthenticated URL an auditor can read without an account. `pr anchor-push` sends a local
+  bundle's root; `pr anchor-verify` checks a receipt against a bundle offline, without calling
+  the service that issued it.
 - Client-side pin: a signed checkpoint the agent keeps, so `pr verify --pin` detects a
   malicious sink truncating the tail.
 - RFC 3161 trusted-timestamp anchoring with full verification: the standalone `pr verify`

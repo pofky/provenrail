@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Provenrail vs Microsoft AGT: independent verification explained</title>
+  <meta name="description" content="Microsoft AGT uses in-process SHA-256 hash chains. Provenrail signs records outside the agent process and anchors them to independent time sources. Here is the difference that matters for audits.">
+  <link rel="canonical" href="https://provenrail.com/vs-microsoft-agt">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Provenrail vs Microsoft AGT: independent verification explained">
+  <meta name="twitter:description" content="Microsoft AGT uses in-process SHA-256 hash chains. Provenrail signs records outside the agent process and anchors them to independent time sources. Here is the difference that matters for audits.">
+  <meta name="twitter:image" content="https://provenrail.com/og.png">
+  <meta name="robots" content="index,follow">
+  <meta property="og:title" content="Provenrail vs Microsoft AGT: independent verification explained">
+  <meta property="og:description" content="When the agent and the audit log share a trust boundary, the log is not independent. That is the one question this page answers.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://provenrail.com/vs-microsoft-agt">
+  <meta property="og:image" content="https://provenrail.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Provenrail: the verifiable audit trail for AI agents.">
+  <meta property="og:site_name" content="Provenrail">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0b0a08">
+  <link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/dm-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--accent-ink:#0b0a08;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#858f9c;
+      --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;--yes:#6fcf86;--no:#e06040;--amber:#d3a957}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#7e6428;--accent-ink:#fdfbf7;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#656d78;--yes:#1f7038;--no:#a13c22;--amber:#7e6428}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+    body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
+    .wrap{max-width:820px;margin:0 auto;padding:clamp(1.5rem,5vw,3.5rem) clamp(1.1rem,5vw,2rem) 5rem}
+    .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:.7rem}
+    h1{font-family:var(--font-mono);font-size:clamp(1.7rem,4.4vw,2.4rem);font-weight:500;letter-spacing:-.02em;margin-bottom:.6rem;line-height:1.22}
+    .lede{color:var(--text-mid);font-size:1.06rem;margin-bottom:1.6rem;max-width:64ch}
+    h2{font-size:1.3rem;font-weight:600;margin:2.8rem 0 .6rem;letter-spacing:-.01em}
+    p,li{color:var(--text-mid);margin-bottom:.7rem}
+    li{margin-bottom:.45rem}
+    ul{padding-left:1.2rem}
+    a{color:var(--accent)}
+    strong{color:var(--text-hi);font-weight:600}
+    code{font-family:var(--font-mono);font-size:.85em;background:var(--bg-3);padding:.12em .42em;border-radius:5px;color:var(--text-hi)}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.6rem 0}
+    @media(max-width:620px){.split{grid-template-columns:1fr}}
+    .col{border:1px solid var(--border);border-radius:14px;padding:1.2rem 1.25rem;background:var(--bg-2)}
+    .col.ours{border-color:var(--accent)}
+    .col h3{font-family:var(--font-mono);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.6rem;color:var(--text-lo)}
+    .col.ours h3{color:var(--accent)}
+    .col p{font-size:.96rem;margin-bottom:0;color:var(--text-mid)}
+    .col .big{display:block;color:var(--text-hi);font-weight:600;font-size:1.04rem;margin-bottom:.4rem}
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:1rem 0 1.4rem}
+    table{width:100%;border-collapse:collapse;font-size:.92rem;min-width:480px}
+    th,td{text-align:left;padding:.65rem .75rem;border-bottom:1px solid var(--border);vertical-align:top}
+    thead th{color:var(--text-hi);font-weight:600;font-size:.82rem;white-space:nowrap}
+    thead th:nth-child(2){text-align:center;color:var(--text-lo)}
+    thead th:nth-child(3){text-align:center;color:var(--accent)}
+    td:nth-child(2),td:nth-child(3){text-align:center;font-family:var(--font-mono);font-weight:500;white-space:nowrap}
+    .yes{color:var(--yes)}
+    .no{color:var(--no)}
+    .amber{color:var(--amber)}
+    .feat{color:var(--text-hi)}
+    .sub{display:block;color:var(--text-lo);font-size:.82rem;font-weight:400;margin-top:.1rem;font-family:var(--font-body)}
+    .note{background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:.85rem 1rem;margin:1.2rem 0;font-size:.93rem}
+    .note strong{color:var(--accent)}
+    .note.fair{border-left-color:var(--text-lo)}
+    .note.fair strong{color:var(--text-hi)}
+    .cta{display:flex;flex-wrap:wrap;gap:.7rem;margin:1.6rem 0}
+    .cta a{font-family:var(--font-mono);font-size:.85rem;text-decoration:none;border-radius:10px;padding:.7rem 1.1rem;min-height:44px;display:inline-flex;align-items:center}
+    .cta a.primary{background:var(--accent);color:var(--accent-ink);font-weight:600}
+    .cta a.ghost{border:1px solid var(--border);color:var(--text-hi)}
+    .cta a.ghost:hover{border-color:var(--accent)}
+    .faq dt{color:var(--text-hi);font-weight:600;margin-top:1.1rem}
+    .faq dd{color:var(--text-mid);margin:.25rem 0 0;padding:0}
+    .back{display:inline-block;margin-top:2.5rem;font-family:var(--font-mono);font-size:.82rem;color:var(--text-lo);text-decoration:none}
+    .back:hover{color:var(--accent)}
+    .src{font-size:.82rem;color:var(--text-lo)}
+    .src a{color:var(--text-lo);text-decoration:underline}
+    /* trust-boundary diagram */
+    .diagram{margin:1.6rem 0;max-width:100%;overflow-x:auto}
+    .diagram svg{display:block;max-width:100%;height:auto}
+    .updated{font-size:.82rem;color:var(--text-lo);margin-bottom:1.4rem}
+    .agt-good{background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--yes);border-radius:10px;padding:.85rem 1rem;margin:1.2rem 0;font-size:.93rem}
+    .agt-good strong{color:var(--yes)}
+  </style>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+    {"@type":"ListItem","position":1,"name":"Home","item":"https://provenrail.com/"},
+    {"@type":"ListItem","position":2,"name":"Compare","item":"https://provenrail.com/compare"},
+    {"@type":"ListItem","position":3,"name":"Provenrail vs Microsoft AGT","item":"https://provenrail.com/vs-microsoft-agt"}]}
+  </script>
+</head>
+<body>
+  <header>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="/" class="nav-logo" aria-label="Provenrail home">
+        <img class="seal" src="/assets/logo-mark.png" alt="" width="30" height="30">
+        <span>proven<span class="rail-accent">rail</span></span>
+      </a>
+      <button id="nav-toggle" class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M2 5h16M2 10h16M2 15h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div id="nav-links" class="nav-links" role="navigation">
+        <a href="/#how-it-works">How it works</a>
+        <a href="/#see-it">Watch</a>
+        <a href="/compare">Compare</a>
+        <a href="/#differentiators">Why Provenrail</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/start">Start here</a>
+        <a href="/docs">Docs</a>
+        <a href="https://github.com/pofky/provenrail" rel="noopener">GitHub</a>
+        <a href="/account">Sign in</a>
+        <a href="/pricing" class="btn-nav">Start free</a>
+      </div>
+    </nav>
+  </header>
+
+  <div class="wrap">
+
+    <p class="eyebrow">Provenrail vs Microsoft Agent Governance Toolkit</p>
+    <h1>In-process hash chains cannot be independent. That is not a bug in AGT; it is a boundary the design cannot cross.</h1>
+    <p class="lede">Microsoft AGT is a good piece of open-source engineering. It also records audit data inside the same process that runs the agent. That one fact determines what the record can and cannot prove, and this page explains exactly what that means.</p>
+    <p class="updated">Last updated <time datetime="2026-08-18">18 August 2026</time></p>
+
+    <div class="cta">
+      <a href="/verify?demo" class="primary">See a record verified independently</a>
+      <a href="/compare" class="ghost">Compare all tools</a>
+    </div>
+
+    <h2>The trust-boundary problem</h2>
+    <p>A hash chain is a chain of SHA-256 digests: each record includes the hash of the previous one, so any alteration breaks the chain. That is a real and useful integrity property. It catches storage corruption, accidental truncation, and a careless operator who edits a file by hand.</p>
+    <p>What it cannot catch is a deliberate rewrite by the party who holds the chain. If the process that computes the chain also has write access to the records, it can alter a record and recompute the chain over the altered version. The result is a valid chain. Nothing fails. There is no way to distinguish it from an unaltered chain.</p>
+    <p>This is not a flaw in AGT's SHA-256 implementation. It is a structural property of in-process recording: the auditor and the agent share the same trust boundary.</p>
+
+    <div class="diagram" aria-label="Trust boundary diagram comparing AGT and Provenrail">
+      <svg viewBox="0 0 700 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="diag-title diag-desc">
+        <title id="diag-title">Trust boundary comparison</title>
+        <desc id="diag-desc">Left side shows AGT: agent process and audit log inside one dashed boundary. Right side shows Provenrail: agent signs records, which cross a boundary to an independent sink and external time source.</desc>
+        <!-- background -->
+        <rect width="700" height="280" fill="none"/>
+
+        <!-- AGT side -->
+        <!-- shared trust boundary box -->
+        <rect x="20" y="40" width="280" height="200" rx="12" fill="none" stroke="#e06040" stroke-width="1.5" stroke-dasharray="6 4"/>
+        <text x="160" y="28" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#e06040" letter-spacing=".08em">AGT (in-process)</text>
+        <text x="160" y="258" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#858f9c">one trust boundary</text>
+
+        <!-- agent box -->
+        <rect x="44" y="70" width="110" height="70" rx="8" fill="#181510" stroke="#29221a" stroke-width="1"/>
+        <text x="99" y="95" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="12" fill="#f3f5f7">Agent</text>
+        <text x="99" y="112" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#858f9c">runs + writes</text>
+
+        <!-- audit log box -->
+        <rect x="166" y="70" width="110" height="70" rx="8" fill="#181510" stroke="#29221a" stroke-width="1"/>
+        <text x="221" y="95" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="12" fill="#f3f5f7">SHA-256 chain</text>
+        <text x="221" y="112" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#858f9c">same process</text>
+
+        <!-- arrow between -->
+        <line x1="154" y1="105" x2="166" y2="105" stroke="#e06040" stroke-width="1.5" marker-end="url(#arr-red)"/>
+
+        <!-- can recompute label -->
+        <text x="160" y="175" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="11" fill="#e06040">can alter + recompute</text>
+        <text x="160" y="192" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="11" fill="#e06040">chain undetectably</text>
+
+        <!-- Provenrail side -->
+        <!-- agent box -->
+        <rect x="355" y="70" width="110" height="70" rx="8" fill="#181510" stroke="#29221a" stroke-width="1"/>
+        <text x="410" y="95" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="12" fill="#f3f5f7">Agent</text>
+        <text x="410" y="112" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#858f9c">signs with device key</text>
+
+        <!-- boundary line -->
+        <line x1="490" y1="40" x2="490" y2="240" stroke="#d3a957" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="490" y="32" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#d3a957">trust boundary</text>
+
+        <!-- sink box -->
+        <rect x="510" y="55" width="110" height="55" rx="8" fill="#181510" stroke="#d3a957" stroke-width="1"/>
+        <text x="565" y="79" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="12" fill="#f3f5f7">Sink</text>
+        <text x="565" y="96" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#858f9c">re-chains on arrival</text>
+
+        <!-- time source box -->
+        <rect x="510" y="130" width="110" height="55" rx="8" fill="#181510" stroke="#6fcf86" stroke-width="1"/>
+        <text x="565" y="152" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="11" fill="#f3f5f7">RFC 3161 TSA</text>
+        <text x="565" y="170" text-anchor="middle" font-family="'DM Mono',monospace" font-size="10" fill="#858f9c">+ tlog witness</text>
+
+        <!-- arrows -->
+        <line x1="465" y1="85" x2="510" y2="80" stroke="#d3a957" stroke-width="1.5" marker-end="url(#arr-gold)"/>
+        <line x1="565" y1="110" x2="565" y2="130" stroke="#6fcf86" stroke-width="1.5" marker-end="url(#arr-green)"/>
+
+        <!-- label -->
+        <text x="565" y="210" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="11" fill="#6fcf86">sink cannot forge;</text>
+        <text x="565" y="227" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="11" fill="#6fcf86">time is third-party</text>
+
+        <!-- Provenrail label -->
+        <text x="565" y="260" text-anchor="middle" font-family="'DM Mono',monospace" font-size="11" fill="#d3a957" letter-spacing=".08em">Provenrail</text>
+
+        <!-- arrowhead markers -->
+        <defs>
+          <marker id="arr-red" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#e06040"/>
+          </marker>
+          <marker id="arr-gold" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#d3a957"/>
+          </marker>
+          <marker id="arr-green" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#6fcf86"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+
+    <h2>What AGT's chain protects against</h2>
+    <div class="agt-good">
+      <strong>AGT does real work here.</strong> The SHA-256 hash chain in <a href="https://microsoft.github.io/agent-governance-toolkit/tutorials/04-audit-and-compliance/" rel="noopener">AGT's audit and compliance module</a> catches accidental corruption, file-system errors, truncation, and an operator who edits a record carelessly without updating the chain. It also ships with zero-trust identity, policy enforcement, sandboxing, and a OWASP Agentic AI Top 10 mapping. For a team that trusts its own infrastructure and needs a lightweight, MIT-licensed governance layer with Azure-native integration, AGT is a solid choice and may be all you need.
+    </div>
+
+    <h2>What the chain cannot protect against</h2>
+    <p>The AGT documentation describes its audit trail as "tamper-evident" and that is accurate for the scenario above. The boundary it cannot cross is this: <strong>if the party who ran the agent is also the party a third party needs to be protected from, in-process recording does not help.</strong> The chain is recomputable by the same process that writes the records. There is no independent party who observed the records before they could be changed.</p>
+    <p>This matters in practice when:</p>
+    <ul>
+      <li>A client wants to verify what an AI contractor's agent actually did, without trusting the contractor's own logs.</li>
+      <li>A regulator inspects a high-risk AI system's event log and needs to know the deployer did not alter it after an incident.</li>
+      <li>A counterparty in a contract dispute produces an agent activity record and the other side cannot simply accept it on trust.</li>
+      <li>An insurer or auditor requires evidence that a specific automated decision happened as described, not reconstructed from memory.</li>
+    </ul>
+    <p>In each of these, the question is not "was the log corrupted accidentally" but "can the operator prove to someone who does not trust them that the log was not altered deliberately." A chain that can be recomputed by the operator does not answer that question.</p>
+    <p>AGT has no equivalent independent party in its design. <span class="src">(<a href="https://microsoft.github.io/agent-governance-toolkit/tutorials/04-audit-and-compliance/" rel="noopener">AGT audit and compliance docs</a>, April 2026; MIT license.)</span></p>
+
+    <h2>How Provenrail crosses the boundary</h2>
+    <p>Three mechanisms together produce a record that can be verified by a party who trusts neither the agent nor Provenrail:</p>
+    <ol style="padding-left:1.2rem;color:var(--text-mid)">
+      <li style="margin-bottom:.6rem"><strong>Ed25519 signing at capture.</strong> Each record is signed with a device key before it leaves the agent process. The key is held by the agent's machine, not by the sink. A sink that never held the key cannot forge a record it did not receive, and cannot produce a valid signature for an altered version of one it did receive. (<code>src/provenrail/chain.py</code>, <code>src/provenrail/keys.py</code>.)</li>
+      <li style="margin-bottom:.6rem"><strong>Independent server receipt chain.</strong> The sink chains arriving records on its own as they land. A client-side deletion or reordering is visible because it breaks the server's independent chain, not just the client's. A hostile agent cannot rewrite what already reached the sink. (<code>src/provenrail/chain.py</code> docstring: "the server independently re-chains records on arrival so a hostile agent cannot delete or reorder what already landed.")</li>
+      <li style="margin-bottom:.6rem"><strong>External anchoring to independent time sources.</strong> The sink periodically computes a Merkle root over a batch of receipt hashes and sends it to a third-party RFC 3161 timestamp authority. The TSA signs a token that commits to that root and the time, using a key Provenrail does not hold. A verifier can check the token with any RFC 3161 library, with no dependency on Provenrail. Beyond the TSA, a transparency log records a checkpoint and accepts witness cosignatures from independent third parties using the C2SP wire format. (<code>src/provenrail/anchor.py</code>, <code>src/provenrail/tlog.py</code>.)</li>
+    </ol>
+
+    <div class="note"><strong>Honest scope.</strong> The device key is a static Ed25519 key, not a forward-secure key. If the key is compromised after the fact, past signatures cannot be forged, but future ones under a stolen key could be. The server receipt chain and external anchors carry the primary tamper-evidence property. The comment in <code>keys.py</code> says this plainly: "The MVP's teeth come from the off-box append-only server receipt chain, not from this key." The browser verifier (<code>web/verify.js</code>) checks Ed25519 signatures and hash chains in your browser; it reports RFC 3161 tokens as present but does not validate the CMS structure, which requires a library not yet available in browser WebCrypto. Full RFC 3161 validation runs in the CLI verifier.</div>
+
+    <h2>The anchor-only trust service: self-host everything, keep the independence</h2>
+    <p>Some operators cannot or will not send their agent records to any third party. Provenrail ships a purpose-built answer for that case: the anchor-only service.</p>
+    <p>The customer runs the AGPL sink on their own infrastructure and keeps every record. When they want an independent anchor receipt, they compute a Merkle root over their own record hashes and send Provenrail only that root, plus a coverage count. Provenrail timestamps the root via RFC 3161, stores an append-only sequence of roots, and makes each anchor publicly retrievable by ID so an auditor can check it with no account and no contact with the customer.</p>
+    <p>Because a SHA-256 root over record hashes is not personal data and is not reversible to any record, this arrangement does not make Provenrail a GDPR data processor. The customer holds all evidence; the independent anchor receipt is separate from it. (<code>POST /v1/anchors</code> in <code>src/provenrail/server/app.py</code>; <code>tests/test_anchor_only.py</code> verifies the endpoint structurally cannot accept a record.)</p>
+    <p>AGT has no equivalent. There is no independent third party in its design, so there is nothing to separate from the data.</p>
+
+    <h2>Comparison</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Capability</th><th>Microsoft AGT</th><th>Provenrail</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="feat">License and cost<span class="sub">as of April 2026</span></td>
+            <td class="yes" style="text-align:left;font-family:var(--font-body)">MIT, free</td>
+            <td style="text-align:left;font-family:var(--font-body);color:var(--text-mid)">Verifier + SDK: MIT. Sink: AGPL. Managed anchoring: paid tiers.</td>
+          </tr>
+          <tr>
+            <td class="feat">Hash-chained audit log</td>
+            <td class="yes">Yes (SHA-256)</td>
+            <td class="yes">Yes (SHA-256)</td>
+          </tr>
+          <tr>
+            <td class="feat">Catches accidental corruption<span class="sub">storage errors, truncation, careless edits</span></td>
+            <td class="yes">Yes</td>
+            <td class="yes">Yes</td>
+          </tr>
+          <tr>
+            <td class="feat">Azure integration<span class="sub">native policy enforcement, zero-trust identity</span></td>
+            <td class="yes">Yes</td>
+            <td class="no">No</td>
+          </tr>
+          <tr>
+            <td class="feat">Tamper detection by an independent party<span class="sub">the record is checked by someone who does not trust the operator</span></td>
+            <td class="no">No</td>
+            <td class="yes">Yes</td>
+          </tr>
+          <tr>
+            <td class="feat">Chain computed outside the agent process<span class="sub">a compromised agent cannot rewrite what already landed</span></td>
+            <td class="no">No (in-process)</td>
+            <td class="yes">Yes (server re-chains on arrival)</td>
+          </tr>
+          <tr>
+            <td class="feat">Records signed at capture with a client key the sink never holds</td>
+            <td class="no">No</td>
+            <td class="yes">Yes (Ed25519)</td>
+          </tr>
+          <tr>
+            <td class="feat">RFC 3161 trusted timestamp from a third-party TSA<span class="sub">independent proof of when the records existed</span></td>
+            <td class="no">No</td>
+            <td class="yes">Yes (Builder and higher)</td>
+          </tr>
+          <tr>
+            <td class="feat">Transparency log with witness cosignatures<span class="sub">C2SP wire format; log cannot equivocate between viewers</span></td>
+            <td class="no">No</td>
+            <td class="yes">Yes (Builder and higher)</td>
+          </tr>
+          <tr>
+            <td class="feat">Independent open-source verifier<span class="sub">no account, no network call to vendor</span></td>
+            <td class="no">No</td>
+            <td class="yes">Yes (<code>pr verify</code>; also in browser)</td>
+          </tr>
+          <tr>
+            <td class="feat">Anchor-only service<span class="sub">self-host all data; send only a Merkle root for independent anchoring</span></td>
+            <td class="no">No</td>
+            <td class="yes">Yes (<code>POST /v1/anchors</code>)</td>
+          </tr>
+          <tr>
+            <td class="feat">OWASP Agentic AI Top 10 evidence collection</td>
+            <td class="yes">Yes</td>
+            <td class="no">No</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="src">AGT capabilities from <a href="https://opensource.microsoft.com/blog/2026/04/02/introducing-the-agent-governance-toolkit-open-source-runtime-security-for-ai-agents/" rel="noopener">the Microsoft open-source announcement, April 2026</a> and <a href="https://microsoft.github.io/agent-governance-toolkit/tutorials/04-audit-and-compliance/" rel="noopener">the AGT audit and compliance tutorial</a>. Provenrail capabilities verified against source code as noted. Neither tool is affiliated with or endorsed by the other's authors.</p>
+
+    <h2>When AGT is the right choice</h2>
+    <div class="note fair">
+      <strong>Use AGT when your threat model is accidental corruption, not a disputing counterparty.</strong>
+      <ul style="margin-top:.6rem">
+        <li>Your team runs the agent and is also the auditor. No outside party needs to verify the log.</li>
+        <li>You are on Azure and want native policy enforcement, zero-trust identity, and sandboxing with no additional vendor relationship.</li>
+        <li>You need OWASP Agentic AI Top 10 coverage and a well-documented MIT-licensed starting point.</li>
+        <li>Budget for a managed service is zero. In-process SHA-256 chains cost nothing and catch real problems.</li>
+        <li>You can satisfy your compliance requirement with a hash chain and a vendor badge. For many internal enterprise deployments this is true.</li>
+      </ul>
+      <p style="margin-top:.6rem;margin-bottom:0">If none of the cases below apply to you, AGT is probably simpler and sufficient.</p>
+    </div>
+
+    <h2>When you need more than AGT</h2>
+    <p>There is a specific set of situations where in-process recording is not enough, regardless of how well it is implemented:</p>
+    <ul>
+      <li><strong>A client or counterparty needs to verify what your agent did without trusting you.</strong> A contractor delivering AI-generated work to an EU client, a SaaS vendor whose agents take actions in a customer's environment, or any situation where the verifier and the operator are different parties.</li>
+      <li><strong>A regulator or auditor examines a high-risk AI system.</strong> EU AI Act Article 12 (in force December 2027 for standalone Annex III systems) requires retained event logs. A log that can be altered without detection by the party being audited has limited evidentiary value. The regulation does not prescribe a method, but an independent timestamp from a third-party TSA is a defensible position; an in-process chain is not.</li>
+      <li><strong>An incident occurred and you need to prove what happened, not just describe it.</strong> Insurance, legal proceedings, or a customer SLA dispute may require a record that survives a challenge. A chain that can be recomputed by your own process does not survive "you could have altered this."</li>
+      <li><strong>You want independent anchoring without sending records to anyone.</strong> The anchor-only service is specifically for this: keep every record yourself and send only a hash root to be timestamped by a third party.</li>
+    </ul>
+    <p>Provenrail is overkill for a team that only needs to debug its own agent or satisfy an internal compliance checkbox. It is designed for the cases above, where the independence of the record matters to someone outside your organization.</p>
+
+    <h2>See it for yourself</h2>
+    <p>The verifier runs in your browser. Nothing is sent anywhere. Open a real record, then watch the same record fail after it has been altered.</p>
+    <div class="cta">
+      <a href="/verify?demo" class="primary">A verified record</a>
+      <a href="/verify?tamper" class="ghost">The same record, tampered, rejected</a>
+      <a href="/start" class="ghost">Prove your own run</a>
+    </div>
+
+    <h2>FAQ</h2>
+    <dl class="faq">
+      <dt>Is this page saying AGT is bad?</dt>
+      <dd>No. AGT is a well-built, free, MIT-licensed tool that ships real governance features for Azure environments. The point is narrower: in-process hash chains cannot produce an independently verifiable record, and that is a structural property, not a quality failure. Use AGT when you do not need an independent third party to verify the log. Use Provenrail when you do.</dd>
+      <dt>Can I run both?</dt>
+      <dd>Yes. AGT handles policy enforcement and sandboxing at runtime; Provenrail captures an independently verifiable record of what happened. They are not substitutes for each other in those roles. You would run the Provenrail SDK alongside AGT, the same way you would run it alongside any other governance layer.</dd>
+      <dt>What exactly does "independent verification" mean?</dt>
+      <dd>A third party can confirm the record is intact and correctly dated using an open-source verifier, with no account, no network call to Provenrail, and no trust in the agent or the sink. The proof travels with the record. For RFC 3161 timestamps, the verifier uses the TSA's public certificate chain, which is published by the TSA, not by Provenrail.</dd>
+      <dt>Does the anchor-only service mean I never send Provenrail my records?</dt>
+      <dd>Correct. You self-host the AGPL sink, keep every record on your infrastructure, compute a Merkle root over your record hashes locally, and send only that root to the anchor service. Provenrail timestamps it and stores the root in an append-only sequence. An auditor can retrieve the timestamped root by ID with no account. The root is not reversible to any record. Nothing Provenrail stores is the content of your agent's activity.</dd>
+      <dt>What is the AGT source?</dt>
+      <dd>The <a href="https://opensource.microsoft.com/blog/2026/04/02/introducing-the-agent-governance-toolkit-open-source-runtime-security-for-ai-agents/" rel="noopener">AGT open-source announcement</a> was published by Microsoft on 2 April 2026. The audit and compliance design is described in the <a href="https://microsoft.github.io/agent-governance-toolkit/tutorials/04-audit-and-compliance/" rel="noopener">AGT tutorial documentation</a>. Provenrail is not affiliated with or endorsed by Microsoft.</dd>
+    </dl>
+
+    <a href="/compare" class="back">&larr; Back to compare</a>
+  </div>
+
+  <footer class="footer" aria-label="Site footer">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block">
+        </div>
+        <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Designed for audits and incident reconstruction.</p>
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="/docs">Documentation</a>
+          <a href="/pricing">Pricing</a>
+          <a href="/#faq">FAQ</a>
+          <a href="/verify">Verify a record</a>
+          <a href="mailto:support@provenrail.com">support@provenrail.com</a>
+        </nav>
+      </div>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Product</div>
+          <div class="footer-nav-links">
+            <a href="/start">Start here (beginners)</a>
+            <a href="/compare">Compare</a>
+            <a href="/#how-it-works">How it works</a>
+            <a href="/#differentiators">Why Provenrail</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/docs">Quickstart</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Legal</div>
+          <div class="footer-nav-links">
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+            <a href="/disclaimer">Disclaimer</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+    <div class="footer-copy container">
+      <p>Copyright 2026 Provenrail. All rights reserved.</p>
+      <p><span style="color:var(--accent)">pr-verify</span>, the SDK and the spec are open-source under MIT; the server under AGPL-3.0</p>
+    </div>
+    <div class="footer-copy container" style="margin-top:0;border-top:0;padding-top:0">
+      <p style="max-width:64ch;color:var(--text-lo);font-family:var(--font-body)">Provenrail is evidence tooling, not legal advice or a compliance guarantee. It makes recorded events tamper-evident and independently verifiable; it never claims completeness. Compliance references describe technical evidence mapping, not certification. Microsoft, Microsoft Azure, and Agent Governance Toolkit are trademarks of Microsoft Corporation; Provenrail is not affiliated with, endorsed by, or sponsored by Microsoft. All third-party product and company names are trademarks of their respective owners. Software provided as-is, without warranty.</p>
+    </div>
+  </footer>
+
+  <script src="/main.js" defer></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Is this page saying AGT is bad?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. AGT is a well-built, free, MIT-licensed tool that ships real governance features for Azure environments. The point is narrower: in-process hash chains cannot produce an independently verifiable record, and that is a structural property, not a quality failure. Use AGT when you do not need an independent third party to verify the log. Use Provenrail when you do."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I run both AGT and Provenrail?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. AGT handles policy enforcement and sandboxing at runtime; Provenrail captures an independently verifiable record of what happened. They are not substitutes for each other in those roles. You would run the Provenrail SDK alongside AGT, the same way you would run it alongside any other governance layer."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does independent verification mean in this context?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A third party can confirm the record is intact and correctly dated using an open-source verifier, with no account, no network call to Provenrail, and no trust in the agent or the sink. The proof travels with the record. For RFC 3161 timestamps, the verifier uses the TSA public certificate chain, which is published by the TSA, not by Provenrail."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does the anchor-only service mean I never send Provenrail my records?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Correct. You self-host the AGPL sink, keep every record on your infrastructure, compute a Merkle root over your record hashes locally, and send only that root to the anchor service. Provenrail timestamps it and stores the root in an append-only sequence. An auditor can retrieve the timestamped root by ID with no account. The root is not reversible to any record."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Where can I read more about Microsoft Agent Governance Toolkit?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The AGT open-source announcement was published by Microsoft on 2 April 2026 at https://opensource.microsoft.com/blog/2026/04/02/introducing-the-agent-governance-toolkit-open-source-runtime-security-for-ai-agents/. The audit and compliance design is described in the AGT tutorial documentation at https://microsoft.github.io/agent-governance-toolkit/tutorials/04-audit-and-compliance/. Provenrail is not affiliated with or endorsed by Microsoft."
+        }
+      }
+    ]
+  }
+  </script>
+</body>
+</html>
