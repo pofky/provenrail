@@ -112,7 +112,7 @@ def test_streams_are_independent():
 
 def test_a_malformed_root_is_refused_before_it_is_timestamped():
     """Timestamping a bad root would mint a receipt that can never match any bundle: an
-    attestation that looks real and proves nothing. Refuse instead."""
+    receipt that looks real and proves nothing. Refuse instead."""
     c = client()
     h = account(c)
     for bad in ("", "not-hex", "ab" * 16, "zz" * 32, "AB" * 33):
@@ -130,7 +130,7 @@ def test_coverage_must_be_a_real_count():
         assert r.status_code == 422
 
 
-def test_anchoring_requires_a_key_but_reading_an_attestation_does_not():
+def test_anchoring_requires_a_key_but_reading_an_receipt_does_not():
     """The asymmetry is the product. Writing is a paid account action; reading is what an auditor
     does with nothing but the id the customer gave them."""
     c = client()
@@ -149,7 +149,7 @@ def test_anchoring_requires_a_key_but_reading_an_attestation_does_not():
     assert c.get("/v1/anchors/anc_does_not_exist").status_code == 404
 
 
-def test_a_public_attestation_never_names_the_account_that_bought_it():
+def test_a_public_receipt_never_names_the_account_that_bought_it():
     """The auditor holds an id, not a relationship. Leaking the account id would turn a receipt
     into a customer list."""
     c = client()
@@ -183,7 +183,7 @@ def test_the_history_reads_back_in_coverage_order():
 
 
 def test_the_receipt_verifies_against_the_customers_own_records():
-    """The end-to-end claim: a stranger holding the attestation and the customer's bundle can
+    """The end-to-end claim: a stranger holding the receipt and the customer's bundle can
     confirm the two describe the same history, without trusting either party."""
     c = client()
     h = account(c)
@@ -192,12 +192,12 @@ def test_the_receipt_verifies_against_the_customers_own_records():
         "stream_id": "s", "merkle_root": merkle_root(leaves), "covers_up_to": len(leaves),
     }).json()["anchor_id"]
 
-    attestation = c.get(f"/v1/anchors/{anchor_id}").json()
+    receipt = c.get(f"/v1/anchors/{anchor_id}").json()
     # The auditor recomputes the root from the records the customer showed them.
-    assert merkle_root(leaves) == attestation["merkle_root"]
-    assert attestation["covers_up_to"] == len(leaves)
-    # And a customer who quietly deletes the last record can no longer match the attestation.
-    assert merkle_root(leaves[:-1]) != attestation["merkle_root"]
+    assert merkle_root(leaves) == receipt["merkle_root"]
+    assert receipt["covers_up_to"] == len(leaves)
+    # And a customer who quietly deletes the last record can no longer match the receipt.
+    assert merkle_root(leaves[:-1]) != receipt["merkle_root"]
 
 
 def test_a_local_receipt_is_signed_by_a_key_the_customer_can_check():
@@ -239,7 +239,7 @@ def test_the_anchor_only_path_stores_no_records():
 
 def test_the_whole_path_end_to_end_through_the_cli(tmp_path, capsys, monkeypatch):
     """The customer's real journey: they hold a bundle, they push only its root, an auditor
-    checks the attestation against the bundle offline, and a customer who edits a record after
+    checks the receipt against the bundle offline, and a customer who edits a record after
     the fact can no longer make the two agree."""
     import json
 
@@ -269,7 +269,7 @@ def test_the_whole_path_end_to_end_through_the_cli(tmp_path, capsys, monkeypatch
 
     monkeypatch.setitem(__import__("sys").modules, "httpx", _Httpx)
 
-    att_path = tmp_path / "attestation.json"
+    att_path = tmp_path / "receipt.json"
     capsys.readouterr()
     assert cli_main(["anchor-push", str(bundle_path), "--url", "http://svc", "--key",
                      h["Authorization"].split()[1], "--receipt-out", str(att_path)]) == 0
@@ -293,7 +293,7 @@ def test_the_whole_path_end_to_end_through_the_cli(tmp_path, capsys, monkeypatch
     assert cli_main(["anchor-verify", str(forged_path), str(att_path)]) == 1
     assert "does not describe this bundle" in capsys.readouterr().out
 
-    # And dropping the tail is caught too, because the attestation says how far it reached.
+    # And dropping the tail is caught too, because the receipt says how far it reached.
     truncated = json.loads(bundle_path.read_text(encoding="utf-8"))
     truncated["records"] = truncated["records"][:9]
     short_path = tmp_path / "truncated.json"

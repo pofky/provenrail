@@ -37,7 +37,10 @@ BANNED = {
 #: Files whose whole purpose is to say what we do NOT claim. A denial has to be able to quote
 #: the phrase it is denying.
 EXEMPT = {"DISCLAIMER.md", "disclaimer.html", "COMPLIANCE.md", "STRATEGY.md",
-          "test_claims_hygiene.py"}
+          "test_claims_hygiene.py",
+          # The policy file has to be able to name the thing it forbids ("do not offer to be a
+          # HIPAA business associate"). It is internal, and it is the rule, not a claim.
+          "BUSINESS.md"}
 
 
 def _shipped_files():
@@ -82,3 +85,52 @@ def test_the_completeness_boundary_is_stated_where_the_strong_claim_is_made():
     The page that makes the strongest integrity claim is the one that most needs to say so."""
     index = (ROOT / "web" / "index.html").read_text(encoding="utf-8").lower()
     assert "completeness is never claimed" in index
+
+
+# The operator trades as a Lithuanian individuali veikla with no liability shield. Hosting other
+# people's agent records would make him a GDPR processor with personal exposure, so BUSINESS.md
+# defers that until a company exists. The site sold it anyway for months: Builder was "500k events
+# per month" of what read like hosted capacity, the FAQ said paid plans buy "hosted convenience",
+# and one tier claimed evidence packs mapped to HIPAA audit controls. None of it was true of the
+# code, and all of it was a promise he could not carry. A grep is the only thing that keeps copy
+# on the right side of a line that costs this much to cross.
+# Note what is NOT banned: naming HIPAA 164.312(b) as a control a report maps to. A mapping is
+# content, and selling content is the safest thing on the ladder. The line is offering to be a
+# business associate, or implying the product delivers HIPAA compliance, because that attracts a
+# buyer whose expectations the operator cannot meet and whose breach becomes his.
+SELLING_WHAT_WE_CANNOT_CARRY = {
+    "hosted convenience": "there is no hosted tier; the customer runs the sink either way",
+    "we host your records": "hosting customer records is the processor line; we do not cross it",
+    "we store your records": "same",
+    "business associate": "no BAA exists or can be signed before a company does",
+    "baa": "same",
+    "hipaa compliant": "we deliver evidence, never compliance; the covered entity owns that",
+    "hipaa-compliant": "same",
+    "gdpr compliant": "same claim, different regime",
+    "gdpr-compliant": "same",
+    "we are a processor": "the whole design exists so that we are not one",
+}
+
+
+def test_no_page_sells_a_liability_the_operator_cannot_carry():
+    offences = []
+    # Word boundaries, not substrings: "baa" as a substring would fire on ordinary words, and a
+    # test that cries wolf gets deleted rather than obeyed.
+    patterns = {phrase: re.compile(rf"\b{re.escape(phrase)}\b", re.IGNORECASE)
+                for phrase in SELLING_WHAT_WE_CANNOT_CARRY}
+    for path in _shipped_files():
+        for n, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+            for phrase, why in SELLING_WHAT_WE_CANNOT_CARRY.items():
+                if patterns[phrase].search(line):
+                    offences.append(f"{path.relative_to(ROOT)}:{n} says {phrase!r}: {why}")
+    assert not offences, ("copy sells something the operator cannot legally provide:\n  "
+                          + "\n  ".join(offences))
+
+
+def test_the_pricing_page_still_says_where_records_live():
+    """The positive half of the rule. Removing the false claim is not enough: the page has to say
+    plainly that records stay with the customer, because that is the reason the paid tiers are
+    sellable at all."""
+    pricing = (ROOT / "web" / "pricing.html").read_text(encoding="utf-8").lower()
+    assert "your own sink" in pricing or "your own infrastructure" in pricing
+    assert "no. provenrail hosts identity and billing only" in pricing

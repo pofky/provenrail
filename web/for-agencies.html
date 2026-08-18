@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verifiable AI Agent Records for Freelancers and Agencies | Provenrail</title>
+  <meta name="description" content="Give your client a signed, tamper-evident record they can verify without trusting you. Five minutes to instrument. One command to produce the proof.">
+  <link rel="canonical" href="https://provenrail.com/for-agencies">
+  <meta name="robots" content="index,follow">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Verifiable AI Agent Records for Freelancers and Agencies | Provenrail">
+  <meta property="og:description" content="Give your client a signed, tamper-evident record they can verify without trusting you. Five minutes to instrument. One command to produce the proof.">
+  <meta property="og:url" content="https://provenrail.com/for-agencies">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://provenrail.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Provenrail: the verifiable audit trail for AI agents.">
+  <meta property="og:site_name" content="Provenrail">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Verifiable AI Agent Records for Freelancers and Agencies | Provenrail">
+  <meta name="twitter:description" content="Give your client a signed, tamper-evident record they can verify without trusting you. Five minutes to instrument. One command to produce the proof.">
+  <meta name="twitter:image" content="https://provenrail.com/og.png">
+
+  <!-- Favicon -->
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0b0a08">
+
+  <!-- Fonts preloaded for first-paint performance; self-hosted, no third-party request -->
+  <link rel="preload" href="/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/dm-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--accent-ink:#0b0a08;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#7c8490;
+      --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;--yes:#6fcf86;--no:#e2705a}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#7e6428;--accent-ink:#fdfbf7;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#5f6974;--yes:#1f7038;--no:#b1442a}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+    body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
+    .wrap{max-width:820px;margin:0 auto;padding:clamp(1.5rem,5vw,3.5rem) clamp(1.1rem,5vw,2rem) 5rem}
+    .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:.7rem}
+    h1{font-family:var(--font-mono);font-size:clamp(1.7rem,4.4vw,2.4rem);font-weight:500;letter-spacing:-.02em;margin-bottom:.6rem;line-height:1.22}
+    .lede{color:var(--text-mid);font-size:1.06rem;margin-bottom:1.6rem;max-width:66ch}
+    h2{font-size:1.3rem;font-weight:600;margin:2.8rem 0 .6rem;letter-spacing:-.01em;scroll-margin-top:1.5rem}
+    h3{font-size:1.02rem;font-weight:600;margin:1.5rem 0 .4rem;color:var(--text-hi)}
+    p,li{color:var(--text-mid);margin-bottom:.7rem}
+    li{margin-bottom:.45rem}
+    ul,ol{padding-left:1.2rem}
+    a{color:var(--accent)}
+    strong{color:var(--text-hi);font-weight:600}
+    code{font-family:var(--font-mono);font-size:.85em;background:var(--bg-3);padding:.12em .42em;border-radius:5px;color:var(--text-hi)}
+    pre{font-family:var(--font-mono);font-size:.86rem;line-height:1.6;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:.9rem 1rem;margin:.9rem 0 1.2rem;overflow-x:auto;color:var(--text-hi)}
+    pre code{background:none;padding:0;font-size:inherit}
+    .note{background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:.85rem 1rem;margin:1.2rem 0;font-size:.93rem}
+    .note strong{color:var(--accent)}
+    .toc{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.4rem 0 2rem}
+    .toc a{font-family:var(--font-mono);font-size:.78rem;background:var(--bg-2);border:1px solid var(--border);border-radius:999px;padding:.35rem .8rem;text-decoration:none;color:var(--text-mid)}
+    .toc a:hover{border-color:var(--accent);color:var(--accent)}
+    .cta{display:flex;flex-wrap:wrap;gap:.7rem;margin:1.6rem 0}
+    .cta a{font-family:var(--font-mono);font-size:.85rem;text-decoration:none;border-radius:10px;padding:.7rem 1.1rem;min-height:44px;display:inline-flex;align-items:center}
+    .cta a.primary{background:var(--accent);color:var(--accent-ink);font-weight:600}
+    .cta a.ghost{border:1px solid var(--border);color:var(--text-hi)}
+    .cta a.ghost:hover{border-color:var(--accent)}
+    .faq dt{color:var(--text-hi);font-weight:600;margin-top:1.1rem}
+    .faq dd{color:var(--text-mid);margin:.25rem 0 0;padding:0}
+    .back{display:inline-block;margin-top:2.5rem;font-family:var(--font-mono);font-size:.82rem;color:var(--text-lo);text-decoration:none}
+    .back:hover{color:var(--accent)}
+    .src{font-size:.82rem;color:var(--text-mid)}
+    .src a{color:var(--text-mid);text-decoration:underline}
+    .scenario-block{background:var(--bg-2);border:1px solid var(--border);border-radius:14px;padding:clamp(1.1rem,4vw,1.8rem);margin:1.4rem 0 1.8rem}
+    .scenario-step{display:flex;gap:.9rem;align-items:flex-start;padding:.6rem 0;border-bottom:1px solid var(--border)}
+    .scenario-step:last-child{border-bottom:0;padding-bottom:0}
+    .scenario-step:first-child{padding-top:0}
+    .scenario-num{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.08em;color:var(--accent);background:var(--bg-3);border:1px solid var(--border);border-radius:6px;padding:.25rem .45rem;min-width:2.1rem;text-align:center;flex-shrink:0;margin-top:.15rem}
+    .scenario-text{color:var(--text-mid);font-size:.96rem;line-height:1.55}
+    .scenario-text strong{color:var(--text-hi)}
+    .receipt-card{background:var(--bg-2);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin:1.2rem 0 1.8rem}
+    .receipt-bar{display:flex;align-items:center;gap:.7rem;padding:.6rem 1rem;border-bottom:1px solid var(--border);background:var(--bg-3)}
+    .receipt-bar-dots{display:flex;gap:.35rem}
+    .receipt-bar-dot{width:10px;height:10px;border-radius:50%;background:var(--border)}
+    .receipt-bar-dot.r{background:#e05a5a}
+    .receipt-bar-dot.y{background:#d3a957}
+    .receipt-bar-dot.g{background:#6fcf86}
+    .receipt-title{font-family:var(--font-mono);font-size:.75rem;color:var(--text-lo)}
+    .receipt-body{padding:.9rem 1rem;font-family:var(--font-mono);font-size:.83rem;line-height:1.7}
+    .r-row{display:flex;gap:1rem;flex-wrap:wrap;padding:.15rem 0}
+    .r-key{color:var(--text-lo);min-width:10rem;flex-shrink:0}
+    .r-val{color:var(--text-hi)}
+    .r-val.ok{color:var(--yes)}
+    .r-val.dim{color:var(--text-lo)}
+    .r-sep{border-top:1px solid var(--border);margin:.4rem 0}
+    .reg-banner{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:12px;padding:.85rem 1rem;margin:1.4rem 0}
+    .reg-item{font-family:var(--font-mono);font-size:.75rem;color:var(--text-mid)}
+    .reg-item strong{color:var(--text-hi)}
+    .reg-item.hot{color:var(--accent)}
+    .reg-item.hot strong{color:var(--accent)}
+    @media(max-width:480px){.r-key{min-width:7.5rem}}
+  </style>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://provenrail.com/"},
+          {"@type": "ListItem", "position": 2, "name": "For agencies and freelancers", "item": "https://provenrail.com/for-agencies"}
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Does my client have to trust me for the record to be valid?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. The client downloads the open-source pr-verify tool and runs it themselves, or opens the hosted verifier at provenrail.com/verify. It recomputes every hash, signature, and timestamp locally without contacting Provenrail's servers. You do not have to be trusted for the proof to hold; the math does the work."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does Provenrail see my prompts or my client's data?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No, unless you explicitly opt in. The default mode is store-hash-not-content: Provenrail records a SHA-256 hash of each prompt and model response, not the raw text. The hash proves the content existed and has not changed; the raw text stays on your machine. Your client's sensitive data is never uploaded."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can my agent fake or delete records?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "A record that reaches the sink cannot be altered without the change showing: the hash chain makes any tampering detectable. However, an agent that never calls the SDK at all will not appear in the record. Provenrail detects tampering and deletion of records that were written. It cannot force an uncooperative agent to write in the first place. This is a documented limitation, not fine print."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does this make me compliant with the EU AI Act or the Product Liability Directive?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Provenrail produces evidence: a tamper-evident, independently verifiable record of what the agent did. Whether that evidence satisfies a specific regulatory obligation is a legal determination that rests with you and your advisors. Provenrail does not issue compliance certificates and does not give legal advice."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does a client verify the record?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "You send them a bundle file (exported with pr export) and a pin file. They install the verifier with: uv tool install provenrail (or pip install provenrail). Then they run: pr verify my-run.json --pin pin.json. The tool recomputes the entire chain locally. It exits 0 if intact and prints VERIFIED. No account required, no data sent to Provenrail. On the Builder plan you can also send a hosted read-only proof link instead."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What does it cost?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "The Free plan is $0, includes 50k events per month and the full hash-chain verifier. The Builder plan at $29 per month adds RFC 3161 trusted timestamps and shareable client proof links. Both cover the core use case of producing a record a client can independently verify. Self-hosting the server under AGPL is also an option. See provenrail.com/pricing for the full comparison."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <header>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="/" class="nav-logo" aria-label="Provenrail home">
+        <img class="seal" src="/assets/logo-mark.png" alt="" width="30" height="30">
+        <span>proven<span class="rail-accent">rail</span></span>
+      </a>
+      <button id="nav-toggle" class="nav-mobile-toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M2 5h16M2 10h16M2 15h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div id="nav-links" class="nav-links">
+        <a href="/#how-it-works">How it works</a>
+        <a href="/#see-it">Watch</a>
+        <a href="/compare">Compare</a>
+        <a href="/#differentiators">Why Provenrail</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/start">Start here</a>
+        <a href="/docs">Docs</a>
+        <a href="https://github.com/pofky/provenrail" rel="noopener">GitHub</a>
+        <a href="/account">Sign in</a>
+        <a href="/pricing" class="btn-nav">Start free</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main-content">
+  <div class="wrap">
+
+    <p class="eyebrow">For freelancers and agencies</p>
+    <h1>Give your client a receipt they can verify without trusting you.</h1>
+    <p class="lede">You build and run AI agents for clients. When something goes wrong, or the client wants to know exactly what the agent did, you need more than a log file you control. Provenrail gives your agent a signed, tamper-evident record that a client can verify themselves with an open-source tool, on their own machine, without involving you at all.</p>
+
+    <div class="cta">
+      <a href="/verify?demo" class="primary">See a live verified record</a>
+      <a href="/start" class="ghost">Get started in five minutes</a>
+    </div>
+
+    <div class="toc" aria-label="Page sections">
+      <a href="#scenario">The scenario</a>
+      <a href="#what-client-gets">What the client receives</a>
+      <a href="#privacy">Prompts stay private</a>
+      <a href="#quickstart">Five-minute setup</a>
+      <a href="#not-this">What this is not</a>
+      <a href="#regulatory">Regulatory context</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </div>
+
+    <h2 id="scenario">The scenario</h2>
+    <p>A client hired you to build an agent that processes their customer data, runs reports, and sends outgoing emails. Three weeks after delivery, they come back with a question: the agent sent an email that was not supposed to go out. They want to know exactly what it was given, what it decided, and when. You could describe what you think happened, but that is your word against a problem they experienced.</p>
+    <p>With Provenrail instrumented from the start, the conversation goes differently.</p>
+
+    <div class="scenario-block" role="region" aria-label="Step-by-step scenario walkthrough">
+      <div class="scenario-step">
+        <span class="scenario-num">01</span>
+        <p class="scenario-text">The client contacts you. The email went to the wrong address three days ago.</p>
+      </div>
+      <div class="scenario-step">
+        <span class="scenario-num">02</span>
+        <p class="scenario-text">You run <code>pr export my-run.json</code>. This exports a self-contained bundle of every event the agent recorded: every model call, every tool call, every decision, in sequence, with the timestamps and signatures that were written at the time the events happened.</p>
+      </div>
+      <div class="scenario-step">
+        <span class="scenario-num">03</span>
+        <p class="scenario-text"><strong>You send the client the bundle and a pin file.</strong> The pin is a signed checkpoint the agent wrote; it lets the verifier detect if anything has been removed from the tail since export.</p>
+      </div>
+      <div class="scenario-step">
+        <span class="scenario-num">04</span>
+        <p class="scenario-text">The client installs the open-source verifier (<code>uv tool install provenrail</code>) and runs: <code>pr verify my-run.json --pin pin.json</code>. No account, no data sent anywhere. It exits <code>0</code> and prints <code>RESULT: VERIFIED</code>. The chain is intact, ordering is proven, and the timestamps match.</p>
+      </div>
+      <div class="scenario-step">
+        <span class="scenario-num">05</span>
+        <p class="scenario-text">The record shows the input the agent received, the model's decision, and the tool call that sent the email. The instruction came from the client's own data pipeline, not from your agent's configuration. <strong>You are covered. The client has the evidence to take the question further.</strong></p>
+      </div>
+    </div>
+
+    <p>That last step is the point. The client did not have to trust you for the record to hold. They ran the verification themselves and got a cryptographic answer. That is a different class of professional relationship than a shared spreadsheet or a description in a Slack thread.</p>
+
+    <h2 id="what-client-gets">What the client actually receives</h2>
+    <p>When you export a run, the client gets two files:</p>
+    <ul>
+      <li><strong>A bundle file</strong> (JSON). Every event the agent recorded, with a hash of the previous event embedded in each record. The chain is signed by the agent's Ed25519 key and independently re-chained by the sink. Reordering, deletion, or insertion breaks the chain and the verifier reports it.</li>
+      <li><strong>A pin file</strong>. A signed checkpoint your agent wrote at the end of the session. It lets the verifier detect if records have been removed from the tail since the checkpoint was written, including by you after export.</li>
+    </ul>
+    <p>On the <a href="/pricing">Builder plan</a>, each anchor also carries an RFC 3161 trusted timestamp from an independent time authority, so the timing of events cannot be back-dated. On the Free plan the chain proves ordering but the timestamps are local; the record still detects tampering and deletion.</p>
+    <p>You can also send a hosted read-only proof link (Builder plan) instead of files. The client opens a URL, the verification runs client-side in their browser, and the evidence is presented. Nothing leaves their browser to check the proof.</p>
+
+    <div class="receipt-card" role="region" aria-label="Example client proof output">
+      <div class="receipt-bar">
+        <div class="receipt-bar-dots" aria-hidden="true">
+          <div class="receipt-bar-dot r"></div>
+          <div class="receipt-bar-dot y"></div>
+          <div class="receipt-bar-dot g"></div>
+        </div>
+        <span class="receipt-title">pr verify my-run.json --pin pin.json</span>
+      </div>
+      <div class="receipt-body" aria-label="Verification output example">
+        <div class="r-row"><span class="r-key">RESULT</span><span class="r-val ok">VERIFIED</span></div>
+        <div class="r-sep"></div>
+        <div class="r-row"><span class="r-key">stream</span><span class="r-val">client-reporting-agent</span></div>
+        <div class="r-row"><span class="r-key">events</span><span class="r-val">2,341</span></div>
+        <div class="r-row"><span class="r-key">sessions</span><span class="r-val">12</span></div>
+        <div class="r-row"><span class="r-key">period</span><span class="r-val">2026-08-12 to 2026-08-15</span></div>
+        <div class="r-sep"></div>
+        <div class="r-row"><span class="r-key">chain</span><span class="r-val ok">INTACT</span></div>
+        <div class="r-row"><span class="r-key">signatures</span><span class="r-val ok">ALL VALID</span></div>
+        <div class="r-row"><span class="r-key">deletions</span><span class="r-val ok">NONE DETECTED</span></div>
+        <div class="r-row"><span class="r-key">pin</span><span class="r-val ok">CONFIRMED</span></div>
+        <div class="r-sep"></div>
+        <div class="r-row"><span class="r-key">verified by</span><span class="r-val dim">pr-verify 1.2.0 (local, offline)</span></div>
+      </div>
+    </div>
+
+    <h2 id="privacy">Your prompts and your client's data stay private</h2>
+    <p>The default mode is <strong>store-hash-not-content</strong>. Provenrail records a SHA-256 hash of each prompt and model response, not the raw text. The hash proves that a specific piece of content existed at a specific point in the chain and has not changed since. The raw content stays on your machine.</p>
+    <p>This means:</p>
+    <ul>
+      <li>Your system prompt and the instructions you wrote are never uploaded.</li>
+      <li>Your client's input data is never uploaded.</li>
+      <li>Model outputs are never uploaded.</li>
+    </ul>
+    <p>What is uploaded: metadata about each event (tool name, timestamp, token counts, the hash of the content, the event type), the cryptographic chain that links events together, and the signatures that seal each session. That is enough to prove the sequence of events is intact without exposing the content.</p>
+    <p>If you need the client to be able to read the actual content later, you can opt into full content storage per-run by passing <code>capture_content=True</code>. That is an explicit choice, not the default.</p>
+
+    <div class="note">
+      <strong>One-line summary.</strong> By default, Provenrail proves the chain of events happened in a specific order and has not been altered. It does not read your prompts. Your client's data is not uploaded.
+    </div>
+
+    <h2 id="quickstart">Five-minute setup</h2>
+    <p>Instrument your agent once. Every run is then recorded automatically.</p>
+
+    <h3>Step 1: install and start a local sink</h3>
+    <pre># Install the CLI and SDK
+uv tool install provenrail
+
+# Start a local sink and write .provenrail.json (no account, nothing leaves your machine)
+pr quickstart</pre>
+    <p>The local sink runs on your machine. Records are stored there until you export them. Stop it any time with <code>pr quickstart --stop</code>. Point it at a hosted sink for multi-machine setups.</p>
+
+    <h3>Step 2: wrap your agent loop</h3>
+    <p>One context manager captures every model and tool call inside it:</p>
+    <pre>import provenrail as fr
+
+with fr.record("client-project"):
+    # Your agent runs here. Model calls and tool calls are captured automatically.
+    result = run_agent(task)</pre>
+    <p>If you use the Anthropic or OpenAI SDK directly, you can also instrument the client object rather than wrapping the loop:</p>
+    <pre>from provenrail.integrations import instrument_anthropic
+
+client = anthropic.Anthropic()
+instrument_anthropic(client, fr)  # every call now recorded automatically</pre>
+    <p>Each run is a separate sealed session on the same stream. The first run creates <code>.provenrail.key</code>, a device signing key. Keep it out of version control alongside <code>.provenrail.json</code>.</p>
+
+    <h3>Step 3: export and verify</h3>
+    <pre># Export the full stream as a self-contained bundle
+pr export my-run.json
+
+# Verify it yourself before sending it anywhere
+pr verify my-run.json</pre>
+    <p>Send the client <code>my-run.json</code> and <code>pin.json</code> (written alongside the bundle on export). They can verify it with the same <code>pr verify</code> command, offline, without an account.</p>
+
+    <h3>Optional: build a formal evidence pack</h3>
+    <p>If the client or their legal team wants a structured report, <code>pr pack</code> produces a ZIP with the bundle, the verification result, and a plain-English summary:</p>
+    <pre>pr pack my-run.json --regime generic --out client-evidence.zip</pre>
+    <p>The <code>--regime eu-ai-act</code> and <code>--regime hipaa</code> variants map the evidence to those specific frameworks. The Team plan generates these from the dashboard in one click, without an export step.</p>
+
+    <h2 id="not-this">What this is not</h2>
+    <p>This section matters more than the feature list.</p>
+    <ul>
+      <li><strong>Not a compliance certificate.</strong> Provenrail produces evidence. Whether that evidence satisfies a specific legal or regulatory requirement is a determination for you, your client, and qualified legal counsel. We do not issue compliance certificates and do not give legal advice.</li>
+      <li><strong>Not a guarantee of completeness.</strong> A record proves what was recorded. An agent that never calls the SDK at all will not appear in the record. If you need to show an agent had no opportunity to bypass recording, the <a href="/docs">sidecar proxy</a> (<code>pr sidecar</code>) adds an out-of-process capture layer, but completeness is only as strong as the egress controls around it. We document this rather than bury it.</li>
+      <li><strong>Not a promise the client cannot dispute.</strong> The record proves what happened. If the client believes the record is forged, the verifier settles the question: either the math holds or it does not. But the record proving an event happened does not settle a question about whether the event was correct or authorised. Evidence and argument are separate things.</li>
+      <li><strong>Not content storage by default.</strong> As described above, the raw prompts and outputs are not recorded unless you opt in. The hash proves the content existed; it does not let anyone read it.</li>
+    </ul>
+
+    <h2 id="regulatory">Regulatory context</h2>
+    <p>The regulatory environment around AI is moving. Three dates matter for freelancers and agencies building agents for EU clients.</p>
+
+    <div class="reg-banner" role="region" aria-label="Key regulatory dates">
+      <div class="reg-item hot"><strong>Now (since 2 Aug 2026)</strong> EU AI Act Article 50 transparency obligations are in force. If your agent interacts with people, you must disclose that they are talking to an AI system.</div>
+      <div class="reg-item"><strong>9 Dec 2026</strong> Revised EU Product Liability Directive. Strict no-fault liability for AI software shipped to EU users. A missing or alterable log can shift the burden of proof against you in civil proceedings.</div>
+      <div class="reg-item"><strong>2 Dec 2027</strong> EU AI Act Article 12 logging requirements apply for standalone high-risk AI systems (deferred from 2 Aug 2026 by Regulation (EU) 2026/1744). The logging duty was deferred; the engineering reason to have defensible records was not.</div>
+    </div>
+
+    <p>The Article 50 transparency duty is already in force. The Product Liability Directive reaches national law by 9 December 2026, a full year before Article 12 logging. Recital 46 of that directive states that where a product lacks the logging required by Union law, defectiveness can be presumed, shifting the burden of proof. A log you control is a log you could have edited; a tamper-evident, independently verifiable record is harder to argue away.</p>
+    <p>Provenrail does not make you compliant with any regulation. It produces the kind of evidence that sits at the base of a compliance argument: a verifiable record of what happened, when, in what order, and whether anything was altered after the fact. Whether the argument succeeds is for you and your advisors to determine.</p>
+    <p>For a detailed breakdown of the AI Act dates and what each article requires, see <a href="/eu-ai-act">the full EU AI Act page</a>.</p>
+
+    <div class="note">
+      <strong>Honest framing.</strong> Do not claim to a client that you are "EU AI Act compliant" because you use Provenrail. You are not. Nobody can make that claim on the basis of one tool. What you can say, accurately, is that your agent produces a signed, tamper-evident record of its actions that any party can verify independently. That is a meaningful professional commitment. Do not overstate it.
+    </div>
+
+    <h2 id="pricing">Pricing</h2>
+    <p>The <strong>Free plan</strong> is $0 and covers the core use case: hash-chain integrity, the open-source verifier, and the ability to export a bundle a client can verify themselves. It covers 50k events per month, which is roughly 200 to 500 agent runs depending on depth.</p>
+    <p>The <strong>Builder plan</strong> at $29 per month adds RFC 3161 trusted timestamps from an independent time authority (so timing cannot be back-dated, even by you) and shareable hosted read-only proof links your client can open in a browser without installing anything.</p>
+    <p>If you run agents for multiple clients and need separate projects, role-based access for team members, and one-click evidence packs from the dashboard, the <strong>Team plan</strong> is $99 per month.</p>
+    <p>The server is also available under AGPL-3.0 for self-hosting. If you or your client prefer to run the sink on their own infrastructure, that is a supported path with no license fee. See <a href="https://github.com/pofky/provenrail" rel="noopener">the GitHub repository</a>.</p>
+    <p><a href="/pricing">Full tier comparison and pricing FAQ &rarr;</a></p>
+
+    <div class="cta">
+      <a href="/start" class="primary">Start here</a>
+      <a href="/verify?demo" class="ghost">Verify a real record in your browser</a>
+      <a href="/pricing" class="ghost">See plans</a>
+    </div>
+
+    <h2 id="faq">FAQ</h2>
+    <dl class="faq">
+      <dt>Does my client have to trust me for the record to be valid?</dt>
+      <dd>No. The client downloads the open-source verifier and runs it themselves, or opens the hosted verifier at <a href="/verify">provenrail.com/verify</a>. It recomputes every hash, signature, and timestamp locally without contacting Provenrail's servers. You do not have to be trusted for the proof to hold; the math does the work.</dd>
+
+      <dt>Does Provenrail see my prompts or my client's data?</dt>
+      <dd>No, unless you explicitly opt in. The default mode records a SHA-256 hash of each prompt and model response, not the raw text. The hash proves the content existed and has not changed; the raw content stays on your machine. Your client's data is never uploaded.</dd>
+
+      <dt>Can my agent fake or delete records?</dt>
+      <dd>A record that reaches the sink cannot be altered without the change showing. The hash chain makes tampering detectable, and on the Builder plan RFC 3161 timestamps from an independent authority prevent back-dating. However, an agent that never calls the SDK at all will not appear in the record. Provenrail detects tampering and deletion of records that <em>were</em> written. It cannot force an uncooperative agent to write in the first place. This is a documented limitation, not fine print. The <a href="/docs">sidecar proxy</a> adds an out-of-process capture layer for higher assurance.</dd>
+
+      <dt>Does this make me compliant with the EU AI Act or the Product Liability Directive?</dt>
+      <dd>No. Provenrail produces evidence. Whether that evidence satisfies a specific regulatory requirement is a legal determination that rests with you and your advisors. We do not issue compliance certificates and do not give legal advice. What we do is produce the kind of independently verifiable technical record that sits at the base of a compliance argument.</dd>
+
+      <dt>How does a client verify the record?</dt>
+      <dd>You send them the bundle file and a pin file, both produced by <code>pr export</code>. They install the verifier: <code>uv tool install provenrail</code> (or <code>pip install provenrail</code>). Then they run: <code>pr verify my-run.json --pin pin.json</code>. It exits <code>0</code> and prints <code>RESULT: VERIFIED</code> if the chain is intact. No account, no data sent to Provenrail. On the Builder plan you can also send a hosted read-only proof link instead.</dd>
+
+      <dt>What does it cost?</dt>
+      <dd>Free: $0, 50k events per month, hash-chain integrity, open-source verifier, full export. Builder: $29 per month, RFC 3161 trusted timestamps, shareable client proof links. The server is also AGPL-licensed for self-hosting at no cost. See <a href="/pricing">the pricing page</a> for the full comparison.</dd>
+    </dl>
+
+    <p class="src" style="margin-top:2rem">Regulatory dates: EU AI Act Article 50 in force from 2 August 2026. Revised Product Liability Directive (EU) 2024/2853, national transposition due 9 December 2026. EU AI Act Article 12 deferred to 2 December 2027 for standalone Annex III systems by Regulation (EU) 2026/1744. This page is for engineering audiences and is not legal advice.</p>
+
+    <a href="/" class="back">&larr; Back to home</a>
+  </div>
+  </main>
+
+  <footer class="footer" aria-label="Site footer">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block" loading="lazy" decoding="async">
+        </div>
+        <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Designed for audits and incident reconstruction.</p>
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="/docs">Documentation</a>
+          <a href="/pricing">Pricing</a>
+          <a href="/#faq">FAQ</a>
+          <a href="/verify">Verify a record</a>
+          <a href="https://github.com/pofky/provenrail" rel="noopener">Source (GitHub)</a>
+          <a href="https://pypi.org/project/provenrail/" rel="noopener">Package (PyPI)</a>
+          <a href="mailto:support@provenrail.com">support@provenrail.com</a>
+        </nav>
+      </div>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Product</div>
+          <div class="footer-nav-links">
+            <a href="/#how-it-works">How it works</a>
+            <a href="/#see-it">Watch it work</a>
+            <a href="/#differentiators">Why Provenrail</a>
+            <a href="/pricing">Pricing</a>
+            <a href="/start">Start here (beginners)</a>
+            <a href="/docs">Quickstart</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Resources</div>
+          <div class="footer-nav-links">
+            <a href="/compare">Compare</a>
+            <a href="/claude-code-guardrails">Claude Code guardrails</a>
+            <a href="/eu-ai-act">EU AI Act Article 12</a>
+            <a href="/for-agencies">For freelancers and agencies</a>
+            <a href="/ai-agent-incidents">Agent incidents</a>
+            <a href="/security">Security</a>
+            <a href="/changelog">Changelog</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Legal</div>
+          <div class="footer-nav-links">
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+            <a href="/disclaimer">Disclaimer</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+    <div class="footer-copy container">
+      <p>Copyright 2026 Provenrail. All rights reserved.</p>
+      <p><span style="color:var(--accent)">pr-verify</span>, the SDK and the spec are open-source under MIT; the server under AGPL-3.0</p>
+    </div>
+    <div class="footer-copy container" style="margin-top:0;border-top:0;padding-top:0">
+      <p style="max-width:64ch;color:var(--text-lo);font-family:var(--font-body)">Provenrail is evidence tooling, not legal advice or a compliance guarantee. It makes recorded events tamper-evident and independently verifiable; it never claims completeness. Compliance references describe technical evidence mapping, not certification. Software provided as-is, without warranty.</p>
+    </div>
+  </footer>
+
+  <script src="/main.js" defer></script>
+</body>
+</html>

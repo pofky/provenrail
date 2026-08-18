@@ -272,21 +272,21 @@ def _cmd_anchor_push(args) -> int:
         print(f"  {args.url.rstrip('/')}/v1/anchors/{out['anchor_id']}")
     if args.receipt_out:
         Path(args.receipt_out).write_text(_json.dumps(out, indent=2), encoding="utf-8")
-        print(f"\nattestation written to {args.receipt_out}")
+        print(f"\nanchor receipt written to {args.receipt_out}")
     return 0
 
 
 def _cmd_anchor_verify(args) -> int:
-    """Prove that an attestation covers this bundle, using nothing but the two files.
+    """Prove that an anchor receipt covers this bundle, using nothing but the two files.
 
-    This is what the auditor runs. It deliberately does not call the anchor service: a check that
-    depends on asking the attesting party whether its own attestation is good proves nothing."""
+    This is what an auditor runs. It deliberately does not call the anchor service: a check that
+    depends on asking the issuing party whether its own receipt is good proves nothing."""
     import json as _json
 
     from .anchor import merkle_root
     from .keys import verify_signature
     bundle = _json.loads(Path(args.bundle).read_text(encoding="utf-8"))
-    att = _json.loads(Path(args.attestation).read_text(encoding="utf-8"))
+    att = _json.loads(Path(args.receipt).read_text(encoding="utf-8"))
     receipt = att.get("receipt") or att
     claimed_root = att.get("merkle_root") or receipt.get("merkle_root")
     covers = att.get("covers_up_to")
@@ -299,27 +299,27 @@ def _cmd_anchor_verify(args) -> int:
 
     problems: list[str] = []
     if covers is not None and covers != len(leaves):
-        # Not automatically a failure: an old attestation legitimately covers a prefix. It is a
+        # Not automatically a failure: an older receipt legitimately covers a prefix. It is a
         # failure only if the prefix root does not match, which the root check below decides.
         if covers > len(leaves):
-            problems.append(f"the attestation covers {covers} records but this bundle holds only "
+            problems.append(f"this receipt covers {covers} records but the bundle holds only "
                             f"{len(leaves)}: records are missing from the bundle")
         leaves = leaves[:covers]
     actual = merkle_root(leaves)
     if claimed_root != actual:
-        problems.append(f"the attested root is {claimed_root}, but these records hash to "
-                        f"{actual}: this attestation does not describe this bundle")
+        problems.append(f"the anchored root is {claimed_root}, but these records hash to "
+                        f"{actual}: this receipt does not describe this bundle")
     if receipt.get("kind") == "local":
         signed = (receipt.get("merkle_root", "") + "|" + receipt.get("gen_time", ""))
         if not verify_signature(receipt.get("anchor_pubkey", ""), signed.encode("utf-8"),
                                 receipt.get("signature", "")):
-            problems.append("the attestation's signature does not verify against the anchor key "
+            problems.append("this receipt's signature does not verify against the anchor key "
                             "it names")
     elif receipt.get("kind") == "rfc3161":
         if not receipt.get("token_b64"):
-            problems.append("this claims to be an RFC 3161 attestation but carries no token")
+            problems.append("this claims to be an RFC 3161 anchor but carries no token")
     else:
-        problems.append(f"unknown attestation kind {receipt.get('kind')!r}")
+        problems.append(f"unknown anchor receipt kind {receipt.get('kind')!r}")
 
     if args.json:
         print(_json.dumps({"result": "fail" if problems else "verified",
@@ -329,10 +329,10 @@ def _cmd_anchor_verify(args) -> int:
         for p in problems:
             print(f"[FAIL] {p}")
         if problems:
-            print("\nRESULT: ATTESTATION DOES NOT COVER THIS BUNDLE")
+            print("\nRESULT: THIS RECEIPT DOES NOT COVER THIS BUNDLE")
         else:
             print(f"[info] root {actual} over {len(leaves)} records")
-            print(f"[info] attested at {receipt.get('gen_time')} ({receipt.get('kind')})")
+            print(f"[info] anchored at {receipt.get('gen_time')} ({receipt.get('kind')})")
             print("\nRESULT: VERIFIED. These records existed in this order at that time.")
     return 1 if problems else 0
 
@@ -1154,16 +1154,16 @@ def build_parser() -> argparse.ArgumentParser:
     an.add_argument("--url", required=True, help="anchor service base URL")
     an.add_argument("--key", required=True, help="account API key for the anchor service")
     an.add_argument("--stream-id", help="override the stream label sent (default: the bundle's)")
-    an.add_argument("--receipt-out", help="write the attestation to this path")
+    an.add_argument("--receipt-out", help="write the anchor receipt to this path")
     an.add_argument("--timeout", type=float, default=30.0)
     an.add_argument("--json", action="store_true")
     an.set_defaults(func=_cmd_anchor_push)
 
     av = sub.add_parser("anchor-verify",
-                        help="prove an attestation covers this bundle, offline, without asking "
-                             "the party that issued it")
+                        help="prove an anchor receipt covers this bundle, offline, without "
+                             "asking the party that issued it")
     av.add_argument("bundle", help="path to an exported bundle JSON")
-    av.add_argument("attestation", help="path to the attestation JSON from anchor-push")
+    av.add_argument("receipt", help="path to the anchor receipt JSON written by anchor-push")
     av.add_argument("--json", action="store_true")
     av.set_defaults(func=_cmd_anchor_verify)
 

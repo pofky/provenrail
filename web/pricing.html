@@ -73,8 +73,8 @@
     "url": "https://provenrail.com/pricing",
     "offers": [
       { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "50k events per month, single project, hash-chain integrity, open-source verifier." },
-      { "@type": "Offer", "name": "Builder", "price": "29", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "500k events per month, RFC 3161 trusted timestamps, shareable proof links and live badge." },
-      { "@type": "Offer", "name": "Team", "price": "99", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "2M events per month, up to 10 members with roles and SSO, unlimited projects, data exports, one-click evidence packs." }
+      { "@type": "Offer", "name": "Builder", "price": "29", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "500k events per month, RFC 3161 trusted timestamps, independent anchoring of your chain, shareable proof links and live badge." },
+      { "@type": "Offer", "name": "Team", "price": "99", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "2M events per month, up to 10 members with roles and SSO, unlimited projects, data exports, one-click evidence packs mapped to EU AI Act Article 12 and ISO 42001." }
     ]
   }
   </script>
@@ -141,6 +141,8 @@
             <ul class="plan-features" aria-label="Builder plan features">
               <li class="plan-feature">500k events per month</li>
               <li class="plan-feature">RFC 3161 trusted timestamps</li>
+              <li class="plan-feature">Independent anchoring: send the root of your chain, keep every record (<code>pr anchor-push</code>)</li>
+              <li class="plan-feature">A public anchor receipt your client or auditor can check without an account</li>
               <li class="plan-feature">Shareable client proof links + live badge</li>
               <li class="plan-feature">Single project, single user</li>
               <li class="plan-feature">Email support</li>
@@ -158,7 +160,7 @@
               <li class="plan-feature">Up to 10 team members, roles + SSO</li>
               <li class="plan-feature">Unlimited projects</li>
               <li class="plan-feature">Data exports (NDJSON / SIEM)</li>
-              <li class="plan-feature">Evidence packs mapped to EU AI Act Article 12 and HIPAA audit-control requirements, from the dashboard in one click, no export step first (the CLI versions are on every plan)</li>
+              <li class="plan-feature">Evidence packs mapped to EU AI Act Article 12 and ISO 42001 controls, from the dashboard in one click, no export step first (the CLI versions are on every plan)</li>
               <li class="plan-feature">Priority email support</li>
             </ul>
             <a href="/account?plan=team" class="btn-plan" data-ev="cta_checkout_team">Start Team</a>
@@ -183,9 +185,10 @@
         <p class="price-note">
           Every plan includes full hash-chain integrity and the open-source verifier, identical on
           every tier. Paid plans add RFC 3161 trusted timestamps, shareable proof links and a live
-          badge (Builder); then up to 10 team members with roles and SSO, data exports, and
-          evidence packs mapped to EU AI Act Article 12 and HIPAA audit-control requirements (Team).
-          Limits apply to the licensed build you run. We host no agent records. 14-day refund on paid plans.
+          badge (Builder); then up to 10 team members with roles and SSO, data exports, and evidence
+          packs mapped to EU AI Act Article 12 and ISO 42001 controls (Team). Limits apply to the
+          licensed build you run. Your agent records stay on your infrastructure on every tier,
+          including paid ones. 14-day refund on paid plans.
         </p>
       </div>
     </section>
@@ -208,6 +211,8 @@
                 <tr><td>Open-source verifier</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Guardrails that block tool calls</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Evidence packs and reports (CLI)</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Independent anchoring of your chain (root only)</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Public anchor receipt for an auditor</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>RFC 3161 trusted timestamps</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Shareable proof links + live badge</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Team members</td><td>1</td><td>1</td><td>Up to 10</td><td>Unlimited</td></tr>
@@ -246,7 +251,13 @@
             <dd>No. Provenrail hosts identity and billing only. Agent records live in your own sink, on your own infrastructure. That is a deliberate design choice, and it is why the verifier runs entirely in your browser at <a href="/verify">provenrail.com/verify</a> with no upload.</dd>
 
             <dt>Can I self-host instead of paying?</dt>
-            <dd>Yes. The client, SDK, verifier and spec are MIT-licensed and the server is AGPL-3.0-or-later. Run the whole thing yourself at no cost. Paid plans exist for hosted convenience, external timestamps and team features, not to unlock the core.</dd>
+            <dd>Yes. The client, SDK, verifier and spec are MIT-licensed and the server is AGPL-3.0-or-later. Run the whole thing yourself at no cost. Paid plans exist for external time, independent anchoring and team features, not to unlock the core. There is no hosted tier to buy: you run the sink either way.</dd>
+
+            <dt>What is independent anchoring, and what leaves my machine?</dt>
+            <dd>Your records are hashed into a chain. Independent anchoring sends us the single root of that chain, 32 bytes, plus how many records it covers. Nothing else is sent, because the endpoint has no field anything else could arrive in. We timestamp that root, keep an append-only history of it, and publish it at a URL anyone can read without an account. Your client or auditor recomputes the root from the records you show them and checks it matches. If you later edit or delete a record, it stops matching, and neither you nor we can make it match again.</dd>
+
+            <dt>Why can I not just anchor my own chain?</dt>
+            <dd>You can, and the tooling is free. What you cannot do is be your own independent party. A timestamp you produced yourself proves the chain is internally consistent, not that it existed before the dispute. That is the only thing a paid plan sells that self-hosting cannot reproduce.</dd>
 
             <dt>How do refunds work?</dt>
             <dd>14 days on paid plans, no questions. Billing runs through Polar as merchant of record, so cancellation and refunds are handled from the same portal you subscribed in.</dd>
@@ -321,7 +332,8 @@
       { "@type": "Question", "name": "Does the Provenrail free plan expire?", "acceptedAnswer": { "@type": "Answer", "text": "No. Free is free forever at 50k events per month. There is no trial clock and no card required." } },
       { "@type": "Question", "name": "Is the cryptography weaker on the free plan?", "acceptedAnswer": { "@type": "Answer", "text": "No. Hash-chain integrity, Ed25519 signatures and the open-source verifier are identical on every tier. Paid plans add RFC 3161 timestamps from an external time authority, which prevents back-dating; they do not strengthen the chain itself." } },
       { "@type": "Question", "name": "Does Provenrail store my agent records?", "acceptedAnswer": { "@type": "Answer", "text": "No. Provenrail hosts identity and billing only. Agent records live in your own sink on your own infrastructure, which is why the verifier runs entirely in the browser with no upload." } },
-      { "@type": "Question", "name": "Can I self-host Provenrail instead of paying?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The client, SDK, verifier and spec are MIT-licensed and the server is AGPL-3.0-or-later, so you can run the whole system yourself at no cost. Paid plans add hosted convenience, external timestamps and team features." } },
+      { "@type": "Question", "name": "Can I self-host Provenrail instead of paying?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The client, SDK, verifier and spec are MIT-licensed and the server is AGPL-3.0-or-later, so you can run the whole system yourself at no cost. Paid plans add external time, independent anchoring and team features. There is no hosted tier to buy: you run the sink either way." } },
+      { "@type": "Question", "name": "What is independent anchoring, and what leaves my machine?", "acceptedAnswer": { "@type": "Answer", "text": "Your records are hashed into a chain. Independent anchoring sends Provenrail the single root of that chain, 32 bytes, plus how many records it covers, and nothing else. Provenrail timestamps that root and publishes it at a URL anyone can read without an account. Your auditor recomputes the root from the records you show them and checks that it matches." } },
       { "@type": "Question", "name": "How do Provenrail refunds work?", "acceptedAnswer": { "@type": "Answer", "text": "14 days on paid plans. Billing runs through Polar as merchant of record, so cancellation and refunds are handled from the same portal you subscribed in." } }
     ]
   }
