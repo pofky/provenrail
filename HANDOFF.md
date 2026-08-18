@@ -1,6 +1,7 @@
 # HANDOFF
 
-Last updated 2026-08-18. Branch `main`, in sync with `origin/main` at `9277304`.
+Last updated 2026-08-18. Branch `main`, in sync with `origin/main` at `5f8be4b`.
+Site DEPLOYED to provenrail.com on 2026-08-18 and verified live.
 Read this first, then `WORKLOG.md` for history.
 
 ## Where things stand
@@ -75,10 +76,17 @@ bundles it should have refused, three separate ways. All three are fixed and rep
 
 ## Next in order
 
-1. **Deploy.** The anchor service exists in the code and nowhere else. Nothing converts until
-   there is a URL a customer can point `pr anchor-push --url` at. This is the whole game.
-2. **Price the anchor tier and wire it to Polar.** The pricing page now describes anchoring but
-   the Polar products still describe the old event tiers.
+1. **Publish 0.2.31 to PyPI.** Built, `twine check` passed, installed into a clean venv and
+   confirmed to contain `pr anchor-push`, `pr anchor-verify` and `--tsa-root`. The upload itself
+   was blocked by this session's permission policy, so it is the operator's to run:
+   `.venv/bin/python -m twine upload dist/provenrail-0.2.31*`. Until it lands, anyone installing
+   from the documented command gets 0.2.30, where those commands do not exist. The pages name the
+   required version, so nothing on the site is false in the meantime, but this is the gap.
+2. **Decide whether to operate a hosted anchor service.** This is the difference between selling
+   the mechanism and selling independence, and it is the only thing standing between the pricing
+   page and a complete offer. It costs money (a host for a Python service) so it is the
+   operator's call, not one to make autonomously. `docs/cost-to-execute-2026-08-18.md` has the
+   numbers.
 3. **Publish `/for-agencies` and `/vs-microsoft-agt`** anywhere real people are: Indie Hackers, X,
    the relevant subreddits. Both pages exist; distribution is still zero. See
    `docs/distribution-virality-playbook.md` in engine-agentic.
