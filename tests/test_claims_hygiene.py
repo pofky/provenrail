@@ -38,9 +38,12 @@ BANNED = {
 #: the phrase it is denying.
 EXEMPT = {"DISCLAIMER.md", "disclaimer.html", "COMPLIANCE.md", "STRATEGY.md",
           "test_claims_hygiene.py",
-          # The policy file has to be able to name the thing it forbids ("do not offer to be a
-          # HIPAA business associate"). It is internal, and it is the rule, not a claim.
-          "BUSINESS.md"}
+          # These two have to be able to name the things they forbid ("do not offer to be a
+          # HIPAA business associate", "the page used to say hosted convenience"). Both are
+          # internal, neither is shipped copy, and in both the phrase appears inside the rule
+          # against it. A test that fired on its own rulebook would teach the next session to
+          # delete the test.
+          "BUSINESS.md", "HANDOFF.md"}
 
 
 def _shipped_files():
