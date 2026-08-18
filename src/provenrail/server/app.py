@@ -21,6 +21,7 @@ from fastapi import FastAPI, Header, HTTPException, Path, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
+from .. import anchor as anchor_mod
 from .. import redaction
 from ..anchor import Anchor, LocalAnchor
 from ..canonical import CanonicalError
@@ -46,6 +47,18 @@ class CreateAccountIn(BaseModel):
 
 class IngestIn(BaseModel):
     records: list[dict[str, Any]]
+
+
+class AnchorRootIn(BaseModel):
+    """One anchor from a customer-hosted sink.
+
+    Note what is absent: there is no field for a record, a prompt, an output, or a name. The
+    schema is the privacy guarantee. A customer who self-hosts sends the root of their own
+    hash tree and keeps everything the root was computed over, so this endpoint cannot receive
+    personal data even if a caller wanted to send it."""
+    stream_id: str
+    merkle_root: str
+    covers_up_to: int
 
 
 class ApprovalIn(BaseModel):
@@ -542,6 +555,80 @@ def create_app(
         if owner is not None:
             store.bump_usage(owner, anchors=1)
         return result
+
+    # ---- the anchor-only trust service ---------------------------------------------------
+    # A customer runs their own sink under the AGPL, keeps every record, and sends only the root
+    # of the hash tree over those records. We timestamp it, keep an append-only history of it,
+    # and will attest to it for a stranger. That independence is the thing a self-hoster cannot
+    # manufacture for themselves, and it is sold without ever receiving their data.
+
+    @app.post("/v1/anchors")
+    def anchor_root(body: AnchorRootIn, authorization: str | None = Header(default=None)):
+        from dataclasses import asdict
+
+        from ..chain import _utc_now_iso
+
+        principal = _require(authorization, "stream.anchor")
+        stream_id = (body.stream_id or "").strip()
+        if not stream_id or len(stream_id) > 200:
+            raise HTTPException(422, "stream_id must be a label of 1 to 200 characters")
+        if body.covers_up_to < 1:
+            raise HTTPException(422, "covers_up_to is how many records the root spans, so it "
+                                     "must be at least 1")
+        if not app.state.anchor_limiter.allow(stream_id):
+            raise HTTPException(429, "anchor rate limit exceeded for this stream")
+        try:
+            root = anchor_mod._checked_root(body.merkle_root)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+
+        account_id = None if principal is None else principal["account_id"]
+        if account_id is not None:
+            plan = _effective_plan(account_id)
+            if plans.would_exceed(plan, "anchors", store.get_usage(account_id)["anchors"], 1):
+                raise HTTPException(402, f"monthly anchor quota for plan '{plan}' reached; "
+                                    "upgrade the plan to continue anchoring")
+            backend = (app.state.scheduler.anchor if plans.feature(plan, "trusted_time")
+                       else app.state.scheduler.local_anchor)
+        else:
+            backend = app.state.scheduler.local_anchor
+        receipt = backend.anchor_root(root)   # network round-trip to the TSA, no lock held
+        try:
+            stored = store.append_external_anchor(
+                anchor_id=sec.new_anchor_id(),
+                account_id=account_id or "open",
+                stream_id=stream_id,
+                merkle_root=root,
+                covers_up_to=body.covers_up_to,
+                receipt=asdict(receipt),
+                created_at=_utc_now_iso(),
+            )
+        except storage_mod.CoverageWentBackwards as e:
+            # 409, not 400: the request is well formed, it conflicts with history. The receipt
+            # minted above is simply discarded; nothing was recorded.
+            raise HTTPException(409, str(e)) from None
+        if account_id is not None:
+            store.bump_usage(account_id, anchors=1)
+        _audit(principal, "anchor.external", "stream", stream_id,
+               {"covers_up_to": body.covers_up_to, "anchor_id": stored["anchor_id"]})
+        return stored
+
+    @app.get("/v1/anchors/{anchor_id}")
+    def get_anchor(anchor_id: str = Path(...)):
+        """Public on purpose. The customer hands an auditor an anchor id, and the auditor must be
+        able to check it without an account, without our permission, and without asking the
+        customer again. There is nothing here to protect: a root, a time, and a signature."""
+        found = store.get_external_anchor(anchor_id)
+        if found is None:
+            raise HTTPException(404, "no such anchor")
+        return found
+
+    @app.get("/v1/anchors")
+    def list_anchors(stream_id: str | None = None,
+                     authorization: str | None = Header(default=None)):
+        principal = _require(authorization, "stream.read")
+        account_id = None if principal is None else principal["account_id"]
+        return {"anchors": store.list_external_anchors(account_id or "open", stream_id)}
 
     @app.get("/v1/streams/{stream_id}/export")
     def export(stream_id: str = Path(...), authorization: str | None = Header(default=None)):

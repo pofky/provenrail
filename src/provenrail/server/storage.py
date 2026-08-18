@@ -61,6 +61,21 @@ CREATE TABLE IF NOT EXISTS anchors (
     receipt       TEXT NOT NULL,      -- AnchorReceipt JSON
     PRIMARY KEY (stream_id, anchor_seq)
 );
+-- The anchor-only trust service. A customer who self-hosts their own sink keeps every record
+-- and sends nothing but a Merkle root over their record hashes. This table therefore holds no
+-- personal data and no content by construction: there is no column that could carry any. That is
+-- the whole point, and it is why this service can be operated without becoming a processor.
+CREATE TABLE IF NOT EXISTS external_anchors (
+    anchor_id     TEXT PRIMARY KEY,
+    account_id    TEXT NOT NULL,
+    stream_id     TEXT NOT NULL,     -- the customer's own label; opaque to us
+    merkle_root   TEXT NOT NULL,     -- 64 hex chars, over THEIR record hashes
+    covers_up_to  INTEGER NOT NULL,  -- how many records the root spans
+    receipt       TEXT NOT NULL,     -- AnchorReceipt JSON
+    created_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS external_anchors_by_stream
+    ON external_anchors(account_id, stream_id, covers_up_to);
 CREATE TABLE IF NOT EXISTS webhooks (
     webhook_id    TEXT PRIMARY KEY,
     account_id    TEXT,
@@ -190,6 +205,15 @@ class SeqConflict(Exception):
     Raised at the door rather than recorded, because an append-only store cannot take a bad
     record back: once stored, the stream fails verification forever with no remedy.
     """
+
+
+class CoverageWentBackwards(ValueError):
+    """Raised when an anchor would cover less of a stream than that stream's newest anchor does.
+
+    Rejecting this is what makes the anchor history evidence rather than a log. If coverage could
+    shrink, a customer could anchor 1000 records, have something go wrong at record 400, and
+    re-anchor the shorter chain as though the tail never existed, carrying our signature. The
+    refusal is the service."""
 
 
 class _Rows:
@@ -992,6 +1016,73 @@ class Storage:
                 (stream_id, state, _now()),
             )
             self._db.commit()
+
+    # ---- anchor-only trust service -------------------------------------------------------
+    # Nothing below ever reads or writes a record. It cannot: the customer holds them all.
+
+    def append_external_anchor(self, *, anchor_id: str, account_id: str, stream_id: str,
+                               merkle_root: str, covers_up_to: int,
+                               receipt: dict[str, Any], created_at: str) -> dict[str, Any]:
+        with self._lock:
+            prev = self._db.execute(
+                "SELECT covers_up_to, merkle_root FROM external_anchors "
+                "WHERE account_id=? AND stream_id=? ORDER BY covers_up_to DESC LIMIT 1",
+                (account_id, stream_id),
+            ).fetchone()
+            if prev is not None and covers_up_to < prev["covers_up_to"]:
+                raise CoverageWentBackwards(
+                    f"this stream is already anchored to {prev['covers_up_to']} records; an "
+                    f"anchor covering only {covers_up_to} would drop the tail. Anchor the "
+                    f"full chain, or open a new stream if you meant to start over.")
+            if (prev is not None and covers_up_to == prev["covers_up_to"]
+                    and merkle_root != prev["merkle_root"]):
+                raise CoverageWentBackwards(
+                    f"this stream is already anchored at {covers_up_to} records with a "
+                    f"different root. The same prefix cannot have two histories.")
+            self._db.execute(
+                "INSERT INTO external_anchors(anchor_id, account_id, stream_id, merkle_root, "
+                "covers_up_to, receipt, created_at) VALUES (?,?,?,?,?,?,?)",
+                (anchor_id, account_id, stream_id, merkle_root, covers_up_to,
+                 json.dumps(receipt, ensure_ascii=False), created_at),
+            )
+            self._db.commit()
+        return {"anchor_id": anchor_id, "stream_id": stream_id, "merkle_root": merkle_root,
+                "covers_up_to": covers_up_to, "receipt": receipt, "created_at": created_at}
+
+    def get_external_anchor(self, anchor_id: str) -> dict[str, Any] | None:
+        """Read one attestation by id. Deliberately does NOT return account_id: this backs the
+        public auditor lookup, where the reader is a stranger holding only a receipt."""
+        row = self._db.execute(
+            "SELECT anchor_id, stream_id, merkle_root, covers_up_to, receipt, created_at "
+            "FROM external_anchors WHERE anchor_id=?", (anchor_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return {"anchor_id": row["anchor_id"], "stream_id": row["stream_id"],
+                "merkle_root": row["merkle_root"], "covers_up_to": row["covers_up_to"],
+                "receipt": json.loads(row["receipt"]), "created_at": row["created_at"]}
+
+    def list_external_anchors(self, account_id: str,
+                              stream_id: str | None = None) -> list[dict[str, Any]]:
+        sql = ("SELECT anchor_id, stream_id, merkle_root, covers_up_to, receipt, created_at "
+               "FROM external_anchors WHERE account_id=?")
+        params: list[Any] = [account_id]
+        if stream_id is not None:
+            sql += " AND stream_id=?"
+            params.append(stream_id)
+        sql += " ORDER BY created_at ASC, covers_up_to ASC"
+        return [
+            {"anchor_id": r["anchor_id"], "stream_id": r["stream_id"],
+             "merkle_root": r["merkle_root"], "covers_up_to": r["covers_up_to"],
+             "receipt": json.loads(r["receipt"]), "created_at": r["created_at"]}
+            for r in self._db.execute(sql, params).fetchall()
+        ]
+
+    def count_external_anchors(self, account_id: str) -> int:
+        row = self._db.execute(
+            "SELECT COUNT(*) AS n FROM external_anchors WHERE account_id=?", (account_id,),
+        ).fetchone()
+        return int(row["n"])
 
     def get_anchors(self, stream_id: str) -> list[dict[str, Any]]:
         cur = self._db.execute(

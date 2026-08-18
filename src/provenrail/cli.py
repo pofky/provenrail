@@ -209,6 +209,134 @@ def _cmd_verify_content(args) -> int:
     return 1
 
 
+def _bundle_leaves(bundle: dict) -> list[str]:
+    """The leaves an anchor commits to: the receipt-chain hash of every record, in order.
+
+    This is the same list the hosted anchor path builds from its own database, so a root computed
+    here from an exported bundle and a root computed there from storage are the same number. That
+    equality is what lets a self-hoster buy independence without sending anyone their records."""
+    records = bundle.get("records") or []
+    leaves = [r.get("server_record_hash") for r in records]
+    if any(not isinstance(h, str) for h in leaves):
+        raise ValueError("this bundle has a record without a server_record_hash, so no root "
+                         "over it would mean anything")
+    return leaves
+
+
+def _cmd_anchor_push(args) -> int:
+    """Send the root of a locally-held chain to an anchor service, and keep nothing else there.
+
+    The bundle never leaves this machine. What travels is 32 bytes and a count."""
+    import json as _json
+
+    import httpx
+
+    from .anchor import merkle_root
+    bundle = _json.loads(Path(args.bundle).read_text(encoding="utf-8"))
+    try:
+        leaves = _bundle_leaves(bundle)
+    except ValueError as e:
+        print(f"{e}", file=sys.stderr)
+        return 2
+    if not leaves:
+        print("this bundle has no records, so there is nothing to anchor.", file=sys.stderr)
+        return 2
+    stream_id = args.stream_id or bundle.get("stream_id")
+    if not stream_id:
+        print("this bundle names no stream, so pass --stream-id.", file=sys.stderr)
+        return 2
+    root = merkle_root(leaves)
+    payload = {"stream_id": stream_id, "merkle_root": root, "covers_up_to": len(leaves)}
+    try:
+        resp = httpx.post(args.url.rstrip("/") + "/v1/anchors", json=payload, timeout=args.timeout,
+                          headers={"Authorization": f"Bearer {args.key}"})
+    except httpx.HTTPError as e:
+        print(f"could not reach the anchor service at {args.url}: {e}", file=sys.stderr)
+        return 3
+    if resp.status_code == 409:
+        # The service refused to sign a shorter or forked history. That is the service working.
+        print(f"refused: {resp.json().get('detail', resp.text)}", file=sys.stderr)
+        return 1
+    if resp.status_code >= 400:
+        print(f"anchor service returned {resp.status_code}: {resp.text}", file=sys.stderr)
+        return 3
+    out = resp.json()
+    if args.json:
+        print(_json.dumps(out, indent=2))
+    else:
+        print(f"anchored {len(leaves)} records of stream {stream_id}")
+        print(f"  root       {root}")
+        print(f"  anchor id  {out['anchor_id']}")
+        print(f"  timestamp  {out['receipt'].get('gen_time')} ({out['receipt'].get('kind')})")
+        print("\nGive an auditor this URL; they need no account and no permission from you:")
+        print(f"  {args.url.rstrip('/')}/v1/anchors/{out['anchor_id']}")
+    if args.receipt_out:
+        Path(args.receipt_out).write_text(_json.dumps(out, indent=2), encoding="utf-8")
+        print(f"\nattestation written to {args.receipt_out}")
+    return 0
+
+
+def _cmd_anchor_verify(args) -> int:
+    """Prove that an attestation covers this bundle, using nothing but the two files.
+
+    This is what the auditor runs. It deliberately does not call the anchor service: a check that
+    depends on asking the attesting party whether its own attestation is good proves nothing."""
+    import json as _json
+
+    from .anchor import merkle_root
+    from .keys import verify_signature
+    bundle = _json.loads(Path(args.bundle).read_text(encoding="utf-8"))
+    att = _json.loads(Path(args.attestation).read_text(encoding="utf-8"))
+    receipt = att.get("receipt") or att
+    claimed_root = att.get("merkle_root") or receipt.get("merkle_root")
+    covers = att.get("covers_up_to")
+
+    try:
+        leaves = _bundle_leaves(bundle)
+    except ValueError as e:
+        print(f"[FAIL] {e}", file=sys.stderr)
+        return 1
+
+    problems: list[str] = []
+    if covers is not None and covers != len(leaves):
+        # Not automatically a failure: an old attestation legitimately covers a prefix. It is a
+        # failure only if the prefix root does not match, which the root check below decides.
+        if covers > len(leaves):
+            problems.append(f"the attestation covers {covers} records but this bundle holds only "
+                            f"{len(leaves)}: records are missing from the bundle")
+        leaves = leaves[:covers]
+    actual = merkle_root(leaves)
+    if claimed_root != actual:
+        problems.append(f"the attested root is {claimed_root}, but these records hash to "
+                        f"{actual}: this attestation does not describe this bundle")
+    if receipt.get("kind") == "local":
+        signed = (receipt.get("merkle_root", "") + "|" + receipt.get("gen_time", ""))
+        if not verify_signature(receipt.get("anchor_pubkey", ""), signed.encode("utf-8"),
+                                receipt.get("signature", "")):
+            problems.append("the attestation's signature does not verify against the anchor key "
+                            "it names")
+    elif receipt.get("kind") == "rfc3161":
+        if not receipt.get("token_b64"):
+            problems.append("this claims to be an RFC 3161 attestation but carries no token")
+    else:
+        problems.append(f"unknown attestation kind {receipt.get('kind')!r}")
+
+    if args.json:
+        print(_json.dumps({"result": "fail" if problems else "verified",
+                           "merkle_root": actual, "covers_up_to": covers,
+                           "problems": problems}, indent=2))
+    else:
+        for p in problems:
+            print(f"[FAIL] {p}")
+        if problems:
+            print("\nRESULT: ATTESTATION DOES NOT COVER THIS BUNDLE")
+        else:
+            print(f"[info] root {actual} over {len(leaves)} records")
+            print(f"[info] attested at {receipt.get('gen_time')} ({receipt.get('kind')})")
+            print("\nRESULT: VERIFIED. These records existed in this order at that time.")
+    return 1 if problems else 0
+
+
 def _cmd_ots_verify(args) -> int:
     """Verify an OpenTimestamps (Bitcoin) proof offline: replay its operations and report which
     Bitcoin block it anchors to. Supply --data-sha256 (the SHA-256 of what was stamped) and, to
@@ -1018,6 +1146,26 @@ def build_parser() -> argparse.ArgumentParser:
     vc.add_argument("--field", help="only check this field (e.g. request, response, args, result)")
     vc.add_argument("--json", action="store_true")
     vc.set_defaults(func=_cmd_verify_content)
+
+    an = sub.add_parser("anchor-push",
+                        help="send the root of a local bundle to an anchor service; the records "
+                             "themselves never leave this machine")
+    an.add_argument("bundle", help="path to an exported bundle JSON")
+    an.add_argument("--url", required=True, help="anchor service base URL")
+    an.add_argument("--key", required=True, help="account API key for the anchor service")
+    an.add_argument("--stream-id", help="override the stream label sent (default: the bundle's)")
+    an.add_argument("--receipt-out", help="write the attestation to this path")
+    an.add_argument("--timeout", type=float, default=30.0)
+    an.add_argument("--json", action="store_true")
+    an.set_defaults(func=_cmd_anchor_push)
+
+    av = sub.add_parser("anchor-verify",
+                        help="prove an attestation covers this bundle, offline, without asking "
+                             "the party that issued it")
+    av.add_argument("bundle", help="path to an exported bundle JSON")
+    av.add_argument("attestation", help="path to the attestation JSON from anchor-push")
+    av.add_argument("--json", action="store_true")
+    av.set_defaults(func=_cmd_anchor_verify)
 
     ov = sub.add_parser("ots-verify",
                         help="verify an OpenTimestamps (Bitcoin) proof offline")

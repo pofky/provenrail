@@ -123,6 +123,13 @@ def new_member_id() -> str:
     return f"mbr_{uuid.uuid4().hex[:20]}"
 
 
+def new_anchor_id() -> str:
+    """Public by design: an anchor id is the thing a customer hands an auditor, so it appears in
+    URLs and in evidence. It carries no account and no stream, and it is unguessable, so holding
+    one reveals only the attestation it names."""
+    return f"anc_{uuid.uuid4().hex}"
+
+
 # ---- RBAC: roles and the permissions each grants ----
 # Least privilege by role. viewer can look but not export or change anything; member runs
 # agents and pulls evidence for its own streams; admin manages streams/members/webhooks;

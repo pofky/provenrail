@@ -44,6 +44,20 @@ def merkle_root(leaves_hex: list[str]) -> str:
     return level[0].hex()
 
 
+def _checked_root(root_hex: str) -> str:
+    """A root arrives over the wire in the anchor-only service, so it is untrusted input. It must
+    be exactly 32 hex-encoded bytes: anything else is a client bug, and timestamping it would mint
+    a receipt that can never match any bundle."""
+    root = (root_hex or "").strip().lower()
+    if len(root) != 64:
+        raise ValueError(f"a Merkle root is 32 bytes, so 64 hex characters, got {len(root)}")
+    try:
+        bytes.fromhex(root)
+    except ValueError:
+        raise ValueError("a Merkle root must be hex") from None
+    return root
+
+
 @dataclass
 class AnchorReceipt:
     kind: str            # "rfc3161" | "local"
@@ -57,6 +71,7 @@ class AnchorReceipt:
 
 class Anchor(Protocol):
     def anchor(self, leaves_hex: list[str]) -> AnchorReceipt: ...
+    def anchor_root(self, root_hex: str) -> AnchorReceipt: ...
 
 
 class LocalAnchor:
@@ -67,7 +82,12 @@ class LocalAnchor:
         self._key = signing_key or SigningKey.generate()
 
     def anchor(self, leaves_hex: list[str]) -> AnchorReceipt:
-        root = merkle_root(leaves_hex)
+        return self.anchor_root(merkle_root(leaves_hex))
+
+    def anchor_root(self, root_hex: str) -> AnchorReceipt:
+        """Timestamp a root someone else computed. The anchor-only service never sees the
+        leaves, so it cannot derive the root; it can only attest to the one it was handed."""
+        root = _checked_root(root_hex)
         gen_time = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         sig = self._key.sign((root + "|" + gen_time).encode("utf-8"))
         return AnchorReceipt(
@@ -87,12 +107,15 @@ class RFC3161Anchor:
         self.timeout = timeout
 
     def anchor(self, leaves_hex: list[str]) -> AnchorReceipt:
+        return self.anchor_root(merkle_root(leaves_hex))
+
+    def anchor_root(self, root_hex: str) -> AnchorReceipt:
         import base64
 
         import httpx
         from rfc3161_client import TimestampRequestBuilder, decode_timestamp_response
 
-        root = merkle_root(leaves_hex)
+        root = _checked_root(root_hex)
         req = TimestampRequestBuilder().data(bytes.fromhex(root)).build()
         resp = httpx.post(
             self.tsa_url,
@@ -135,10 +158,17 @@ class MultiTSAAnchor:
         self._factory = _factory or (lambda url: RFC3161Anchor(url, timeout))
 
     def anchor(self, leaves_hex: list[str]) -> AnchorReceipt:
+        return self._first_that_answers(lambda a: a.anchor(leaves_hex))
+
+    def anchor_root(self, root_hex: str) -> AnchorReceipt:
+        root = _checked_root(root_hex)
+        return self._first_that_answers(lambda a: a.anchor_root(root))
+
+    def _first_that_answers(self, call) -> AnchorReceipt:
         last_error: Exception | None = None
         for url in self.tsa_urls:
             try:
-                return self._factory(url).anchor(leaves_hex)
+                return call(self._factory(url))
             except Exception as e:  # try the next TSA; only the final failure propagates
                 last_error = e
         raise RuntimeError(
