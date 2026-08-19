@@ -18,3 +18,18 @@ _No active work._
 
 - Distribution, not product quality, is the binding constraint. Launch assets are written and unused in `docs/DISTRIBUTION-KIT.md`, `docs/launch-posts.md`, `docs/GTM-2026-08.md`.
 - Strategy, GTM and owner runbooks live in the private `provenrail-internal` repo. Never commit them to the public tree.
+
+## 2026-08-19 - Hosted anchor service live, 0.2.32
+
+Opened the hosted anchor service on the Supabase free tier, which removes the monthly cost that
+made "should we operate one" an open question. Authentication is the licence key Polar already
+mints, so buying the plan is the entire provisioning step. Every anchor now carries an RFC 3161
+timestamp from FreeTSA rather than one we asserted ourselves.
+
+Driving it against the live database found three defects that reading the source did not: a
+non-minimal DER nonce that made roughly one anchor in 250 fall back to self-signed, a success
+finding printed as a warning, and a verifier that reported the date written beside an RFC 3161
+token instead of the one signed inside it.
+
+Published 0.2.32, tagged `v0.2.32`, deployed the site, and updated the copy that said the service
+was not open. Full flow verified from a clean PyPI install.
