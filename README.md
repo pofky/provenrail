@@ -324,11 +324,12 @@ pr anchor-push bundle.json --url "$ANCHOR_URL" --key "$ACCOUNT_KEY" \
 These two commands arrived in 0.2.31; on an older install they exit with `invalid choice`.
 
 `$ANCHOR_URL` is any Provenrail server reachable by both you and whoever checks your evidence.
-Run `pr serve` on a second machine and point at that, and the mechanism works end to end today,
-which is the honest way to try it. Note what that does and does not buy you: a service you run
-yourself gives you the append-only history and the receipt, but it cannot make you independent of
-yourself. **Provenrail does not yet operate a public anchor service**, so the independence half of
-this is not something you can buy right now. When it opens, only the URL changes.
+Two of them exist. `pr serve` on a second machine works end to end and costs nothing, but note
+what it does not buy you: a service you run yourself gives you the append-only history and the
+receipt, and cannot make you independent of yourself. The other is
+`https://provenrail.com`, which we operate, where the credential is the licence key from a paid
+plan and every anchor carries an RFC 3161 timestamp from a public authority rather than one we
+asserted. Switching between them is a change of URL and nothing else.
 
 The anchor service stores the root, the coverage and a timestamp, and publishes them at a URL
 anyone can read without an account. It has no field a record could arrive in, so it cannot receive

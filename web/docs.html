@@ -125,6 +125,7 @@
       <a href="#content">Transcripts &amp; redaction</a>
       <a href="#cli">CLI</a>
       <a href="#selfhost">Self-host the sink</a>
+      <a href="#anchor">Anchor your chain</a>
       <a href="#team">Team &amp; SSO</a>
       <a href="#licensing">Licensing</a>
       <a href="#source">Source</a>
@@ -483,6 +484,49 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
     <div class="note"><strong>Harder to skip.</strong> Run <code>pr sidecar</code> as an outbound proxy and
       lock model egress to it, so capture is mandatory rather than a default. Add <code>--fail-closed</code>
       to refuse any call that cannot be recorded.</div>
+
+    <h2 id="anchor">Anchor your chain</h2>
+    <p>Everything above proves your records are internally consistent. It cannot prove they existed
+      before the argument started, because you signed them and you hold them. That is the one thing
+      you cannot do for yourself, and it is what anchoring is for: you publish a fingerprint of your
+      chain somewhere you do not control, and later you can show the fingerprint has not moved.</p>
+
+    <pre><code><span class="g">pr anchor-push</span> bundle.json --url https://provenrail.com --key <span class="g">$PROVENRAIL_LICENSE</span></code></pre>
+
+    <p>Your licence key is the credential. There is nothing to sign up for beyond a
+      <a href="/pricing">Builder or Team plan</a>; the key you already have names your account and
+      your plan, and the service verifies it without a lookup.</p>
+
+    <h3>What actually travels</h3>
+    <p>Three things: a stream label you choose, a 64-character fingerprint of your records (a
+      SHA-256 Merkle root over their hashes), and how many records it covers. You keep every record.
+      There is no field in the request a record could arrive in, so we cannot read your prompts,
+      reconstruct your chain, or show anyone what your agents did, because we are never sent it.
+      That is the reason we can host this part and not the rest.</p>
+
+    <h3>What you get back</h3>
+    <p>A receipt carrying an RFC 3161 trusted timestamp from a public authority, so the date is not
+      ours to assert either, and a URL an auditor can open with no account and no permission from
+      you. Save the receipt:</p>
+    <pre><code><span class="g">pr anchor-push</span> bundle.json --url https://provenrail.com --key $PROVENRAIL_LICENSE \
+  --receipt-out receipt.json</code></pre>
+    <p>Then anyone can check it against your records, offline, without asking us anything:</p>
+    <pre><code><span class="g">pr anchor-verify</span> bundle.json receipt.json</code></pre>
+    <p>That recomputes the root from the records in the bundle, compares it with the one under the
+      signature, validates the timestamp's certificate chain, and verifies the bundle's own hash
+      chain. If someone edited a record after it was anchored, this is what says so.</p>
+
+    <h3>What it refuses</h3>
+    <p>Coverage of a stream only ever grows. If you anchor 1,000 records, something goes wrong at
+      400, and you try to anchor the shorter chain, the service refuses rather than signing over
+      your own history. The same length cannot get two different roots either. An exact repeat of a
+      request you already made returns the original receipt rather than a second one, so retries are
+      safe.</p>
+
+    <div class="note"><strong>Or anchor to yourself.</strong> <code>pr serve --anchor rfc3161</code> on
+      a machine you control accepts the same command with a different <code>--url</code>. You get the
+      append-only history and the receipt and a real trusted timestamp; what you do not get is
+      independence from yourself, which is the half worth paying for.</div>
 
     <h2 id="team">Team and SSO</h2>
     <p>On the <a href="/pricing">Team plan</a> you can invite up to 10 teammates with role-based

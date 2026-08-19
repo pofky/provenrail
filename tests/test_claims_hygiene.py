@@ -160,14 +160,49 @@ def test_no_page_points_a_customer_at_a_host_that_does_not_exist():
     assert not offences, "copy names a host we do not run:\n  " + "\n  ".join(offences)
 
 
-def test_the_hosted_anchor_service_is_not_described_as_available():
-    """The paid tiers list anchoring. The code ships, but nobody operates the independent service
-    yet, and a customer who pays for independence and gets a URL they have to run themselves has
-    been sold something. Every page that lists it must say so in the same breath."""
-    for name in ("pricing.html", "index.html"):
-        page = (ROOT / "web" / name).read_text(encoding="utf-8").lower()
-        if "anchoring" not in page:
+def test_a_page_that_asks_for_a_root_says_that_is_all_we_get():
+    """The hosted anchor service opened, and the risk on these pages inverted.
+
+    Until it did, the danger was selling something nobody operated, and the test here required
+    every page listing anchoring to say it was not open. The danger now is the opposite: a page
+    that invites a customer to send us something and leaves them to guess what "something" is.
+    They will assume the normal thing, which is that a service holding your evidence holds your
+    evidence. This one holds a 64-character fingerprint and a count, and cannot hold more, and
+    that is the entire basis on which a sole proprietor can operate it at all.
+
+    So any page that points a customer at our anchor URL has to say, on that page, what actually
+    travels and what stays with them.
+    """
+    offences = []
+    for path in sorted((ROOT / "web").glob("*.html")):
+        page = path.read_text(encoding="utf-8")
+        if "--url https://provenrail.com" not in page:
             continue
-        assert "not open yet" in page, (
-            f"web/{name} advertises anchoring without saying the hosted service is not open yet. "
-            f"When it opens, change this test in the same commit.")
+        flat = " ".join(page.split()).lower()
+        says_root_only = ("root of your chain" in flat or "fingerprint of your records" in flat
+                          or "root only" in flat)
+        says_you_keep = "keep every record" in flat or "you keep every record" in flat
+        if not (says_root_only and says_you_keep):
+            offences.append(f"{path.name} tells a customer to push to our anchor service without "
+                            f"saying on the same page that only the root travels and they keep "
+                            f"every record")
+    assert not offences, "\n  ".join(offences)
+
+
+def test_no_page_says_we_hold_records_we_are_not_sent():
+    """The one claim that would be both false and legally load-bearing.
+
+    Provenrail's whole position is that the operator never becomes a processor of anyone's agent
+    records. A page describing the hosted service as storing, keeping, or hosting records would
+    contradict what the service does and describe a business the operator cannot lawfully run
+    without a company.
+    """
+    import re
+
+    bad = re.compile(r"\bwe (store|keep|host|retain|hold) (your |their )?(agent )?records\b", re.I)
+    offences = []
+    for path in sorted((ROOT / "web").glob("*.html")) + [ROOT / "README.md"]:
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if bad.search(line):
+                offences.append(f"{path.name}:{n}: {line.strip()[:120]}")
+    assert not offences, "copy claims we hold records we never receive:\n  " + "\n  ".join(offences)
