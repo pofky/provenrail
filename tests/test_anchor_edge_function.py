@@ -185,3 +185,13 @@ def test_the_service_prefers_a_third_party_timestamp():
     assert body.index("trustedTimestamp(") < body.index("selfSigned(root)"), \
         "the self-signed path is no longer the fallback"
     assert "AbortSignal.timeout(" in body, "a hanging authority would hang the anchor request"
+
+
+@pytest.mark.skipif(shutil.which("deno") is None, reason="deno not installed")
+def test_the_edge_function_typechecks():
+    """`supabase functions deploy` bundles without type-checking, so a function with a genuine
+    type error deploys happily and fails at the first request that reaches the broken line. The
+    tests above read the source as text and would not notice. This runs the compiler."""
+    res = subprocess.run(["deno", "check", str(EDGE_FN)], capture_output=True, text=True,
+                         cwd=str(ROOT))
+    assert res.returncode == 0, res.stdout + res.stderr

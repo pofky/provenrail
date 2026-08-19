@@ -84,6 +84,25 @@ const SHA512_ALG_ID = Uint8Array.from([
 // ---- request --------------------------------------------------------------------------------
 
 /**
+ * Encode arbitrary bytes as a positive DER INTEGER.
+ *
+ * Two rules, and getting either wrong produces a request that most authorities accept and some
+ * reject with "bad request format", which is the worst kind of bug: it depends on random bytes,
+ * so it fails perhaps one time in two hundred and looks like the authority being flaky. DER
+ * INTEGERs are minimal (no leading 0x00 unless it is needed) and signed (a high bit in the first
+ * byte means negative, so a 0x00 must be added). Prepending 0x00 unconditionally, which is the
+ * obvious thing to write, breaks the first rule whenever the random value starts with a zero
+ * byte. FreeTSA rejects exactly that.
+ */
+export function derInteger(bytes) {
+  let start = 0;
+  while (start < bytes.length - 1 && bytes[start] === 0) start++;
+  const trimmed = bytes.subarray(start);
+  if (trimmed[0] & 0x80) return cat(Uint8Array.from([0x00]), trimmed);
+  return trimmed;
+}
+
+/**
  * TimeStampReq for one SHA-512 digest.
  *
  * certReq is TRUE so the authority embeds its signing certificate in the token. Without it the
@@ -94,9 +113,7 @@ export function timestampRequest(digest, nonce) {
   if (digest.length !== 64) throw new Error("a SHA-512 digest is 64 bytes");
   const version = Uint8Array.from([0x02, 0x01, 0x01]);
   const imprint = tlv(0x30, cat(SHA512_ALG_ID, tlv(0x04, digest)));
-  // A leading zero byte keeps the nonce a positive INTEGER; DER has no unsigned form, and a high
-  // bit in the first byte would make it negative.
-  const nonceDer = tlv(0x02, cat(Uint8Array.from([0x00]), nonce));
+  const nonceDer = tlv(0x02, derInteger(nonce));
   const certReq = Uint8Array.from([0x01, 0x01, 0xff]);
   return tlv(0x30, cat(version, imprint, nonceDer, certReq));
 }

@@ -96,3 +96,29 @@ def test_generalized_time_becomes_the_shape_the_receipt_carries(gt, iso):
     """A TSA may report whole seconds or fractions. Both have to land in the microsecond form the
     rest of the system writes, or the verifier's time cross-check fires on formatting."""
     assert _node({"gentime": gt})["iso"] == iso
+
+
+@pytest.mark.parametrize("raw,expected", [
+    # A high bit means negative, so a zero byte has to be added.
+    ("ff00112233445566", "00ff00112233445566"),
+    ("80", "0080"),
+    # A leading zero byte that is not needed must be removed: DER INTEGERs are minimal, and
+    # FreeTSA rejects the non-minimal form outright with "bad request format".
+    ("0011223344556677", "11223344556677"),
+    ("000000ab", "00ab"),
+    ("0000008f", "008f"),
+    # All zeroes is the integer zero, which is one byte, not none.
+    ("0000000000000000", "00"),
+    ("7f11223344556677", "7f11223344556677"),
+])
+def test_the_nonce_is_a_minimal_positive_der_integer(raw, expected):
+    """This was a real bug and a nasty shape of one.
+
+    The nonce is eight random bytes. The first version prepended 0x00 unconditionally to keep the
+    INTEGER positive, which is correct only when the high bit is set. When the random value
+    happened to begin with a zero byte the result was non-minimal DER, FreeTSA refused the whole
+    request, and the service quietly fell back to a self-signed receipt. About one anchor in two
+    hundred and fifty would silently get the weaker timestamp, and it would read as the authority
+    being unreliable rather than as our own encoding being wrong.
+    """
+    assert _node({"integer": raw})["der"] == expected
