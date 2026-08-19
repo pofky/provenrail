@@ -18,7 +18,7 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass, field
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from .. import GENESIS_PREV_HASH
@@ -960,6 +960,25 @@ def _verify_pin(bundle: dict[str, Any], server_records: list[dict[str, Any]],
             f"client pin confirmed: sink still holds the record set up to recv_seq {pinned_seq}")
 
 
+def _same_instant(a: str, b: str) -> bool:
+    """Do two ISO-8601 stamps name the same moment, allowing for how they were written?
+
+    Compared as instants rather than as strings: a TSA that reports whole seconds and a receipt
+    that pads microseconds describe the same timestamp, and failing a bundle over trailing zeroes
+    would teach operators to ignore the finding that matters. One second of slack, no more,
+    because anything larger is a different claim about when something happened.
+    """
+    def _parse(v: str):
+        try:
+            return datetime.fromisoformat(v.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    da, db = _parse(a), _parse(b)
+    if da is None or db is None:
+        return False
+    return abs((da - db).total_seconds()) <= 1.0
+
+
 def _verify_anchor_receipt(receipt: dict[str, Any], rep: Report, seq: Any) -> str:
     """Return "trusted" (third-party RFC3161 timestamp validated), "untrusted"
     (signature good but no external trust anchor, e.g. local anchor or unknown TSA),
@@ -1027,9 +1046,23 @@ def _verify_anchor_receipt(receipt: dict[str, Any], rep: Report, seq: Any) -> st
             except Exception as e:
                 rep.add("fail", "anchor_verify_error", f"anchor {seq}: TSA verification error: {e}")
                 return "fail"
+            # The authoritative time is the one inside the token the TSA signed, not the one
+            # written beside it. Reporting receipt["gen_time"] here meant an issuer could hand an
+            # auditor a receipt displaying any date it liked while the signed token said
+            # something else, and the verifier would print the invented date under the words
+            # "trusted timestamp ... validated". The whole point of the RFC 3161 branch is that
+            # the customer cannot choose the date, so the date must be read out of the evidence.
+            token_time = tst.tst_info.gen_time.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            claimed = str(receipt.get("gen_time") or "")
+            if claimed and not _same_instant(claimed, token_time):
+                rep.add("fail", "anchor_time_mismatch",
+                        f"anchor {seq}: the receipt says it was timestamped at {claimed}, but the "
+                        f"token the TSA signed says {token_time}. Trust the token; the receipt is "
+                        f"misstating its own evidence.")
+                return "fail"
             rep.add("info", "anchor_rfc3161",
                     f"anchor {seq}: RFC3161 trusted timestamp from {receipt.get('tsa_url')} "
-                    f"at {receipt.get('gen_time')}, signature and cert chain validated")
+                    f"at {token_time}, signature and cert chain validated")
             return "trusted"
         except Exception as e:  # pragma: no cover
             rep.add("fail", "anchor_decode_error", f"anchor {seq}: cannot decode RFC3161 token: {e}")

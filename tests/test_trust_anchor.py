@@ -98,3 +98,97 @@ def test_failover_raises_when_all_fail():
 def test_empty_tsa_list_rejected():
     with pytest.raises(ValueError):
         MultiTSAAnchor([])
+
+
+def test_a_receipt_cannot_display_a_date_its_token_does_not_say():
+    """The date beside an RFC 3161 token used to be taken on trust.
+
+    The verifier decoded the token, checked the imprint, validated the certificate chain, and
+    then printed `receipt["gen_time"]` as the trusted time. That field is not covered by the
+    TSA's signature. An issuer could therefore hand an auditor a receipt whose token said one
+    date and whose visible time said another, and the verifier would report the invented one
+    under the words "trusted timestamp ... validated" while every cryptographic check passed.
+
+    The point of the RFC 3161 path is that the party being audited does not get to choose the
+    date, so the date has to be read out of the signed evidence.
+    """
+    import copy
+    import json
+    import pathlib
+
+    from provenrail.verifier.verify import verify_bundle
+
+    bundle = json.loads(
+        (pathlib.Path(__file__).parent / "fixtures" / "rfc3161_bundle.json").read_text("utf-8"))
+
+    honest = verify_bundle(copy.deepcopy(bundle))
+    assert honest.ok, [f.detail for f in honest.findings if f.severity == "fail"]
+    # The reported time comes from the token, so it survives the field being removed entirely.
+    reported = [f.detail for f in honest.findings if f.code == "anchor_rfc3161"]
+    assert reported, "the trusted-timestamp finding disappeared"
+
+    forged = copy.deepcopy(bundle)
+    forged["anchors"][0]["receipt"]["gen_time"] = "2019-01-01T00:00:00.000000Z"
+    rep = verify_bundle(forged)
+    assert not rep.ok, "a receipt back-dated by seven years still verified"
+    codes = {f.code for f in rep.findings}
+    assert "anchor_time_mismatch" in codes, codes
+    said = " ".join(f.detail for f in rep.findings if f.code == "anchor_time_mismatch")
+    assert "2019-01-01" in said and "the token the TSA signed says" in said
+
+
+def test_padding_the_microseconds_is_not_a_forgery():
+    """A TSA that reports whole seconds and a receipt that writes .000000 describe one moment.
+
+    Failing a bundle over trailing zeroes would train operators to ignore anchor_time_mismatch,
+    which is the finding that has to be believed the one time it is real.
+    """
+    import copy
+    import json
+    import pathlib
+
+    from provenrail.verifier.verify import verify_bundle
+
+    bundle = json.loads(
+        (pathlib.Path(__file__).parent / "fixtures" / "rfc3161_bundle.json").read_text("utf-8"))
+    same = copy.deepcopy(bundle)
+    stamp = same["anchors"][0]["receipt"]["gen_time"]
+    assert stamp.endswith(".000000Z")
+    same["anchors"][0]["receipt"]["gen_time"] = stamp.replace(".000000Z", "Z")
+    rep = verify_bundle(same)
+    assert rep.ok, [f.detail for f in rep.findings if f.severity == "fail"]
+
+
+def test_a_validated_timestamp_is_not_reported_as_a_warning(tmp_path, capsys):
+    """`pr anchor-verify` used to bucket findings as fail-or-warning, with no third case.
+
+    The strongest result the command can produce, an RFC 3161 timestamp whose signature and
+    certificate chain both validated, is an info-level finding. Printed as [warn] it read as a
+    caution about the evidence, to the one audience least able to tell that it was not.
+    """
+    import json
+    import pathlib
+
+    from provenrail.cli import main as cli_main
+
+    src = json.loads((pathlib.Path(__file__).parent / "fixtures" / "rfc3161_bundle.json")
+                     .read_text("utf-8"))
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(src), encoding="utf-8")
+
+    anchor = src["anchors"][0]
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_text(json.dumps({
+        "anchor_id": anchor.get("anchor_id", "anc_fixture"),
+        "merkle_root": anchor["receipt"]["merkle_root"],
+        "covers_up_to": len(src["records"]),
+        "receipt": anchor["receipt"],
+    }), encoding="utf-8")
+
+    capsys.readouterr()
+    assert cli_main(["anchor-verify", str(bundle_path), str(receipt_path)]) == 0
+    out = capsys.readouterr().out
+    assert "RFC3161 trusted timestamp" in out
+    trusted_line = next(ln for ln in out.splitlines() if "RFC3161 trusted timestamp" in ln)
+    assert trusted_line.startswith("[info]"), trusted_line
+    assert "the time is proved by a third party" in out

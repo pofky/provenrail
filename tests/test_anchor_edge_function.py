@@ -152,3 +152,36 @@ def test_coverage_rules_match_the_python_service_word_for_word():
     for phrase in ("would drop the tail", "same prefix cannot have two histories"):
         assert phrase in src, f"edge function lost: {phrase}"
         assert phrase in py, f"python service lost: {phrase}"
+
+
+def test_a_self_signed_receipt_can_never_wear_a_trusted_label():
+    """The fallback is the dangerous part of this design.
+
+    When the timestamp authority is unreachable the service still anchors, self-signed, because a
+    customer's chain going unanchored during someone else's outage is the worse failure. That is
+    only defensible while the weaker receipt is honestly labelled: `kind` must be "local", so
+    every verifier warns that the time is self-asserted and the auditor page shows it amber.
+
+    A fallback that produced kind "rfc3161" with no token would be a service telling an auditor a
+    third party vouched for a date when none did, and nothing downstream would catch it.
+    """
+    src = " ".join(EDGE_FN.read_text(encoding="utf-8").split())
+    # The rfc3161 label is set only where a token was actually obtained, inside the try.
+    assert 'kind: "rfc3161", merkle_root: root, gen_time: genTime, token_b64: tokenB64' in src
+    # ...and the catch hands back the self-signed receipt rather than patching a label on.
+    catch = src[src.index("} catch (e) { console.error(\"trusted timestamp unavailable"):]
+    assert "return await selfSigned(root);" in catch[:400], catch[:400]
+    assert 'kind: "rfc3161"' not in catch[:400]
+    # selfSigned is the only other producer, and it is local.
+    assert 'kind: "local", merkle_root: root, gen_time: genTime, token_b64: null' in src
+
+
+def test_the_service_prefers_a_third_party_timestamp():
+    """The whole reason to send a root to someone else is to get a time you could not assert
+    yourself. If the trusted path were ever reordered behind the self-signed one, every receipt
+    would silently become the weaker kind and every test above would still pass."""
+    src = " ".join(EDGE_FN.read_text(encoding="utf-8").split())
+    body = src[src.index("async function mintReceipt"):]
+    assert body.index("trustedTimestamp(") < body.index("selfSigned(root)"), \
+        "the self-signed path is no longer the fallback"
+    assert "AbortSignal.timeout(" in body, "a hanging authority would hang the anchor request"

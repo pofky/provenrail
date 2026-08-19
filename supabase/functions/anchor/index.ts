@@ -18,6 +18,7 @@
 // verify_jwt is false: pushing an anchor authenticates with an account key, and reading one is
 // deliberately public so an auditor needs no account. See supabase/config.toml.
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { trustedTimestamp } from "./rfc3161.js";
 
 const ALLOWED_ORIGINS = new Set([
   "https://provenrail.com",
@@ -96,7 +97,7 @@ function utcNow(): string {
   return iso.slice(0, -1) + "000Z";                 // 2026-08-19T04:26:48.336000Z
 }
 
-async function mintReceipt(root: string) {
+async function selfSigned(root: string) {
   const { key, pub } = await signingKey();
   const genTime = utcNow();
   const payload = new TextEncoder().encode(`${root}|${genTime}`);
@@ -110,6 +111,48 @@ async function mintReceipt(root: string) {
     anchor_pubkey: pub,
     tsa_url: null,
   };
+}
+
+// A public RFC 3161 authority. FreeTSA is the default because its root is already in the
+// verifier's trust store, so an auditor validates the certificate chain with no flags and no
+// configuration. Overridable, since a customer's own auditor may insist on a particular one.
+const TSA_URL = (Deno.env.get("ANCHOR_TSA_URL") || "https://freetsa.org/tsr").trim();
+
+/**
+ * The strongest receipt available right now.
+ *
+ * A trusted timestamp is the difference between "they say it was anchored then" and "an
+ * independent authority signed that it was", and it is the reason to use a hosted anchor at all
+ * rather than signing your own roots. So it is tried first.
+ *
+ * When the authority is unreachable the anchor still goes through, self-signed. Refusing would
+ * leave the customer's chain unanchored because a third party was having an outage, which is a
+ * worse outcome than a weaker receipt, and the receipt is not quietly weaker: kind is "local",
+ * every verifier warns that the time is self-asserted, and the auditor page says so in words.
+ * The one thing that must never happen is a self-signed receipt wearing an rfc3161 label.
+ */
+async function mintReceipt(root: string) {
+  try {
+    const { genTime, tokenB64 } = await trustedTimestamp(
+      unhex(root),
+      TSA_URL,
+      (url: string, init: RequestInit) =>
+        fetch(url, { ...init, signal: AbortSignal.timeout(8000) }),
+    );
+    return {
+      kind: "rfc3161",
+      merkle_root: root,
+      gen_time: genTime,
+      token_b64: tokenB64,
+      signature: null,
+      anchor_pubkey: null,
+      tsa_url: TSA_URL,
+    };
+  } catch (e) {
+    console.error("trusted timestamp unavailable, falling back to self-signed:",
+                  (e as Error).message);
+    return await selfSigned(root);
+  }
 }
 
 // ---- validation ----------------------------------------------------------------------------

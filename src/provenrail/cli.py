@@ -320,6 +320,7 @@ def _cmd_anchor_verify(args) -> int:
 
     problems: list[str] = []
     warnings: list[str] = []
+    notes: list[str] = []
 
     # The outer envelope is convenience, not evidence. If the service's stated root and the
     # signed root disagree, the envelope was edited after signing, and trusting either one would
@@ -358,7 +359,16 @@ def _cmd_anchor_verify(args) -> int:
     receipt_rep = Report()
     trust = _verify_anchor_receipt(receipt, receipt_rep, seq=att.get("anchor_id", "receipt"))
     for f in receipt_rep.findings:
-        (problems if f.severity == "fail" else warnings).append(f.detail)
+        # Three severities, three buckets. Folding "info" into warnings printed the strongest
+        # result this command can produce, a trusted timestamp whose certificate chain validated,
+        # under [warn]. An auditor reading that reasonably concludes something is wrong with the
+        # evidence, which is the opposite of what the finding says.
+        if f.severity == "fail":
+            problems.append(f.detail)
+        elif f.severity == "warn":
+            warnings.append(f.detail)
+        else:
+            notes.append(f.detail)
 
     # And the bundle's own chain, because a root over record hashes says nothing about whether
     # the records under those hashes were edited.
@@ -371,8 +381,11 @@ def _cmd_anchor_verify(args) -> int:
         print(_json.dumps({"result": "fail" if problems else "verified",
                            "trust": trust, "merkle_root": actual, "covers_up_to": covers,
                            "bundle_result": bundle_rep.result,
-                           "problems": problems, "warnings": warnings}, indent=2))
+                           "problems": problems, "warnings": warnings,
+                           "notes": notes}, indent=2))
     else:
+        for n in notes:
+            print(f"[info] {n}")
         for w in warnings:
             print(f"[warn] {w}")
         for pr_ in problems:
