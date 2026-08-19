@@ -12,7 +12,9 @@
 //
 // Privacy is unchanged and deliberate: country only, never the IP, never a cookie, never an
 // identifier. The visitor's IP is not forwarded and not logged here.
-const UPSTREAM = "https://jzgamrptvsdxnwtuascx.supabase.co/functions/v1/pageview";
+import { SUPABASE_FUNCTIONS } from "./_supabase.js";
+
+const UPSTREAM = `${SUPABASE_FUNCTIONS}/pageview`;
 
 export async function onRequest(context) {
   const { request, env } = context;
