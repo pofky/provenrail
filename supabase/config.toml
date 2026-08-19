@@ -26,3 +26,10 @@ verify_jwt = false
 # file, not in a command somebody has to remember. Caught on 2026-08-10, by a redeploy.
 [functions.pageview]
 verify_jwt = false
+
+# The anchor service authenticates its own writers with an account key it hashes and checks
+# itself, and its reads are deliberately public: an auditor holding a receipt must be able to
+# check it without an account here and without the customer's permission. A Supabase JWT would
+# defeat both halves, so the gateway check stays off for the same reason as the three above.
+[functions.anchor]
+verify_jwt = false

@@ -73,7 +73,11 @@ def test_webhook_keeps_its_signature_check() -> None:
 
 #: Functions any caller reaches without a Supabase JWT. Each MUST pin verify_jwt = false in
 #: config.toml, or the gateway answers 401 before the function runs.
-PUBLIC_FUNCTIONS = ("polar-webhook", "polar-prices", "pageview")
+PUBLIC_FUNCTIONS = ("polar-webhook", "polar-prices", "pageview",
+    # Writes carry an account key the function hashes and checks itself; reads are
+    # public on purpose, because an auditor must not need an account here.
+    "anchor",
+)
 
 #: Functions that require a signed-in user and therefore keep the gateway check on.
 AUTHENTICATED_FUNCTIONS = ("polar-checkout", "polar-portal")
