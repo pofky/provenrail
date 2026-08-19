@@ -88,7 +88,16 @@
     <p class="eyebrow">Changelog</p>
     <h1>What changed, and when</h1>
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
-    <p class="updated">Last updated <time datetime="2026-08-18">18 August 2026</time></p>
+    <p class="updated">Last updated <time datetime="2026-08-19">19 August 2026</time></p>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.32</span><span class="date">August 19, 2026</span><span class="tag">Trusted time</span></div>
+      <ul>
+        <li><b>There is somewhere to anchor to now.</b> <code>pr anchor-push --url https://provenrail.com</code> works with the licence key you already have, and returns a receipt carrying an RFC 3161 timestamp from a public authority, so the date is not ours to assert either. What travels is a stream label, a fingerprint of your records and a count; you keep every record. There is no field in the request a record could arrive in, which is why this is the only part of Provenrail we host. The receipt has a URL an auditor opens with no account and no permission from you.</li>
+        <li><b>A receipt can no longer display a date its timestamp does not say.</b> The verifier decoded the RFC 3161 token, checked the imprint, validated the certificate chain, and then printed the <code>gen_time</code> written beside the token rather than the one inside it. That field is not covered by the authority's signature, so a receipt could show one date while its token said another and every cryptographic check would still pass. The reported time now comes out of the token, and a receipt that misstates its own evidence fails.</li>
+        <li><b><code>pr anchor-verify</code> no longer reports success as a warning.</b> Findings were sorted into fail-or-warning with no third case, so the strongest result the command can produce, a timestamp whose signature and certificate chain both validated, printed under <code>[warn]</code>. To an auditor that reads as a problem with the evidence.</li>
+      </ul>
+    </div>
 
     <div class="rel">
       <div class="rel-head"><span class="ver">0.2.31</span><span class="date">August 18, 2026</span><span class="tag">Anchoring</span></div>
