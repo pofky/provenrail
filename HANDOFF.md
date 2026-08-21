@@ -84,7 +84,13 @@ customer exists. `supabase/functions/anchor/`, fronted at `provenrail.com/v1/anc
   at one with a message naming the allowance and the pricing page, fail-CLOSED (503) when the
   count query errors rather than granting unlimited free anchors, a paid plan never counted, an
   expired key refused, a foreign-signed key never resolving to an account.
-- **950 tests pass, ruff clean, `deno check` green** over the anchor function, the new
+- **Claiming the free anchor cannot overwrite a paid key**, seven cases through Deno
+  (`tests/deno/trial_license_test.ts`): a subscriber is refused 409 with nothing written, even
+  when their real key has not landed from the webhook yet; a second click returns the same key
+  rather than minting another; a key that failed to store is never handed out; with no signing
+  secret nothing is issued. The issued key is verified with the anchor service's own verifier and
+  comes back valid, plan `free`, bound to that account.
+- **951 tests pass, ruff clean, `deno check` green** over the anchor function, the new
   `account.ts`, `trial-license`, the shared minter and `polar-webhook`.
 
 **Not verified, and the reason:** nobody has claimed a free anchor through the UI, because that

@@ -203,6 +203,20 @@ def test_the_free_trial_anchor_gate_behaves():
 
 
 @pytest.mark.skipif(shutil.which("deno") is None, reason="deno not installed")
+def test_claiming_the_free_anchor_never_overwrites_a_paid_key():
+    """The trial key is written to the same `profiles.license_key` the Polar webhook owns.
+
+    The failure this guards is silent: a subscriber's key replaced by a free-plan one, noticed
+    only when their anchoring starts refusing a plan they are paying for. Cases in
+    tests/deno/trial_license_test.ts."""
+    res = subprocess.run(
+        ["deno", "test", "--allow-env", "--allow-net", "--allow-read",
+         str(ROOT / "tests" / "deno" / "trial_license_test.ts")],
+        capture_output=True, text=True, cwd=str(ROOT))
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
+@pytest.mark.skipif(shutil.which("deno") is None, reason="deno not installed")
 def test_the_edge_function_typechecks():
     """`supabase functions deploy` bundles without type-checking, so a function with a genuine
     type error deploys happily and fails at the first request that reaches the broken line. The
@@ -210,7 +224,7 @@ def test_the_edge_function_typechecks():
     fns = ROOT / "supabase" / "functions"
     res = subprocess.run(
         ["deno", "check", str(EDGE_FN), str(fns / "anchor" / "account.ts"),
-         str(fns / "trial-license" / "index.ts"), str(fns / "_shared" / "license-mint.ts"),
+         str(fns / "trial-license" / "index.ts"), str(fns / "trial-license" / "claim.ts"), str(fns / "_shared" / "license-mint.ts"),
          str(fns / "polar-webhook" / "index.ts")],
         capture_output=True, text=True, cwd=str(ROOT))
     assert res.returncode == 0, res.stdout + res.stderr

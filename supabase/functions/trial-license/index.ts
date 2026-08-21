@@ -20,7 +20,7 @@
 // else about the key is identical to a paid one, so `pr activate` and the anchor service need
 // no special case beyond the plan name.
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { mintLicense } from "../_shared/license-mint.ts";
+import { claimTrial } from "./claim.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -33,21 +33,14 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, "Content-Type": "application/json" },
   });
 
-// A trial key verifies for a year. It is not a subscription, so there is no renewal event to
-// refresh it, and a key that expires in a month would silently rot for anyone who signed up and
-// came back later. The single anchor it can buy is enforced by the anchor service counting rows,
-// not by this expiry, so a long life costs nothing.
-const TRIAL_SECONDS = 365 * 24 * 60 * 60;
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   try {
-    const authHeader = req.headers.get("Authorization") ?? "";
     const asUser = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
+      { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } },
     );
     const { data: { user }, error } = await asUser.auth.getUser();
     if (error || !user) return json({ error: "unauthorized" }, 401);
@@ -59,30 +52,17 @@ Deno.serve(async (req) => {
     const { data: profile } = await admin.from("profiles")
       .select("plan, license_key").eq("id", user.id).maybeSingle();
 
-    const plan = String(profile?.plan ?? "free");
-    // A paying customer already holds a better key. Handing them a trial key here would
-    // overwrite it in the same column the webhook owns, downgrading a subscription by accident.
-    if (plan !== "free") {
-      return json({ error: "your plan already includes anchoring", plan }, 409);
-    }
-    // Idempotent: clicking twice returns the same key rather than minting a second one. The
-    // anchor count is what limits the free anchor, so re-issuing would not grant anything, but a
-    // key that changes every click is a key nobody can trust they activated.
-    if (profile?.license_key) {
-      return json({ key: profile.license_key, plan: "free", reissued: true });
-    }
-
-    const exp = Math.floor(Date.now() / 1000) + TRIAL_SECONDS;
-    const key = await mintLicense(user.id, "free", exp);
-    if (!key) return json({ error: "key issuing is not configured" }, 503);
-
-    const { error: writeError } = await admin.from("profiles")
-      .update({ license_key: key }).eq("id", user.id);
-    // Returning a key that was not stored would leave the account page showing nothing next
-    // visit, and the visitor holding a key this service cannot recognise as already claimed.
-    if (writeError) return json({ error: "could not record the trial key" }, 500);
-
-    return json({ key, plan: "free", expires_at: exp });
+    const result = await claimTrial(
+      user.id,
+      profile,
+      Math.floor(Date.now() / 1000),
+      async (key: string) => {
+        const { error: writeError } = await admin.from("profiles")
+          .update({ license_key: key }).eq("id", user.id);
+        return { ok: !writeError };
+      },
+    );
+    return json(result.body, result.status);
   } catch (_e) {
     return json({ error: "unexpected" }, 500);
   }
