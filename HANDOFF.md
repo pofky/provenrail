@@ -4,9 +4,9 @@ Last updated 2026-08-21. Branch `main`.
 **Everything below is DEPLOYED and driven against production.** Edge functions
 (`anchor`, `trial-license`, `polar-webhook`, `pageview`) deployed to `jzgamrptvsdxnwtuascx`, site
 deployed to provenrail.com via `wrangler pages deploy web --project-name provenrail` run FROM THE
-REPO ROOT. 0.2.32 is on PyPI and tagged; the CLI changes in this session are NOT released yet, so
-a `pip install provenrail` user still gets the old CLI. Cut 0.2.33 before pointing anyone at the
-free anchor.
+REPO ROOT. **0.2.33 is on PyPI** and verified from the index (`pip install provenrail` -> 0.2.33, `pr demo`
++ `pr verify` green, a tampered copy exits 1), so the commands the account page prints work for
+someone installing today.
 Read this first, then `WORKLOG.md` for history.
 
 ## Proven live, 2026-08-21

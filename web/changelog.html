@@ -91,6 +91,18 @@
     <p class="updated">Last updated <time datetime="2026-08-19">19 August 2026</time></p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.2.33</span><span class="date">August 21, 2026</span><span class="tag">First anchor free</span></div>
+      <ul>
+        <li><b>Every account gets one independent anchor, free.</b> Until now the only feature worth paying for was the only one nobody could try, so the case for it had to be made in prose next to a price. Claim a key at <a href="/account">/account</a>, run <code>pr anchor-push bundle.json</code>, and hold a receipt with a public authority's timestamp on it, over your own run. One per account, and the tooling stays free whether or not you ever buy a plan.</li>
+        <li><b><code>pr anchor-push</code> stopped asking for what it already knows.</b> It defaults to the hosted service, to the licence key <code>pr activate</code> stored, and to writing <code>anchor-receipt.json</code>, so the whole command is the bundle you want anchored. Run it with no bundle, a missing file, or no key, and it prints the commands that fix it instead of an argument error.</li>
+        <li><b><code>pr verify</code> now names the one thing a green result cannot prove.</b> A run anchored only by you is intact and unaltered, and says nothing about when it happened, because the same side wrote both the records and the time. The verifier says so, at the moment you are holding a proof you built entirely yourself, rather than leaving you to read it on a pricing page later.</li>
+        <li><b>A refusal says what actually happened.</b> Every rejection from the anchor service printed "the key rotates each billing period, copy the current one", which for a spent free anchor sends you to fetch the same key and hit the same refusal. The service's own sentence now leads, and advice is added only where it fits.</li>
+        <li><b>A float in a record now names itself.</b> Passing <code>confidence=0.87</code> raised "floats are not allowed in records", leaving you to find which field it meant. The error names the value, the field path, and what to pass instead.</li>
+        <li><b>The word "sink" is gone from everything a person reads.</b> It is the append-only recording server, and it is called that in the CLI, the docs and the account page. The API and the source keep the shorter word.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.2.32</span><span class="date">August 19, 2026</span><span class="tag">Trusted time</span></div>
       <ul>
         <li><b>There is somewhere to anchor to now.</b> <code>pr anchor-push --url https://provenrail.com</code> works with the licence key you already have, and returns a receipt carrying an RFC 3161 timestamp from a public authority, so the date is not ours to assert either. What travels is a stream label, a fingerprint of your records and a count; you keep every record. There is no field in the request a record could arrive in, which is why this is the only part of Provenrail we host. The receipt has a URL an auditor opens with no account and no permission from you.</li>

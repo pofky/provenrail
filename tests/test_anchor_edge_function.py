@@ -224,7 +224,7 @@ def test_the_edge_function_typechecks():
     fns = ROOT / "supabase" / "functions"
     res = subprocess.run(
         ["deno", "check", str(EDGE_FN), str(fns / "anchor" / "account.ts"),
-         str(fns / "trial-license" / "index.ts"), str(fns / "trial-license" / "claim.ts"), str(fns / "_shared" / "license-mint.ts"),
-         str(fns / "polar-webhook" / "index.ts")],
+         str(fns / "trial-license" / "index.ts"), str(fns / "trial-license" / "claim.ts"),
+         str(fns / "_shared" / "license-mint.ts"), str(fns / "polar-webhook" / "index.ts")],
         capture_output=True, text=True, cwd=str(ROOT))
     assert res.returncode == 0, res.stdout + res.stderr

@@ -2,10 +2,10 @@
 
 ## Currently Active
 
-_No active work._ The 2026-08-21 conversion pass is deployed (edge functions + Pages) and was
-driven end to end against production. Next: cut **0.2.33** to PyPI, because the CLI half of that
-work (anchor-push defaults, the verify upgrade note, the refusal messages) is not in any released
-wheel yet, so anyone following the new account page with an older install gets the old behaviour.
+_No active work._ The 2026-08-21 conversion pass is fully shipped: 0.2.33 on PyPI, edge functions
+deployed, site deployed, and the free-anchor path driven end to end against production with a
+throwaway account that was deleted afterwards. Next is distribution, which has never been
+attempted: `DISTRIBUTION.md`, then the posts in `Marketing/`.
 
 ## Change History
 
