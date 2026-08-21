@@ -71,6 +71,9 @@
     .badge.on{background:rgba(211, 169, 87,.12);color:var(--accent);border-color:rgba(211, 169, 87,.35)}
     .key{font-family:var(--font-mono);font-size:.82rem;word-break:break-all;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:.7rem .8rem;color:var(--text-hi);display:flex;align-items:center;gap:.6rem;justify-content:space-between}
     .key button{width:auto;min-height:44px;padding:.5rem .9rem;font-size:.78rem;background:var(--bg-3);color:var(--text-mid);border:1px solid var(--border)}
+    .steps{margin:.2rem 0 0;padding-left:1.15rem;display:grid;gap:.7rem;color:var(--text-mid)}
+    .steps li span{display:block;font-size:.95rem;margin-bottom:.25rem}
+    .steps li code{display:block;overflow-x:auto;white-space:nowrap;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.5rem .6rem;font-size:.86rem;color:var(--text-hi)}
     .plans{display:grid;gap:.7rem}
     .plan{display:flex;align-items:center;justify-content:space-between;gap:1rem;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:.85rem 1rem}
     .plan .pn{font-weight:700}
@@ -180,7 +183,29 @@
       <div class="card" id="license-card">
         <label>Commercial license key</label>
         <div class="key"><span id="license-v">prl_live_...</span><div class="key-actions"><button id="reveal-btn" type="button">Reveal</button><button id="copy-btn" type="button">Copy</button></div></div>
-        <p class="muted">Activate it on your self-hosted server with <code>pr activate &lt;key&gt;</code> (or set the <code>PROVENRAIL_LICENSE</code> env var), then <code>pr serve</code> runs at your tier. It verifies offline with a public key shipped in the package; nothing is sent anywhere. The key is tied to your current billing period; this page always shows the latest one, so re-activate with the key shown here after a renewal or plan change. Keep it secret.</p>
+        <p class="muted">Run <code>pr activate &lt;key&gt;</code> once. Every later command picks it up, so nothing else needs the key pasted into it. It verifies offline against a public key shipped in the package; nothing is sent anywhere. The key is tied to your current billing period, and this page always shows the latest one, so re-activate from here after a renewal or a plan change. Keep it secret.</p>
+      </div>
+
+      <div class="card" id="next-steps-card">
+        <label id="next-steps-label">Your first anchored run</label>
+        <p class="muted" style="margin-top:0" id="next-steps-lede">Five commands, about a minute. Your records never leave your machine: what travels is a 32-byte fingerprint of them.</p>
+        <ol class="steps">
+          <li><span>Install the CLI</span><code>uv tool install provenrail</code></li>
+          <li><span>Activate the key above</span><code>pr activate &lt;your key&gt;</code></li>
+          <li><span>Record a run</span><code>pr quickstart &amp;&amp; pr demo</code></li>
+          <li><span>Get an independent timestamp</span><code>pr anchor-push bundle.json</code></li>
+          <li><span>Check it the way an auditor will, offline</span><code>pr anchor-verify bundle.json anchor-receipt.json</code></li>
+        </ol>
+        <p class="muted">Step 4 prints a public URL. Anyone you give it to can check the timestamp with no account here and no permission from you.</p>
+      </div>
+
+      <div class="card" id="trial-card">
+        <label>Your first anchor is free</label>
+        <p class="muted" style="margin-top:0">A record you timestamp yourself proves it has not changed. It cannot prove <em>when</em> it happened, because the same side wrote both the record and the time. One independent timestamp, on us, shows you the difference on your own run. One per account.</p>
+        <div class="btn-row">
+          <button class="btn-primary" id="trial-btn" data-ev="cta_trial_key">Get my free anchor key</button>
+        </div>
+        <p class="muted" id="trial-note">You get a licence key, the same one a paid plan uses. It anchors once, then says so.</p>
       </div>
 
       <div class="card" id="upgrade-card">
@@ -203,7 +228,7 @@
 
       <div class="card">
         <label>Self-host quickstart</label>
-        <p class="muted" style="margin-top:0">Your account does not store agent records. Run the open-source sink yourself: <a href="/docs">uv tool install provenrail</a> then <code>pr quickstart</code>. No token to copy and paste.</p>
+        <p class="muted" style="margin-top:0">Your account does not store agent records, and there is no setting here that could turn that on. You run the open-source recording server yourself: <a href="/docs">uv tool install provenrail</a> then <code>pr quickstart</code>. No token to copy and paste.</p>
       </div>
 
       <button class="signout" id="signout-btn">Sign out</button>
@@ -352,6 +377,21 @@
         show("license-card");
       } else { licenseFull = ""; hide("license-card"); }
 
+      // The steps are only actionable once there is a key to activate, and what they promise
+      // differs: a paid key anchors whenever the customer likes, a trial key anchors once.
+      if (profile?.license_key) {
+        show("next-steps-card");
+        $("next-steps-label").textContent = active ? "Your first anchored run" : "Spend your free anchor";
+        $("next-steps-lede").textContent = active
+          ? "Five commands, about a minute. Your records never leave your machine: what travels is a 32-byte fingerprint of them."
+          : "Five commands, about a minute. This key anchors once. Your records never leave your machine: what travels is a 32-byte fingerprint of them.";
+      } else { hide("next-steps-card"); }
+
+      // Offer the free anchor only to accounts that have neither a subscription nor a key. A
+      // paid key lives in the same column, so showing this to a subscriber would invite them to
+      // claim a downgrade.
+      if (!active && !profile?.license_key) { show("trial-card"); } else { hide("trial-card"); }
+
       if (active) { hide("upgrade-card"); show("manage-card"); }
       else { show("upgrade-card"); hide("manage-card"); }
     }
@@ -463,6 +503,25 @@
     }
     const takePlanIntent = () => readPlanIntent(true);
     const peekPlanIntent = () => readPlanIntent(false);
+
+    // Claim the one free anchor. The key it returns is an ordinary licence key: the limit lives
+    // in the anchor service, which counts anchors, not in anything this page can be talked into.
+    $("trial-btn").addEventListener("click", async () => {
+      const btn = $("trial-btn");
+      btn.disabled = true; btn.textContent = "Issuing...";
+      try {
+        await callFn("trial-license", {});
+        // Repaint from the database rather than from the response, so the key on screen is the
+        // one that was actually stored. A key shown here but not recorded would be a key the
+        // service does not know it issued.
+        const { data: { session } } = await sb.auth.getSession();
+        if (session) paint(session, await fetchProfile(session.user.id));
+        toast("Your free anchor key is ready");
+      } catch (e) {
+        toast(e.message, true);
+        btn.disabled = false; btn.textContent = "Get my free anchor key";
+      }
+    });
 
     // Manage billing
     $("portal-btn").addEventListener("click", async () => {

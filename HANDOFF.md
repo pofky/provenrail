@@ -1,11 +1,41 @@
 # HANDOFF
 
-Last updated 2026-08-19. Branch `main`, in sync with `origin/main` at `1c55c85`.
-Site DEPLOYED to provenrail.com, 0.2.32 PUBLISHED to PyPI and tagged `v0.2.32`, and the
-**hosted anchor service is LIVE** at `https://provenrail.com/v1/anchors`. All three verified from
-a clean `pip install provenrail==0.2.32`: `pr demo`, `pr anchor-push --url https://provenrail.com`,
-`pr anchor-verify`, green with a third-party timestamp.
+Last updated 2026-08-21. Branch `main`.
+Site and edge functions are **NOT deployed for this session's changes**: the code is committed and
+pushed, but `supabase functions deploy` was refused by the sandbox and nobody has run
+`wrangler pages deploy`. Until both run, the free anchor cannot be claimed by anyone and
+provenrail.com still shows the old homepage. The exact commands are in `WORKLOG.md` under
+Currently Active and in `DEPLOY.md`.
+Prior state, still true: 0.2.32 PUBLISHED to PyPI and tagged `v0.2.32`, and the hosted anchor
+service is LIVE at `https://provenrail.com/v1/anchors`.
 Read this first, then `WORKLOG.md` for history.
+
+## This session, 2026-08-21: the funnel, not the cryptography
+
+Two independent reviews (product/UX and commercial) reached the same verdict from different
+directions: the product is finished, the distribution is zero, and the site addressed the wrong
+buyer in its first sentence. Nothing about the evidence format changed today. What changed is
+everything between a stranger arriving and a receipt in their hands.
+
+The decisions, so the next session does not relitigate them:
+
+- **The homepage leads with the proof, not the guardrail.** "Know what your AI agent did. Prove it
+  to anyone." The tamper widget moved above the install snippet, because a visitor who performs
+  the proof themselves in five seconds has understood the product, and a visitor reading an
+  install command has only been given homework. The guardrail is still there, one line down and
+  one CTA over: it is what converts on Hacker News and r/ClaudeAI, and the launch copy in
+  `Marketing/` still leads with it. Different audience, different first sentence, same product.
+- **One free anchor, ever, per verified account.** Until today the only feature worth paying for
+  was also the only feature nobody could try, so the argument had to be made in prose on a
+  pricing page. It is now made by a receipt with somebody else's signature on it. One, not an
+  allowance: an allowance needs metering, resets and defending, and a count of rows the service
+  already writes needs none of those.
+- **Prices stay in USD.** The Polar products are USD and Polar prices are immutable, so an EUR
+  page would contradict its own checkout. Moving currency means new Polar products; do it before
+  the first customer or not until there is a reason. Recorded in `DISTRIBUTION.md` section 7.
+- **No Evidence Report SKU.** It was the highest revenue-per-hour idea in the commercial review
+  and it requires receiving customer bundles, which is the exact data-liability line the whole
+  strategy exists to stay behind. Refused deliberately, not overlooked.
 
 ## Where things stand
 
@@ -35,6 +65,30 @@ customer exists. `supabase/functions/anchor/`, fronted at `provenrail.com/v1/anc
 949 tests pass. Ruff clean. `deno check` is now a test.
 
 ## Done and verified
+
+**2026-08-21, driven and checked:**
+
+- **The whole first-run flow, run for real** in a scratch directory against a live local
+  recording server: `pr quickstart` (numbered steps, no jargon), `pr demo`, `pr verify` (VERIFIED
+  plus the new note naming the time gap), `pr anchor-push bundle.json --url http://localhost:...`
+  (anchor issued, auditor URL printed, receipt written to `anchor-receipt.json` by default),
+  `pr anchor-verify bundle.json anchor-receipt.json` (VERIFIED, time self-asserted, exit 0). Also
+  drove the three refusal paths: no bundle, missing file, no licence key, each printing the
+  commands that fix it instead of an argparse error.
+- **The homepage after the rewrite**, in a real browser at 375px: the hero renders the new
+  headline, the CTAs point at `#try-it` then `#live-proof`, section order is hero, try-it,
+  install, and the live tamper widget still goes VERIFIED then TAMPERING DETECTED in its new
+  position. No horizontal overflow (scrollWidth 375 = innerWidth).
+- **The free-anchor gate**, six cases driven against the real decision function through Deno
+  (`tests/deno/anchor_gate_test.ts`, wired into pytest): trial granted at zero anchors, refused
+  at one with a message naming the allowance and the pricing page, fail-CLOSED (503) when the
+  count query errors rather than granting unlimited free anchors, a paid plan never counted, an
+  expired key refused, a foreign-signed key never resolving to an account.
+- **950 tests pass, ruff clean, `deno check` green** over the anchor function, the new
+  `account.ts`, `trial-license`, the shared minter and `polar-webhook`.
+
+**Not verified, and the reason:** nobody has claimed a free anchor through the UI, because that
+needs a magic-link session against deployed functions and the deploy has not run.
 
 - **The hosted anchor service is live and a customer can reach it with no provisioning step.**
   `supabase/functions/anchor/` on the free tier, migration `20260819_anchor_service.sql`,
@@ -108,20 +162,33 @@ customer exists. `supabase/functions/anchor/`, fronted at `provenrail.com/v1/anc
   `PROVENRAIL_LICENSE_SECRET` is a Supabase secret and cannot be read back, so the end-to-end run
   used a test issuer via `LICENSE_PUBLIC_KEY` against the live database. The first real purchase
   is still the first production key this code will ever see.
-- **Float metadata raises `CanonicalError` at emit time** with no pre-check and no mention in the
-  docstrings or the quickstart, so anyone passing a confidence score hits it on their first run.
+- **The free anchor has never run end to end against a real signed-in account.** The allowance
+  gate is driven directly (`tests/deno/anchor_gate_test.ts`, six cases including fail-closed on a
+  broken count), and `trial-license` type-checks, but no human has clicked the button, because
+  claiming a key needs a magic-link session and the functions are not deployed yet. First thing
+  to prove after deploying.
 
 ## Next in order
 
-1. **Get the first paying customer.** The offer is now complete and reachable: the service runs,
+1. **Deploy what is committed.** `supabase functions deploy anchor trial-license polar-webhook
+   pageview --project-ref jzgamrptvsdxnwtuascx`, then `npx wrangler pages deploy web
+   --project-name provenrail` from the repo root. Then sign in at `/account`, claim the free
+   anchor, and run the five steps the page prints. Everything else on this list assumes this is
+   done, and none of today's work reaches a single visitor until it is.
+2. **Get the first paying customer.** The offer is now complete and reachable: the service runs,
    the licence key is the only credential, and the pricing page describes what actually happens.
    Nothing else on this list matters until someone has paid. Distribution is still zero.
-3. **Publish `/for-agencies` and `/vs-microsoft-agt`** anywhere real people are: Indie Hackers, X,
+3. **Execute the 30-day plan in `DISTRIBUTION.md`.** The launch copy has existed and gone unused
+   since 2026-08-05: `Marketing/launch-sequence.md` holds the order, `Marketing/*.txt` the
+   paste-ready posts, and `Marketing/outreach-agencies.txt` the by-hand agency outreach written
+   today. Distribution is the binding constraint, and it is the only item here that has never
+   been attempted.
+4. **Publish `/for-agencies` and `/vs-microsoft-agt`** anywhere real people are: Indie Hackers, X,
    the relevant subreddits. Both pages exist; distribution is still zero. See
    `docs/distribution-virality-playbook.md` in engine-agentic.
-4. **Go verifier binary.** Auditors do not run Python, and "verify it yourself" is the core claim.
+5. **Go verifier binary.** Auditors do not run Python, and "verify it yourself" is the core claim.
    5 to 10 days per `docs/cost-to-execute-2026-08-18.md`.
-5. **21 CFR Part 11 validation pack.** A document sale, legal under `individuali veikla`, and the
+6. **21 CFR Part 11 validation pack.** A document sale, legal under `individuali veikla`, and the
    fastest high-value euro.
 
 ## Traps

@@ -25,6 +25,9 @@ from provenrail.license import PREFIX, PUBLIC_KEY_HEX, sign_license, verify_lice
 HERE = pathlib.Path(__file__).parent
 RUNNER = HERE / "js" / "verify_license.mjs"
 EDGE_FN = HERE.parent / "supabase" / "functions" / "anchor" / "index.ts"
+# The plan/allowance decision lives beside the handler so it can be driven directly; see
+# tests/deno/anchor_gate_test.ts, which exercises it rather than reading it.
+EDGE_AUTH = HERE.parent / "supabase" / "functions" / "anchor" / "account.ts"
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
 
@@ -132,17 +135,21 @@ def test_malformed_keys_are_refused_rather_than_crashing(junk, issuer):
     assert js.get("reason")
 
 
-def test_the_edge_checks_the_plan_and_says_which_one():
-    """A free-plan key is a real key. Answering "invalid API key" sends someone with a working
-    key hunting for a typo that is not there."""
-    src = " ".join(EDGE_FN.read_text(encoding="utf-8").split())
+def test_the_edge_names_the_paid_plans_and_the_free_allowance():
+    """A free-plan key is a real key, and since 2026-08-21 it buys exactly one anchor.
+
+    Refusing it as "invalid API key" would send someone holding a working key hunting for a typo
+    that is not there. What each refusal actually DOES is driven, not read, in
+    tests/deno/anchor_gate_test.ts; this only pins the two constants a careless edit would widen.
+    """
+    src = " ".join(EDGE_AUTH.read_text(encoding="utf-8").split())
     assert 'ANCHOR_PLANS = new Set(["builder", "team", "enterprise"])' in src
-    assert "hosted anchoring is not included in the ${lic.plan} plan" in src
+    assert "FREE_TRIAL_ANCHORS = 1" in src
     assert "403" in src
 
 
 def test_the_edge_verifies_against_the_shipped_public_key():
     """If the edge trusted a different issuer than the CLI does, a key that works locally would
     be rejected by the service, or worse, one the CLI rejects would be accepted."""
-    src = EDGE_FN.read_text(encoding="utf-8")
+    src = EDGE_AUTH.read_text(encoding="utf-8")
     assert PUBLIC_KEY_HEX in src, "the anchor service verifies licenses against a different key"

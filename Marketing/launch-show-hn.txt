@@ -21,7 +21,7 @@ And the honest limitation, stated in the README rather than buried: the SDK runs
 
 Guardrails ship as 36 rules in 7 packs (destructive, secrets, money, production, access, exfiltration, blast radius). The Claude Code integration is one command and blocks rm -rf, terraform destroy, force pushes, DROP TABLE and leaked keys before execution, recording each decision either way.
 
-MIT licensed, Python and TypeScript SDKs, self-hostable sink, and a free tier that is not a trial. Source: https://github.com/pofky/provenrail
+MIT licensed, Python and TypeScript SDKs, self-hostable recording server, and a free tier that is not a trial. Every account also gets one independent RFC 3161 timestamp free, because the argument for paying is easier to check on your own run than to read on a pricing page. Source: https://github.com/pofky/provenrail
 
 What I most want picked apart: the threat model. I have tried to be careful about what the two chains actually prove versus what people will assume they prove, and I would rather find the gap here than after someone relies on it.
 

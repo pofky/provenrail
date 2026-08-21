@@ -22,7 +22,7 @@ The record carries two independent chains, one produced by the agent and one by 
 
 Verification is open source under the MIT licence, runs entirely offline, and trusts neither the agent, the server, nor Provenrail. Two independent verifier implementations, one in Python and one in JavaScript, are held to a frozen conformance suite that both must agree on. Anyone can verify a record in a browser without an account.
 
-Provenrail integrates with Claude Code as an installable plugin, and with OpenAI, Anthropic, LangChain and MCP through one-line instrumentation. The server is self-hostable, so records need never reach a third party. There is a free tier, and paid tiers add trusted timestamping, team access with roles and single sign-on, evidence exports and compliance reports.
+Provenrail integrates with Claude Code as an installable plugin, and with OpenAI, Anthropic, LangChain and MCP through one-line instrumentation. The server is self-hostable, so records need never reach a third party. There is a free tier including one independent RFC 3161 timestamp, and paid tiers add unlimited trusted timestamping, team access with roles and single sign-on, evidence exports and compliance reports.
 
 
 === CATEGORIES AND TAGS (use whichever the destination supports) ===

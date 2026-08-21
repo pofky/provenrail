@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Agent Guardrails With a Verifiable Receipt | Provenrail</title>
-  <meta name="description" content="Block destructive AI agent actions before they run, and sign every decision into a record anyone can verify with an open-source tool. Free to start.">
+  <title>Verifiable Audit Trail for AI Agents | Provenrail</title>
+  <meta name="description" content="Record every model call, tool call and decision your AI agent makes, signed and hash-chained, on a server you run. Anyone can verify it offline with an open-source tool. Free to start.">
   <link rel="canonical" href="https://provenrail.com/">
   <meta name="robots" content="index,follow">
 
   <!-- Open Graph -->
-  <meta property="og:title" content="AI Agent Guardrails With a Verifiable Receipt | Provenrail">
-  <meta property="og:description" content="Block rm -rf, terraform destroy, force pushes and leaked keys at your agent's tool boundary, and get a signed, hash-chained record of every decision that anyone can verify.">
+  <meta property="og:title" content="Verifiable Audit Trail for AI Agents | Provenrail">
+  <meta property="og:description" content="Know what your AI agent did, and prove it to a client, an auditor or the other side of a dispute. Signed, hash-chained records on a server you run, checked by an open-source verifier that trusts neither the agent nor us.">
   <meta property="og:url" content="https://provenrail.com/">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://provenrail.com/og.png">
@@ -21,8 +21,8 @@
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="AI Agent Guardrails With a Verifiable Receipt | Provenrail">
-  <meta name="twitter:description" content="Block destructive agent actions before they run, and prove what happened afterwards. Off-box, hash-chained, independently verifiable.">
+  <meta name="twitter:title" content="Verifiable Audit Trail for AI Agents | Provenrail">
+  <meta name="twitter:description" content="Know what your AI agent did, and prove it to anyone. Signed, hash-chained records you hold, verified by open-source code that trusts nobody.">
   <meta name="twitter:image" content="https://provenrail.com/og.png">
 
   <!-- Favicon -->
@@ -153,32 +153,33 @@
     <section class="hero" aria-labelledby="hero-h1">
       <div class="hero-glow" aria-hidden="true"></div>
       <div class="container">
-        <p class="hero-eyebrow">Agent guardrails, with a receipt</p>
+        <p class="hero-eyebrow">Evidence for what your agents do</p>
 
         <h1 class="hero-title" id="hero-h1">
-          Your coding agent is one <br class="wide-only">command from <em>deleting prod</em>.
+          Know what your AI agent did. <br class="wide-only"><em>Prove it to anyone.</em>
         </h1>
 
         <p class="hero-claim">
-          Provenrail stops it, and writes a receipt that cannot be altered without the change showing. One command puts
-          guardrails at your agent's own tool boundary, so <code>rm -rf</code>, <code>terraform
-          destroy</code>, force pushes and leaked keys are blocked before they run. Every
-          decision is signed and hash-chained off-box, verifiable by anyone with an open-source
-          tool that trusts neither the agent nor us.
+          Provenrail records every model call, tool call and decision your agent makes, signed and
+          chained as it happens, on a server you run. Your client, your auditor or the other side
+          of a dispute checks it with an open-source verifier that trusts neither the agent nor
+          us. The same boundary blocks the destructive calls, so <code>rm -rf</code>,
+          <code>terraform destroy</code>, force pushes and leaked keys never run in the first
+          place.
         </p>
 
         <div class="hero-ctas">
-          <a href="/#live-proof" class="btn-primary">
+          <a href="/#try-it" class="btn-primary">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M8 1v14M1 8l7 7 7-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            Guard my agent
+            See it catch a tampered record
           </a>
-          <a href="/verify" class="btn-secondary">
+          <a href="/#live-proof" class="btn-secondary">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M2 8a6 6 0 1 0 12 0A6 6 0 0 0 2 8Zm4-1.5 4 1.5-4 1.5V6.5Z" fill="currentColor"/>
             </svg>
-            Verify a record yourself
+            Install in 30 seconds
           </a>
         </div>
 
@@ -190,7 +191,7 @@
 
         <p class="hero-honest" role="note">
           Honest scope: guardrails cover the tool calls your agent routes through its hooks, and a
-          record is immutable and verifiable once it reaches the sink. Completeness is never claimed:
+          record is immutable and verifiable once it reaches the recording server. Completeness is never claimed:
           a process that never calls the hook will not appear. We state this plainly rather than bury
           it. <a href="/#faq" style="color:inherit;text-decoration:underline">See the full threat model</a>.
         </p>
@@ -207,6 +208,29 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
           <span class="rail-cap">chain verified</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- TRY IT: the visitor performs the proof themselves, before being asked to install -->
+    <section class="how-section" aria-labelledby="prove-heading" id="try-it">
+      <div class="container">
+        <div class="section-header reveal">
+          <p class="section-eyebrow">Try it right here</p>
+          <h2 id="prove-heading">Change one byte. Watch the proof break.</h2>
+          <p class="section-sub">Below is a real Provenrail record, verified live in your browser. Flip a single character and the open-source verifier rejects it. This is the whole idea, and you do not have to trust us to see it.</p>
+        </div>
+        <div class="prove-card reveal" id="prove-card" data-state="loading">
+          <div class="prove-verdict"><span id="prove-badge">Verifying the record...</span></div>
+          <p class="prove-meta" id="prove-meta">Recomputing every hash, signature, Merkle anchor, and witness cosignature locally.</p>
+          <div class="prove-actions">
+            <button class="btn-primary" id="prove-tamper" disabled>Flip one byte</button>
+            <button class="btn-secondary" id="prove-reset" hidden>Reset to the real record</button>
+            <a class="btn-secondary" href="/verify">Open the full verifier</a>
+          </div>
+          <p class="prove-note">Runs entirely in your browser via the open-source verifier. Your data never leaves your device, not even to us.</p>
         </div>
       </div>
     </section>
@@ -309,28 +333,6 @@
       .prove-note{color:var(--text-lo);font-size:1rem;margin-top:.9rem}
       .prove-card button[disabled]{opacity:.5;cursor:not-allowed}
     </style>
-    <section class="how-section" aria-labelledby="prove-heading" id="try-it">
-      <div class="container">
-        <div class="section-header reveal">
-          <p class="section-eyebrow">Try it right here</p>
-          <h2 id="prove-heading">Change one byte. Watch the proof break.</h2>
-          <p class="section-sub">Below is a real Provenrail record, verified live in your browser. Flip a single character and the open-source verifier rejects it. This is the whole idea, and you do not have to trust us to see it.</p>
-        </div>
-        <div class="prove-card reveal" id="prove-card" data-state="loading">
-          <div class="prove-verdict"><span id="prove-badge">Verifying the record...</span></div>
-          <p class="prove-meta" id="prove-meta">Recomputing every hash, signature, Merkle anchor, and witness cosignature locally.</p>
-          <div class="prove-actions">
-            <button class="btn-primary" id="prove-tamper" disabled>Flip one byte</button>
-            <button class="btn-secondary" id="prove-reset" hidden>Reset to the real record</button>
-            <a class="btn-secondary" href="/verify">Open the full verifier</a>
-          </div>
-          <p class="prove-note">Runs entirely in your browser via the open-source verifier. Your data never leaves your device, not even to us.</p>
-        </div>
-      </div>
-    </section>
-
-    <div class="section-divider"></div>
-
     <!-- SEE IT IN ACTION -->
     <section class="tour-section" aria-labelledby="tour-heading" id="see-it">
       <div class="container">
@@ -635,6 +637,7 @@
               <li class="plan-feature">50k events per month (roughly 200 to 500 agent runs)</li>
               <li class="plan-feature">Single project, single user</li>
               <li class="plan-feature">Hash-chain integrity (local timestamps)</li>
+              <li class="plan-feature">One independent RFC 3161 timestamp, free, so you can see what an outside party's receipt looks like on your own run</li>
               <li class="plan-feature">Open-source verifier, offline or hosted</li>
               <li class="plan-feature">Regime mapping reports via CLI (<code>pr report</code>), run on a bundle you export yourself</li>
               <li class="plan-feature">Self-contained evidence packs via CLI (<code>pr pack</code>), the same way</li>
@@ -652,7 +655,7 @@
             <ul class="plan-features" aria-label="Builder plan features">
               <li class="plan-feature">500k events per month</li>
               <li class="plan-feature">RFC 3161 trusted timestamps</li>
-              <li class="plan-feature">Anchoring built in: send the root of your chain, keep every record. Timestamped by a public authority, not by us</li>
+              <li class="plan-feature">Independent proof of when, unlimited. You send a 32-byte fingerprint and keep every record; a public authority signs the time, not us</li>
               <li class="plan-feature">A public anchor receipt your client or auditor can check without an account</li>
               <li class="plan-feature">Shareable client proof links + live badge</li>
               <li class="plan-feature">Single project, single user</li>

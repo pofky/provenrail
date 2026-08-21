@@ -33,3 +33,4 @@ verify_jwt = false
 # defeat both halves, so the gateway check stays off for the same reason as the three above.
 [functions.anchor]
 verify_jwt = false
+

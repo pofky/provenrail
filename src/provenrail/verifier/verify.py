@@ -1225,6 +1225,20 @@ def main(argv: list[str] | None = None) -> int:
                 # problems" when the verdict is green. Only fails ever change the verdict.
                 print("The warn/info lines above are advisory context, not failures: the "
                       "record's integrity is fully proven. Only TAMPERING DETECTED is a failure.")
+            # The one thing a green run does NOT prove is that it happened when it says it did,
+            # and this is the only moment the reader can see why that matters: they are holding
+            # a proof they built entirely themselves. Said here rather than on a pricing page,
+            # because here it is a fact about the file in front of them.
+            codes = {f.code for f in rep.findings}
+            if codes & {"no_anchor", "local_anchor_only"}:
+                print("\nWhat this does not prove: WHEN it happened. Every timestamp in this "
+                      "bundle was written by the same side that wrote the records, so it cannot "
+                      "settle a dispute about backdating.")
+                print("An independent timestamp fixes that, and it is the one part you cannot "
+                      "issue to yourself:")
+                print("  pr anchor-push " + (args.bundle if args.bundle != "-" else "bundle.json")
+                      + "     sends a 32-byte root, no records, no payloads")
+                print("  First anchor is free: https://provenrail.com/pricing")
         elif rep.result == "malformed":
             print("\nRESULT: NOT A PROVENRAIL BUNDLE. This file is valid JSON but is not a "
                   "Provenrail bundle (no recognized format). Check you pointed `pr verify` at the "

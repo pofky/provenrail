@@ -15,7 +15,7 @@ Guardrails for AI agents, with a receipt anyone can verify
 
 DESCRIPTION (260 char limit, currently 257)
 
-Block your coding agent's destructive commands before they run, and sign every decision into a hash-chained record that cannot be altered without it showing. Verify any record in your browser, no signup. MIT licensed verifier, self-hostable, free tier.
+Block your coding agent's destructive commands before they run, and sign every decision into a hash-chained record that cannot be altered without it showing. Verify any record in your browser, no signup. MIT licensed verifier, self-hostable, free tier including one independent timestamp.
 
 
 TOPICS (pick 3)

@@ -2,12 +2,17 @@
 
 ## Currently Active
 
-_No active work._
+Edge functions and the site are NOT deployed for the 2026-08-21 changes. Run:
+`supabase functions deploy anchor trial-license polar-webhook pageview --project-ref jzgamrptvsdxnwtuascx`
+then `npx wrangler pages deploy web --project-name provenrail` from the repo ROOT (see DEPLOY.md,
+the root `functions/` dir is bundled relative to the working directory). Until both run, the free
+anchor cannot be claimed and the new homepage is not live.
 
 ## Change History
 
 | Date | Project | Description |
 |------|---------|-------------|
+| 2026-08-21 | provenrail | Conversion pass on the whole funnel: homepage leads with the proof (tamper widget moved above the install snippet, hero rewritten for the audit-trail buyer), one free anchor per account (`trial-license` edge fn + allowance gate in `anchor/account.ts`, driven by `tests/deno/anchor_gate_test.ts`), account page gained the five-step first-anchored-run card, `pr anchor-push` defaults its URL, key and receipt path, `pr verify` names the time gap it cannot close, float error says what to pass instead, "sink" became "recording server" in every user-facing string; DISTRIBUTION.md written; 950 tests |
 | 2026-08-10 | provenrail | Health check + fixes: verifier runs now counted (`verify_run`/`verify_own`), `/pv` edge proxy so `country` is finally recorded, pricing CTAs carry the plan straight to checkout, nav honest about auth on every page, `pageview` verify_jwt pinned in config.toml after a redeploy 401'd it; 870 tests |
 | 2026-08-06 | provenrail | Prod sweep: /pricing page, canonical-host redirects, CSP + HSTS, npm 0.2.30 lockstep, IndexNow submit, live verification |
 | 2026-08-06 | provenrail | Audit: 857 tests green, site live, on-page SEO strong; found zero external traffic, no `/pricing` page, npm version drift |

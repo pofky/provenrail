@@ -19,6 +19,7 @@ const ALLOWED_EVENTS = new Set([
   "cta_docs",
   "verify_run",   // the in-browser verifier ran against the built-in demo or tampered fixture
   "verify_own",   // ...against a bundle the visitor brought, which is the real intent signal
+  "cta_trial_key",  // claimed the one free anchor: the closest thing to intent before payment
 ]);
 
 // Country. Cloudflare fronts this host but does NOT forward cf-ipcountry to it (checked against

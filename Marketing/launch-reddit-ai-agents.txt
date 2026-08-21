@@ -24,7 +24,7 @@ The property you get is not "nobody can tamper", it is "tampering is detectable 
 
 The thing you cannot get, and I would be sceptical of anyone who claims otherwise: completeness. If the recorder runs inside the agent process, a genuinely hostile agent can decline to call it. You can prove what was recorded was not altered. You cannot prove nothing was omitted. Any tool telling you it guarantees a complete record of an in-process agent is overselling.
 
-I built this out as a tool, Provenrail, because I wanted it for my own agents. Free tier, MIT licensed verifier, self-hostable so nothing needs to reach my servers. If you just want to see the mechanism rather than install anything, there is a real record verifying live in your browser at provenrail.com/verify?demo and the same record with one byte flipped at provenrail.com/verify?tamper, so you can watch it fail rather than believe me.
+I built this out as a tool, Provenrail, because I wanted it for my own agents. Free tier, MIT licensed verifier, self-hostable so nothing needs to reach my servers, plus one free independent timestamp per account so you can see what an outside receipt looks like on your own run. If you just want to see the mechanism rather than install anything, there is a real record verifying live in your browser at provenrail.com/verify?demo and the same record with one byte flipped at provenrail.com/verify?tamper, so you can watch it fail rather than believe me.
 
 Mostly though I am interested in whether other people building agents see this as a real problem yet, or whether it only becomes real the first time something goes wrong in a way you have to explain to someone else.
 

@@ -47,9 +47,14 @@ def _check(value: Any, path: str = "$") -> None:
     if isinstance(value, bool):  # bool before int (bool is a subclass of int)
         return
     if isinstance(value, float):
+        # The message names the value and the fix, not just the rule. A confidence score is the
+        # commonest first record anyone writes, and "floats are not allowed" left the author
+        # guessing which of their fields was the float and what to put there instead.
         raise CanonicalError(
-            f"float at {path}: floats are not allowed in records "
-            f"(use a string for exact cross-verifier hashing)"
+            f"float {value!r} at {path}: floats are not allowed in records, because IEEE-754 "
+            f"text differs between languages and the Python and JavaScript verifiers must hash "
+            f"the same bytes. Pass str({value!r}) to keep the exact value, or scale it to an "
+            f"integer, for example int({value!r} * 100)."
         )
     if isinstance(value, int):
         if abs(value) > JS_SAFE_INT_MAX:

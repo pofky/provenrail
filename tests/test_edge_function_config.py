@@ -80,7 +80,11 @@ PUBLIC_FUNCTIONS = ("polar-webhook", "polar-prices", "pageview",
 )
 
 #: Functions that require a signed-in user and therefore keep the gateway check on.
-AUTHENTICATED_FUNCTIONS = ("polar-checkout", "polar-portal")
+AUTHENTICATED_FUNCTIONS = ("polar-checkout", "polar-portal",
+    # Claims the one free anchor for the signed-in visitor, and writes their licence key. The
+    # identity IS the abuse control here, so the gateway check stays on.
+    "trial-license",
+)
 
 
 def _deployed_function_names() -> set[str]:

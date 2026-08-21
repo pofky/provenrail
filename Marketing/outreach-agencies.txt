@@ -1,0 +1,22 @@
+FIRST MESSAGE (send on the platform where you found them: Upwork, Contra, LinkedIn, or their own contact form. Three sentences, one question, no link in the first message where the platform penalises links.)
+
+I saw you build AI agents for clients. When a client asks what the agent actually did on their data, or disputes an action after the fact, how do you handle that today? I ask because I built a tool for exactly that problem and I am trying to find out whether it is a real problem for people doing this work or only for me.
+
+
+SECOND MESSAGE (only if they reply describing the problem. Match their words, then show the thing rather than describing it.)
+
+That matches what I kept hitting. The short version of what I built: your agent's every model call, tool call and decision gets signed and hash-chained as it happens, on a server you run, so nothing about it is mine to alter or lose. When the client asks, you hand them a file and a link, and they check it themselves with an open-source verifier that trusts neither you nor me. There is a live record verifying in a browser at provenrail.com/verify?demo and the same record with one byte changed at provenrail.com/verify?tamper, which takes about ten seconds and is the fastest way to see whether this is useful to you. Free tier, and every account gets one independent timestamp free.
+
+
+THIRD MESSAGE (only if they tried it and went quiet. One line, no pitch, and this is the last one.)
+
+Did it fit the way you work, or was it solving a problem you do not actually have? Either answer is useful to me.
+
+
+NOTES, NOT FOR SENDING
+
+Send at most 20 of these a week, one per person, on platforms where a direct message is within the terms of service. No scraped email. No sequence past the third message. If someone says no or does not reply after the third, they are done.
+
+The trigger to look for on a profile: AI agent or automation work delivered to clients, five or more completed jobs, and any mention of access to client systems, data, or accounts. Someone who only builds chatbots on their own site has no counterparty and no dispute to lose.
+
+What to record, per person: where you found them, the date, whether they replied, and the words they used for the problem. Their words go into the copy corpus; that is the point of doing this by hand rather than in a tool.

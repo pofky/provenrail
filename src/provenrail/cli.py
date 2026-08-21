@@ -239,6 +239,11 @@ def _process_is_alive(pid: str) -> bool:
     return True
 
 
+# The hosted anchor service. A default, not a lock-in: --url points the same command at any
+# service that speaks the anchor API, including a sink the customer runs themselves.
+DEFAULT_ANCHOR_URL = "https://provenrail.com"
+
+
 def _cmd_anchor_push(args) -> int:
     """Send the root of a locally-held chain to an anchor service, and keep nothing else there.
 
@@ -247,7 +252,38 @@ def _cmd_anchor_push(args) -> int:
 
     import httpx
 
+    from . import license as lic
     from .anchor import merkle_root
+
+    # A buyer arrives here straight from the account page, often before recording anything. The
+    # argparse "the following arguments are required: bundle" is accurate and useless: it names
+    # the missing argument, not the two commands that produce the file.
+    if not args.bundle:
+        print("No bundle to anchor. An anchor covers records you have already recorded, so "
+              "record a run first:\n"
+              "  pr quickstart               start the local recording server\n"
+              "  pr demo                     record a demo run, writes bundle.json\n"
+              "  pr anchor-push bundle.json  send only the 32-byte root of those records",
+              file=sys.stderr)
+        return 2
+    if not Path(args.bundle).exists():
+        print(f"no such bundle: {args.bundle}\n"
+              "Run `pr demo` to write one, or `pr export <file>` to export a recorded run.",
+              file=sys.stderr)
+        return 2
+
+    # The key the customer already activated is the key this service wants. Making them paste it
+    # a second time, from a page they have to go back to, is a step that buys nothing.
+    key = args.key or lic.load_license_token()
+    if not key:
+        print("No licence key. Anchoring is what a paid plan sells: an independent timestamp "
+              "you cannot mint for yourself.\n"
+              "  Have a plan?  copy the key from https://provenrail.com/account, then "
+              "`pr activate <key>`\n"
+              "  No key yet?   every account gets one anchor free: "
+              "https://provenrail.com/account", file=sys.stderr)
+        return 2
+
     bundle = _json.loads(Path(args.bundle).read_text(encoding="utf-8"))
     try:
         leaves = _bundle_leaves(bundle)
@@ -265,7 +301,7 @@ def _cmd_anchor_push(args) -> int:
     payload = {"stream_id": stream_id, "merkle_root": root, "covers_up_to": len(leaves)}
     try:
         resp = httpx.post(args.url.rstrip("/") + "/v1/anchors", json=payload, timeout=args.timeout,
-                          headers={"Authorization": f"Bearer {args.key}"})
+                          headers={"Authorization": f"Bearer {key}"})
     except httpx.HTTPError as e:
         print(f"could not reach the anchor service at {args.url}: {e}", file=sys.stderr)
         return 3
@@ -273,6 +309,18 @@ def _cmd_anchor_push(args) -> int:
         # The service refused to sign a shorter or forked history. That is the service working.
         print(f"refused: {resp.json().get('detail', resp.text)}", file=sys.stderr)
         return 1
+    if resp.status_code in (401, 403):
+        # The two refusals a paying customer actually hits. The service already says why in
+        # `detail`; what it cannot say is what to do next, because it does not know whether the
+        # key is stale, wrong, or absent.
+        try:
+            detail = resp.json().get("detail", resp.text)
+        except ValueError:
+            detail = resp.text
+        print(f"the anchor service refused this key: {detail}", file=sys.stderr)
+        print("  the key rotates each billing period; copy the current one from "
+              "https://provenrail.com/account and run `pr activate <key>`", file=sys.stderr)
+        return 3
     if resp.status_code >= 400:
         print(f"anchor service returned {resp.status_code}: {resp.text}", file=sys.stderr)
         return 3
@@ -288,7 +336,10 @@ def _cmd_anchor_push(args) -> int:
         print(f"  {args.url.rstrip('/')}/v1/anchors/{out['anchor_id']}")
     if args.receipt_out:
         Path(args.receipt_out).write_text(_json.dumps(out, indent=2), encoding="utf-8")
-        print(f"\nanchor receipt written to {args.receipt_out}")
+        if not args.json:
+            print(f"\nReceipt written to {args.receipt_out}. Check it the way they will, "
+                  f"offline, without asking us anything:")
+            print(f"  pr anchor-verify {args.bundle} {args.receipt_out}")
     return 0
 
 
@@ -485,9 +536,9 @@ def _cmd_quickstart(args) -> int:
             except (OSError, ValueError):
                 pass
             pid_file.unlink(missing_ok=True)
-            print("stopped the local Provenrail sink")
+            print("stopped the local Provenrail recording server")
         else:
-            print("no local sink pid file found")
+            print("no local recording server pid file found")
         return 0
 
     if args.url:
@@ -495,9 +546,9 @@ def _cmd_quickstart(args) -> int:
         try:
             prov = provision_stream(args.url, label=args.label, api_key=args.account_key)
         except httpx.HTTPError as exc:
-            print(f"could not reach a Provenrail sink at {args.url}: "
+            print(f"could not reach a Provenrail recording server at {args.url}: "
                   f"{type(exc).__name__}", file=sys.stderr)
-            print("Check the URL, and that the sink is running. `pr quickstart` with no --url "
+            print("Check the URL, and that the server is running. `pr quickstart` with no --url "
                   "starts one locally.", file=sys.stderr)
             return 1
         cfg = write_config(CONFIG_FILENAME, endpoint=args.url,
@@ -513,7 +564,7 @@ def _cmd_quickstart(args) -> int:
         if pid_file.is_file():
             existing = pid_file.read_text().strip()
             if _process_is_alive(existing):
-                print(f"a local sink is already recorded as running (pid {existing}).",
+                print(f"a local recording server is already recorded as running (pid {existing}).",
                       file=sys.stderr)
                 print("Run `pr quickstart --stop` first, or use --port for a second one.",
                       file=sys.stderr)
@@ -542,7 +593,7 @@ def _cmd_quickstart(args) -> int:
             # the next quickstart refused to start because of a pid that was already dead.
             proc.terminate()
             pid_file.unlink(missing_ok=True)
-            print(f"the local sink did not become healthy in time on port {args.port}.",
+            print(f"the local recording server did not become healthy in time on port {args.port}.",
                   file=sys.stderr)
             print(f"Something else may be using it. Try `pr quickstart --port {args.port + 1}`.",
                   file=sys.stderr)
@@ -551,29 +602,35 @@ def _cmd_quickstart(args) -> int:
         cfg = write_config(CONFIG_FILENAME, endpoint=url,
                            write_token=prov["write_token"], stream_id=prov["stream_id"],
                            read_token=prov.get("read_token"), share_token=prov.get("share_token"))
-        print(f"started a local sink (pid {proc.pid}) and wrote {cfg}")
+        print(f"started a local recording server (pid {proc.pid}) and wrote {cfg}")
 
     # First instruction is a command, not a code sample. Quickstart used to hand a new user a
     # Python snippet to paste into a file they had to create, which is a real wall for someone
     # who arrived from the "never touched a terminal" guide: their first act is authoring code,
     # and nothing has proved the tool works yet. `pr demo` produces a real, signed, verifiable
     # run in one line, so the first thing that happens is success.
-    print("\nSee it work right now, without writing any code:\n")
+    # Everything below used to print at one weight, so the required first step, the optional
+    # guardrail step and the cleanup command all looked equally urgent to someone seeing the
+    # tool for the first time. Numbered steps say which of them is next.
+    print("\n-- Step 1: see it work, no code required ------------------------------\n")
     print("    pr demo                   # records a real run and writes bundle.json")
     print("    pr verify bundle.json     # recomputes everything, trusts nobody\n")
-    print("Then record your own agent. The whole setup is two lines:\n")
+    print("-- Step 2: record your own agent, two lines ---------------------------\n")
     print("    import provenrail as fr")
     print("    with fr.record('my-agent'):")
     print("        ...   # your agent runs; calls are captured automatically\n")
-    print("After your agent runs, export your own run and verify it yourself:\n")
-    print("    pr export my-run.json     # pulls your sealed run from the sink")
+    print("    pr export my-run.json     # pull your sealed run from the recording server")
     print("    pr verify my-run.json     # recomputes everything, trusts nobody\n")
-    print("Optional: block risky actions, not just record them. Add prebuilt guardrails")
-    print(f"to {CONFIG_FILENAME}:\n")
+    print("    Record values must be strings, ints, bools, lists, dicts or null.")
+    print("    A float such as confidence=0.87 is refused: hashes must agree across")
+    print("    languages, so pass str(0.87) or round it to an int.\n")
+    print("-- Optional: block risky actions, not just record them ----------------\n")
+    print(f"    Add prebuilt guardrails to {CONFIG_FILENAME}:\n")
     print('    "policy": {"use": ["destructive", "secrets", "money"]}\n')
-    print("    pr rules                    # list every pack and rule")
+    print("    pr rules                      # list every pack and rule")
     print("    pr rules --check my-run.json  # which rules match YOUR tool names\n")
-    print("Stop the local sink with:  pr quickstart --stop")
+    print("-- When you are done --------------------------------------------------\n")
+    print("    pr quickstart --stop      # stop the local recording server")
     return 0
 
 
@@ -646,7 +703,7 @@ def _cmd_witness(args) -> int:
     print(f"Provenrail witness '{args.name}' on http://{args.host}:{args.port}")
     print(f"  public key: {witness.public_key_hex()}")
     print(f"  witnessing: {sorted(log_keys) or '(unpinned, insecure)'}")
-    print("  Give the sink operator this URL + public key to add as a witness.")
+    print("  Give the recording server's operator this URL + public key to add as a witness.")
     # Flush before the blocking server run so a redirected log (docker/systemd) shows the
     # banner and public key immediately, instead of looking like a witness that never started.
     sys.stdout.flush()
@@ -684,7 +741,7 @@ def _cmd_export(args) -> int:
         httpx.post(f"{base}/v1/streams/{stream_id}/anchor", headers=headers, timeout=15.0)
         resp = httpx.get(f"{base}/v1/streams/{stream_id}/export", headers=headers, timeout=30.0)
     except httpx.HTTPError as e:
-        print(f"could not reach the sink at {endpoint}: {e}")
+        print(f"could not reach the recording server at {endpoint}: {e}")
         print("is it still running? `pr quickstart` starts it; `pr quickstart --stop` stops it.")
         return 1
     if resp.status_code != 200:
@@ -1064,7 +1121,7 @@ def _cmd_guard(args) -> int:
         if not (_load_config_file() or {}).get("endpoint"):
             print("No Provenrail endpoint configured in this folder, so decisions could be")
             print("enforced but not recorded. Run `pr quickstart` first (it starts a local")
-            print("sink and writes .provenrail.json), then `pr guard install`.")
+            print("recording server and writes .provenrail.json), then `pr guard install`.")
             return 1
         chosen = None
         if args.use is not None:
@@ -1154,9 +1211,10 @@ def _cmd_guard(args) -> int:
                       "current run")
         print("  Budgets bind model calls made through the SDK; tool hooks carry no model spend.")
     if pending:
-        print(f"\n{len(pending)} decision(s) in the local journal: the sink was unreachable when")
-        print(f"they were made, so they are UNSIGNED and are not evidence ({guard.JOURNAL_FILENAME}).")
-        print("Start the sink (`pr quickstart`) so later decisions are recorded properly.")
+        print(f"\n{len(pending)} decision(s) in the local journal: the recording server was")
+        print("unreachable when they were made, so they are UNSIGNED and are not evidence "
+              f"({guard.JOURNAL_FILENAME}).")
+        print("Start it (`pr quickstart`) so later decisions are recorded properly.")
     counts = guard._read_counts_file()
     if counts:
         print(f"\nBlast-radius counters: {len(counts)} session(s) tracked in "
@@ -1236,11 +1294,14 @@ def build_parser() -> argparse.ArgumentParser:
     an = sub.add_parser("anchor-push",
                         help="send the root of a local bundle to an anchor service; the records "
                              "themselves never leave this machine")
-    an.add_argument("bundle", help="path to an exported bundle JSON")
-    an.add_argument("--url", required=True, help="anchor service base URL")
-    an.add_argument("--key", required=True, help="account API key for the anchor service")
+    an.add_argument("bundle", nargs="?", help="path to an exported bundle JSON")
+    an.add_argument("--url", default=DEFAULT_ANCHOR_URL,
+                    help=f"anchor service base URL (default: {DEFAULT_ANCHOR_URL})")
+    an.add_argument("--key", help="licence key for the anchor service; defaults to the one "
+                                  "`pr activate` stored, or $PROVENRAIL_LICENSE")
     an.add_argument("--stream-id", help="override the stream label sent (default: the bundle's)")
-    an.add_argument("--receipt-out", help="write the anchor receipt to this path")
+    an.add_argument("--receipt-out", default="anchor-receipt.json",
+                    help="write the anchor receipt to this path (default: anchor-receipt.json)")
     an.add_argument("--timeout", type=float, default=30.0)
     an.add_argument("--json", action="store_true")
     an.set_defaults(func=_cmd_anchor_push)

@@ -4,37 +4,13 @@
 // (Standard Webhooks), not a Supabase JWT. We validate that signature instead.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { Webhook } from "npm:standardwebhooks@1";
-import * as ed from "npm:@noble/ed25519@2";
+import { mintLicense } from "../_shared/license-mint.ts";
 
-// Mint a signed offline license token the self-hosted server verifies with the embedded public
-// key (src/provenrail/license.py). Shape must match the Python verifier byte-for-byte:
-//   prl_live_<base64url(payload_json)>.<base64url(ed25519_sig_over_the_b64payload_bytes)>
-// The signature covers the base64url payload segment, so JSON key order never matters.
-function b64url(bytes: Uint8Array): string {
-  let s = "";
-  for (const b of bytes) s += String.fromCharCode(b);
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-async function mintLicense(account: string, plan: string, exp: number | null): Promise<string | null> {
-  // Returns null (never throws) if the signing secret is missing or signing fails, so a
-  // subscription update is never blocked by license issuance. Set PROVENRAIL_LICENSE_SECRET to
-  // enable minting; until then the plan/status still update, the key is just absent.
-  // `exp` (unix seconds, or null for non-expiring) bounds how long the offline key verifies. For
-  // a subscription we set it to the current period end plus a grace window, so a key from one
-  // month's payment is NOT perpetual: it expires unless a renewal webhook refreshes it. The
-  // payload field order ({account,plan,iat,exp}) is irrelevant to verification (the Python
-  // verifier checks the signature over the base64url payload bytes, not a re-serialization).
-  const secretHex = (Deno.env.get("PROVENRAIL_LICENSE_SECRET") ?? "").trim();
-  if (!secretHex) return null;
-  try {
-    const payload = JSON.stringify({ account, plan, iat: Math.floor(Date.now() / 1000), exp });
-    const b64payload = b64url(new TextEncoder().encode(payload));
-    const sig = await ed.signAsync(new TextEncoder().encode(b64payload), secretHex);
-    return "prl_live_" + b64payload + "." + b64url(sig);
-  } catch (_e) {
-    return null;
-  }
-}
+// Licence minting lives in ../_shared/license-mint.ts, because trial-license issues keys too and
+// two copies of a signing routine drift. `exp` (unix seconds, or null for non-expiring) bounds
+// how long the offline key verifies. For a subscription we set it to the current period end plus
+// a grace window, so a key from one month's payment is NOT perpetual: it expires unless a
+// renewal webhook refreshes it.
 
 // Grace added to the billing period end before an offline license key expires, so a slightly
 // late renewal webhook never locks out a paying customer mid-cycle.

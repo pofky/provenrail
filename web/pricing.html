@@ -44,6 +44,8 @@
     .price-note { max-width: 68ch; margin: 2.2rem auto 0; text-align: center; font-family: var(--font-mono); font-size: 1rem; color: var(--text-lo); line-height: 1.7; }
     .price-section { padding-bottom: clamp(3rem, 7vw, 5rem); }
     .price-table-wrap { overflow-x: auto; margin-top: 1.2rem; }
+    .table-hint { display: none; color: var(--text-lo); font-size: .88rem; margin: .5rem 0 0; }
+    @media (max-width: 700px) { .table-hint { display: block; } }
     table.cmp { width: 100%; border-collapse: collapse; font-size: .95rem; min-width: 640px; }
     table.cmp th, table.cmp td { text-align: left; padding: .7rem .8rem; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-mid); }
     table.cmp thead th { color: var(--text-hi); font-weight: 600; font-size: .85rem; white-space: nowrap; }
@@ -121,13 +123,14 @@
               <li class="plan-feature">50k events per month (roughly 200 to 500 agent runs)</li>
               <li class="plan-feature">Single project, single user</li>
               <li class="plan-feature">Hash-chain integrity (local timestamps)</li>
+              <li class="plan-feature">One independent RFC 3161 timestamp, free, so you can see what an outside party's receipt looks like on your own run</li>
               <li class="plan-feature">Open-source verifier, offline or hosted</li>
               <li class="plan-feature">Regime mapping reports via CLI (<code>pr report</code>), run on a bundle you export yourself</li>
               <li class="plan-feature">Self-contained evidence packs via CLI (<code>pr pack</code>), the same way</li>
               <li class="plan-feature">Prove a transcript is authentic (<code>pr verify-content</code>)</li>
               <li class="plan-feature">Community support</li>
             </ul>
-            <a href="/account" class="btn-plan">Get started</a>
+            <a href="/account" class="btn-plan">Start free, one anchor included</a>
           </article>
 
           <article class="plan-card popular" aria-labelledby="plan-builder-name">
@@ -138,9 +141,9 @@
             <ul class="plan-features" aria-label="Builder plan features">
               <li class="plan-feature">500k events per month</li>
               <li class="plan-feature">RFC 3161 trusted timestamps</li>
-              <li class="plan-feature">Anchoring built in: send the root of your chain, keep every record (<code>pr anchor-push --url https://provenrail.com</code>, 0.2.31 or later). Your licence key is the only credential; nothing to set up</li>
-              <li class="plan-feature">A public anchor receipt your client or auditor can check without an account</li>
-              <li class="plan-feature">Every anchor gets an RFC 3161 timestamp from a public authority, so the date is not ours to assert</li>
+              <li class="plan-feature">Independent proof of when, unlimited. You send a 32-byte fingerprint of your records; your prompts, payloads and records never leave your machine (<code>pr anchor-push bundle.json</code>, 0.2.33 or later). Your licence key is the only credential, so buying the plan is the whole setup</li>
+              <li class="plan-feature">A public authority signs the time under RFC 3161, so the date is not ours to assert and not yours either. That is the part you cannot issue to yourself</li>
+              <li class="plan-feature">A public receipt page your client or auditor opens with no account, and checks offline with the open-source verifier</li>
               <li class="plan-feature">Shareable client proof links + live badge</li>
               <li class="plan-feature">Single project, single user</li>
               <li class="plan-feature">Email support</li>
@@ -198,6 +201,7 @@
         <div class="faq-block">
           <h2 id="compare-heading">What changes between tiers</h2>
           <p style="color:var(--text-mid)">The cryptography does not. Integrity, the chain and the verifier are the same code on every tier, including free. Paid tiers add external time, sharing and team scale.</p>
+          <p class="table-hint">Scroll the table sideways to see Builder, Team and Enterprise.</p>
           <div class="price-table-wrap">
             <table class="cmp">
               <thead>
@@ -211,7 +215,7 @@
                 <tr><td>Evidence packs and reports (CLI)</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Anchoring of your chain (root only)<span class="sub">to our service, or to a server you run</span></td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Public anchor receipt for an auditor</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>RFC 3161 trusted timestamps</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>RFC 3161 trusted timestamps</td><td>One, free</td><td class="yes">Unlimited</td><td class="yes">Unlimited</td><td class="yes">Unlimited</td></tr>
                 <tr><td>Shareable proof links + live badge</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Team members</td><td>1</td><td>1</td><td>Up to 10</td><td>Unlimited</td></tr>
                 <tr><td>Roles + SSO</td><td>No</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
@@ -255,10 +259,10 @@
             <dd>Your records are hashed into a chain. Independent anchoring sends us the single root of that chain, 32 bytes, plus how many records it covers. Nothing else is sent, because the endpoint has no field anything else could arrive in. We timestamp that root, keep an append-only history of it, and publish it at a URL anyone can read without an account. Your client or auditor recomputes the root from the records you show them and checks it matches. If you later edit or delete a record, it stops matching, and neither you nor we can make it match again.</dd>
 
             <dt>Why can I not just anchor my own chain?</dt>
-            <dd>You can, and the tooling is free. What you cannot do is be your own independent party. A timestamp you produced yourself proves the chain is internally consistent, not that it existed before the dispute. That is the only thing a paid plan will sell that self-hosting cannot reproduce.</dd>
+            <dd>You can, and the tooling is free. What you cannot do is be your own independent party. A timestamp you produced yourself proves the chain is internally consistent, not that it existed before the dispute. That is the only thing a paid plan sells that self-hosting cannot reproduce, which is also why the first one is free: you should see the difference on your own run rather than take this paragraph's word for it.</dd>
 
             <dt>Is the hosted anchor service running today?</dt>
-            <dd>Yes. <code>pr anchor-push --url https://provenrail.com --key &lt;your licence key&gt;</code> sends the root of your chain and nothing else, and returns a receipt with an RFC 3161 timestamp from a public authority. There is no signup step beyond buying the plan: the licence key you already have is the credential. You keep every record; we never receive one, which is why this is the only part of Provenrail we can host.</dd>
+            <dd>Yes. <code>pr anchor-push bundle.json</code> sends a 32-byte fingerprint of your records and nothing else, and returns a receipt carrying an RFC 3161 timestamp from a public authority. There is no signup step beyond buying the plan: the licence key you activated is the credential, and the command picks it up on its own. You keep every record; we never receive one, which is why this is the only part of Provenrail we can host. Every account gets one anchor free, so you can see the receipt before you decide.</dd>
 
             <dt>What can you do with what I send you?</dt>
             <dd>Almost nothing, by design. An anchor request carries a stream label, a 64-character fingerprint of your records, and how many records it covers. There is no field a record could arrive in. We cannot read your prompts, reconstruct your chain, or show anyone what your agents did, because we were never sent it. What we can do is refuse to sign a rewritten history: coverage of a stream only grows, and the same length cannot get two different fingerprints.</dd>

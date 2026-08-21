@@ -188,10 +188,29 @@ def test_the_service_prefers_a_third_party_timestamp():
 
 
 @pytest.mark.skipif(shutil.which("deno") is None, reason="deno not installed")
+def test_the_free_trial_anchor_gate_behaves():
+    """The "one free anchor, ever" rule, driven against the real decision function.
+
+    It is a rule about money rather than about hashes, which is the kind that gets written on a
+    pricing page and never exercised: the failure mode is either a paying customer cut off after
+    one anchor, or an unlimited free tier nobody notices until the abuse arrives. The cases live
+    in tests/deno/anchor_gate_test.ts because the function they drive is TypeScript."""
+    res = subprocess.run(
+        ["deno", "test", "--allow-env", "--allow-net", "--allow-read",
+         str(ROOT / "tests" / "deno" / "anchor_gate_test.ts")],
+        capture_output=True, text=True, cwd=str(ROOT))
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
+@pytest.mark.skipif(shutil.which("deno") is None, reason="deno not installed")
 def test_the_edge_function_typechecks():
     """`supabase functions deploy` bundles without type-checking, so a function with a genuine
     type error deploys happily and fails at the first request that reaches the broken line. The
     tests above read the source as text and would not notice. This runs the compiler."""
-    res = subprocess.run(["deno", "check", str(EDGE_FN)], capture_output=True, text=True,
-                         cwd=str(ROOT))
+    fns = ROOT / "supabase" / "functions"
+    res = subprocess.run(
+        ["deno", "check", str(EDGE_FN), str(fns / "anchor" / "account.ts"),
+         str(fns / "trial-license" / "index.ts"), str(fns / "_shared" / "license-mint.ts"),
+         str(fns / "polar-webhook" / "index.ts")],
+        capture_output=True, text=True, cwd=str(ROOT))
     assert res.returncode == 0, res.stdout + res.stderr
