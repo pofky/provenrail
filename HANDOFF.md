@@ -1,14 +1,35 @@
 # HANDOFF
 
 Last updated 2026-08-21. Branch `main`.
-Site and edge functions are **NOT deployed for this session's changes**: the code is committed and
-pushed, but `supabase functions deploy` was refused by the sandbox and nobody has run
-`wrangler pages deploy`. Until both run, the free anchor cannot be claimed by anyone and
-provenrail.com still shows the old homepage. The exact commands are in `WORKLOG.md` under
-Currently Active and in `DEPLOY.md`.
-Prior state, still true: 0.2.32 PUBLISHED to PyPI and tagged `v0.2.32`, and the hosted anchor
-service is LIVE at `https://provenrail.com/v1/anchors`.
+**Everything below is DEPLOYED and driven against production.** Edge functions
+(`anchor`, `trial-license`, `polar-webhook`, `pageview`) deployed to `jzgamrptvsdxnwtuascx`, site
+deployed to provenrail.com via `wrangler pages deploy web --project-name provenrail` run FROM THE
+REPO ROOT. 0.2.32 is on PyPI and tagged; the CLI changes in this session are NOT released yet, so
+a `pip install provenrail` user still gets the old CLI. Cut 0.2.33 before pointing anyone at the
+free anchor.
 Read this first, then `WORKLOG.md` for history.
+
+## Proven live, 2026-08-21
+
+The free anchor was driven end to end against production with a throwaway Supabase account,
+which was deleted afterwards along with its anchor row (`external_anchors`, `anchor_accounts`,
+`profiles`, auth user: all confirmed gone, and the anchor URL now 404s):
+
+1. `POST /functions/v1/trial-license` with a real session issued a `plan: free` licence key.
+   A second call returned the same key with `reissued: true`, minting nothing.
+2. `pr activate` accepted it offline ("free tier, expires 2027-08-21").
+3. `pr demo` then `pr anchor-push bundle.json` anchored 6 records against provenrail.com and
+   came back with a **real RFC 3161 timestamp from FreeTSA**, not the self-signed fallback.
+4. `pr anchor-verify bundle.json anchor-receipt.json` printed "VERIFIED. These records existed
+   in this order at that time, and the time is proved by a third party", exit 0.
+5. A second push was refused 403: "your one free anchor has been used."
+6. The public auditor page rendered at the edge, named neither the account nor the email, and
+   printed the exact command an auditor pastes.
+
+That run found one real defect that no test would have caught: the refusal advice told the
+customer to rotate a key that was not stale, and printed the raw JSON envelope, because the
+hosted service answers `error` and the self-hosted sink answers `detail` and only one was read.
+Both fixed, and now covered by `test_a_refusal_tells_the_customer_what_actually_happened`.
 
 ## This session, 2026-08-21: the funnel, not the cryptography
 

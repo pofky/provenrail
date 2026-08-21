@@ -34,7 +34,7 @@ SHARED_CLAIMS = [
     "Self-asserted time.",
     "not independent proof of the calendar date",
     # how to check without trusting either party
-    "pr anchor-verify bundle.json receipt.json",
+    "pr anchor-verify bundle.json anchor-receipt.json",
     "an id that does not resolve is not evidence of anything, in either direction",
     # the standing disclaimer
     "It is not legal advice, a compliance guarantee, or an audit opinion.",

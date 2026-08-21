@@ -2,11 +2,10 @@
 
 ## Currently Active
 
-Edge functions and the site are NOT deployed for the 2026-08-21 changes. Run:
-`supabase functions deploy anchor trial-license polar-webhook pageview --project-ref jzgamrptvsdxnwtuascx`
-then `npx wrangler pages deploy web --project-name provenrail` from the repo ROOT (see DEPLOY.md,
-the root `functions/` dir is bundled relative to the working directory). Until both run, the free
-anchor cannot be claimed and the new homepage is not live.
+_No active work._ The 2026-08-21 conversion pass is deployed (edge functions + Pages) and was
+driven end to end against production. Next: cut **0.2.33** to PyPI, because the CLI half of that
+work (anchor-push defaults, the verify upgrade note, the refusal messages) is not in any released
+wheel yet, so anyone following the new account page with an older install gets the old behaviour.
 
 ## Change History
 

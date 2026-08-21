@@ -286,6 +286,62 @@ def test_the_whole_path_end_to_end_through_the_cli(tmp_path, capsys, monkeypatch
     assert "records are missing" in capsys.readouterr().out
 
 
+def test_a_refusal_tells_the_customer_what_actually_happened(tmp_path, capsys, monkeypatch):
+    """Each refusal must lead with the service's own sentence and add only advice that fits it.
+
+    Found live, on the day the free anchor shipped: a spent allowance printed "the key rotates
+    each billing period, copy the current one", which sends someone to fetch the same key and hit
+    the same refusal, and buries the sentence saying the free anchor is gone. It also printed the
+    raw `{"error": ...}` envelope, because the hosted service answers `error` and the self-hosted
+    sink answers `detail`, and only one of the two was ever read.
+    """
+    from provenrail.cli import main as cli_main
+
+    bundle_path, _bundle = _real_bundle(tmp_path)
+
+    class _Resp:
+        def __init__(self, status, body):
+            self.status_code, self._body, self.text = status, body, str(body)
+
+        def json(self):
+            return self._body
+
+    def push(status, body):
+        class _Httpx:
+            HTTPError = Exception
+
+            @staticmethod
+            def post(url, json=None, timeout=None, headers=None):
+                return _Resp(status, body)
+
+        monkeypatch.setitem(__import__("sys").modules, "httpx", _Httpx)
+        capsys.readouterr()
+        code = cli_main(["anchor-push", str(bundle_path), "--url", "http://svc", "--key", "k"])
+        return code, capsys.readouterr().err
+
+    code, err = push(403, {"error": "your one free anchor has been used. A paid plan anchors "
+                                    "without limit: https://provenrail.com/pricing"})
+    assert code == 3
+    assert "one free anchor has been used" in err
+    assert "{" not in err                      # the JSON envelope never reaches the customer
+    assert "rotates each billing period" not in err   # nothing to rotate; the allowance is spent
+
+    code, err = push(403, {"error": "this license has expired; renew it to keep anchoring"})
+    assert code == 3
+    assert "expired" in err
+    assert "provenrail.com/account" in err     # here re-copying the key IS the fix
+
+    code, err = push(401, {"error": "invalid API key"})
+    assert code == 3
+    assert "invalid API key" in err
+    assert "pr activate" in err
+
+    # The self-hosted sink words its refusals under `detail`, and must read the same.
+    code, err = push(403, {"detail": "hosted anchoring is not included in the free plan"})
+    assert "not included in the free plan" in err
+    assert "{" not in err
+
+
 def _real_bundle(tmp_path):
     """A bundle whose chain actually verifies, so anchor-verify's bundle check is exercised
     rather than short-circuited. Built by driving the real sink through the real SDK."""

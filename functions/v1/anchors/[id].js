@@ -117,7 +117,7 @@ function page(a) {
     <div class=k>How to check it yourself</div>
     <ul>
       <li>Ask them for their exported bundle file.</li>
-      <li>Run <code>pr anchor-verify bundle.json receipt.json</code>. It recomputes the
+      <li>Run <code>pr anchor-verify bundle.json anchor-receipt.json</code>. It recomputes the
       fingerprint from their records and compares it with the one above, offline, without asking
       us anything.</li>
       <li>If the two do not match, the records you were shown are not the records that were

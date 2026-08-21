@@ -314,12 +314,26 @@ def _cmd_anchor_push(args) -> int:
         # `detail`; what it cannot say is what to do next, because it does not know whether the
         # key is stale, wrong, or absent.
         try:
-            detail = resp.json().get("detail", resp.text)
+            body = resp.json()
+            # The hosted edge function answers {"error": ...}; the self-hosted FastAPI sink
+            # answers {"detail": ...}. Reading only one of them printed the whole JSON envelope
+            # at whichever service was not being tested that day.
+            detail = body.get("error") or body.get("detail") or resp.text
         except ValueError:
             detail = resp.text
+        # `detail` is a dict when the service answered in JSON. Printing the raw envelope put
+        # `{"error": ...}` in front of a customer, which reads like a crash rather than a policy.
         print(f"the anchor service refused this key: {detail}", file=sys.stderr)
-        print("  the key rotates each billing period; copy the current one from "
-              "https://provenrail.com/account and run `pr activate <key>`", file=sys.stderr)
+        # Only advise rotating the key when a stale key is actually the problem. Telling someone
+        # whose free anchor is spent to re-copy their key sends them to fetch the same key again
+        # and hit the same refusal, and it hides the sentence that says what really happened.
+        text = str(detail).lower()
+        if "expired" in text or "renew" in text:
+            print("  copy the current key from https://provenrail.com/account and run "
+                  "`pr activate <key>`; it rotates each billing period", file=sys.stderr)
+        elif resp.status_code == 401:
+            print("  check the key, or run `pr activate <key>` with the one from "
+                  "https://provenrail.com/account", file=sys.stderr)
         return 3
     if resp.status_code >= 400:
         print(f"anchor service returned {resp.status_code}: {resp.text}", file=sys.stderr)
