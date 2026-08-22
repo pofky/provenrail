@@ -461,6 +461,9 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
 <span class="g">pr demo</span>              <span class="c"># records a session, anchors it, writes bundle.json + pin.json</span>
 <span class="g">pr export</span> my-run.json  <span class="c"># export your own recorded run, locally</span>
 <span class="g">pr verify</span> bundle.json --pin pin.json     <span class="c"># verify, trusting nobody</span>
+<span class="g">pr activate</span> &lt;key&gt;     <span class="c"># store your licence key once; other commands find it</span>
+<span class="g">pr anchor-push</span> bundle.json    <span class="c"># independent timestamp; sends a fingerprint, no records</span>
+<span class="g">pr anchor-verify</span> bundle.json anchor-receipt.json  <span class="c"># check a receipt offline</span>
 <span class="g">pr rules</span>             <span class="c"># list prebuilt guardrail packs; --check bundle.json for coverage</span>
 <span class="g">pr risk</span> bundle.json    <span class="c"># every action a policy blocked (exit 1 if any)</span>
 <span class="g">pr report</span> --regime eu-ai-act bundle.json --md   <span class="c"># map the record to a regime</span>
@@ -491,11 +494,19 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
       you cannot do for yourself, and it is what anchoring is for: you publish a fingerprint of your
       chain somewhere you do not control, and later you can show the fingerprint has not moved.</p>
 
-    <pre><code><span class="g">pr anchor-push</span> bundle.json --url https://provenrail.com --key <span class="g">$PROVENRAIL_LICENSE</span></code></pre>
+    <pre><code><span class="g">pr anchor-push</span> bundle.json</code></pre>
 
-    <p>Your licence key is the credential. There is nothing to sign up for beyond a
-      <a href="/pricing">Builder or Team plan</a>; the key you already have names your account and
-      your plan, and the service verifies it without a lookup.</p>
+    <p>That is the whole command: it defaults to the hosted service and to the licence key
+      <code>pr activate</code> stored, and writes the receipt to <code>anchor-receipt.json</code>.
+      Point it elsewhere with <code>--url</code>, or pass a different key with <code>--key</code>.</p>
+
+    <div class="note"><strong>Your first anchor is free.</strong> Sign in at
+      <a href="/account">provenrail.com/account</a>, claim the key, and run
+      <code>pr activate &lt;key&gt;</code> once. One anchor per account, so you can hold a receipt
+      with a public authority's signature on it before deciding whether to pay for more. After
+      that it is a <a href="/pricing">Builder or Team plan</a>, and the key you already have names
+      your account and your plan, so the service verifies it without a lookup and there is nothing
+      else to sign up for.</div>
 
     <h3>What actually travels</h3>
     <p>Three things: a stream label you choose, a 64-character fingerprint of your records (a
@@ -508,10 +519,10 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
     <p>A receipt carrying an RFC 3161 trusted timestamp from a public authority, so the date is not
       ours to assert either, and a URL an auditor can open with no account and no permission from
       you. Save the receipt:</p>
-    <pre><code><span class="g">pr anchor-push</span> bundle.json --url https://provenrail.com --key $PROVENRAIL_LICENSE \
-  --receipt-out receipt.json</code></pre>
-    <p>Then anyone can check it against your records, offline, without asking us anything:</p>
-    <pre><code><span class="g">pr anchor-verify</span> bundle.json receipt.json</code></pre>
+    <p>The receipt is written for you as <code>anchor-receipt.json</code> (use
+      <code>--receipt-out</code> for a different path). Then anyone can check it against your
+      records, offline, without asking us anything:</p>
+    <pre><code><span class="g">pr anchor-verify</span> bundle.json anchor-receipt.json</code></pre>
     <p>That recomputes the root from the records in the bundle, compares it with the one under the
       signature, validates the timestamp's certificate chain, and verifies the bundle's own hash
       chain. If someone edited a record after it was anchored, this is what says so.</p>

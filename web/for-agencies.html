@@ -255,7 +255,7 @@
       <li><strong>A bundle file</strong> (JSON). Every event the agent recorded, with a hash of the previous event embedded in each record. The chain is signed by the agent's Ed25519 key and independently re-chained by the sink. Reordering, deletion, or insertion breaks the chain and the verifier reports it.</li>
       <li><strong>A pin file</strong>. A signed checkpoint your agent wrote at the end of the session. It lets the verifier detect if records have been removed from the tail since the checkpoint was written, including by you after export.</li>
     </ul>
-    <p>On the <a href="/pricing">Builder plan</a>, each anchor also carries an RFC 3161 trusted timestamp from an independent time authority, so the timing of events cannot be back-dated. On the Free plan the chain proves ordering but the timestamps are local; the record still detects tampering and deletion.</p>
+    <p>On the <a href="/pricing">Builder plan</a>, each anchor also carries an RFC 3161 trusted timestamp from an independent time authority, so the timing of events cannot be back-dated. Every account gets one of those free, so you can put a real one in front of a client before deciding anything: sign in at <a href="/account">provenrail.com/account</a>, claim the key, then <code>pr anchor-push bundle.json</code>. Beyond that first one the Free plan's timestamps are local; the record still detects tampering and deletion, it just cannot prove when the run happened.</p>
     <p>You can also send a hosted read-only proof link (Builder plan) instead of files. The client opens a URL, the verification runs client-side in their browser, and the evidence is presented. Nothing leaves their browser to check the proof.</p>
 
     <div class="receipt-card" role="region" aria-label="Example client proof output">
@@ -398,7 +398,7 @@ pr verify my-run.json</pre>
       <dd>You send them the bundle file and a pin file, both produced by <code>pr export</code>. They install the verifier: <code>uv tool install provenrail</code> (or <code>pip install provenrail</code>). Then they run: <code>pr verify my-run.json --pin pin.json</code>. It exits <code>0</code> and prints <code>RESULT: VERIFIED</code> if the chain is intact. No account, no data sent to Provenrail. On the Builder plan you can also send a hosted read-only proof link instead.</dd>
 
       <dt>What does it cost?</dt>
-      <dd>Free: $0, 50k events per month, hash-chain integrity, open-source verifier, full export. Builder: $29 per month, RFC 3161 trusted timestamps, shareable client proof links. The server is also AGPL-licensed for self-hosting at no cost. See <a href="/pricing">the pricing page</a> for the full comparison.</dd>
+      <dd>Free: $0, 50k events per month, hash-chain integrity, open-source verifier, full export, and one independent RFC 3161 timestamp. Builder: $29 per month, RFC 3161 trusted timestamps, shareable client proof links. The server is also AGPL-licensed for self-hosting at no cost. See <a href="/pricing">the pricing page</a> for the full comparison.</dd>
     </dl>
 
     <p class="src" style="margin-top:2rem">Regulatory dates: EU AI Act Article 50 in force from 2 August 2026. Revised Product Liability Directive (EU) 2024/2853, national transposition due 9 December 2026. EU AI Act Article 12 deferred to 2 December 2027 for standalone Annex III systems by Regulation (EU) 2026/1744. This page is for engineering audiences and is not legal advice.</p>
