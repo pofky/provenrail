@@ -357,6 +357,327 @@ def _cmd_anchor_push(args) -> int:
     return 0
 
 
+def _cmd_attest(args) -> int:
+    """Produce a signed statement of which commits an AI agent had a hand in.
+
+    The whole value is in what the signature buys, and it is worth being exact about it,
+    because the market this lands in is full of documents that imply more than they carry.
+    Signing binds the findings to a set of git commit ids, which are themselves content
+    hashes, so the document cannot later be pointed at a different tree or edited after a
+    dispute starts. It does not make the findings true. `pr attest-verify` recomputes both
+    halves from the customer's own clone, which is the only way a counterparty should ever
+    accept a document like this."""
+    import json as _json
+
+    from . import attest
+
+    repo = Path(args.repo)
+    bundle = None
+    if args.records:
+        if not Path(args.records).is_file():
+            print(f"no such records bundle: {args.records}", file=sys.stderr)
+            return 2
+        bundle = _json.loads(Path(args.records).read_text(encoding="utf-8"))
+    try:
+        doc = attest.build(repo, since=args.since, until=args.until, blame=args.blame,
+                           bundle=bundle)
+    except attest.GitError as e:
+        print(f"{e}", file=sys.stderr)
+        return 2
+
+    if not args.unsigned:
+        from .easy import _device_key
+        doc = attest.sign(doc, _device_key())
+
+    out = Path(args.out)
+    out.write_text(_json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+    if args.json:
+        print(_json.dumps(doc["summary"], indent=2))
+        return 0
+
+    s = doc["summary"]
+    print(f"AI authorship attestation for {doc['repository']['head'][:12]}"
+          f" ({s['commits_total']} commits)")
+    print(f"  AI-assisted   {s['commits_ai_assisted']} of {s['commits_total']} commits "
+          f"({s['percent_commits_ai_assisted']}%), "
+          f"{s['insertions_ai_assisted']} of {s['insertions_total']} lines added")
+    for tool, count in s["by_tool"].items():
+        print(f"    {tool:<24} {count}")
+    if not s["by_tool"]:
+        print("    no AI-assisted commits found in this range")
+    if s["commits_recorded_grade"]:
+        print(f"  {s['commits_recorded_grade']} of those are backed by signed session records, "
+              f"not only by a commit trailer")
+    elif s["commits_ai_assisted"]:
+        print("  Every finding here rests on commit metadata the committer wrote, which a "
+              "counterparty is entitled to discount.")
+        print("  Record the agent itself to raise that: `pr guard install`, then "
+              "`pr attest --records bundle.json`.")
+    if doc.get("working_tree"):
+        w = doc["working_tree"]
+        print(f"  Working tree  {w['lines_ai_assisted']} of {w['lines_total']} lines "
+              f"({w['percent_ai_assisted']}%) come from AI-assisted commits, "
+              f"{w['lines_unattributed']} from commits outside this range")
+    if not doc["repository"]["working_tree_clean"]:
+        print("  NOTE: the working tree has uncommitted changes. They are not covered: an "
+              "attestation can only speak for what is committed.")
+    print(f"\nWritten to {out}. Anyone can check it against their own clone:")
+    print(f"  pr attest-verify {out}")
+    print("\nTo make the time provable by someone who is not you:")
+    print(f"  pr attest-anchor {out}")
+    return 0
+
+
+def _cmd_attest_verify(args) -> int:
+    """Check an attestation against the repository it claims to describe.
+
+    This is what the receiving side runs, and it deliberately re-derives everything from git
+    rather than reading the document's own summary back to itself. Three things are checked
+    and all three are needed: the signature (this document has not changed since it was
+    signed), the commits (every attested commit exists here, with the same author, dates and
+    subject), and the findings (re-running the detectors on this repository reaches the same
+    verdict). A document that passes the first two and fails the third has been edited before
+    signing, which is exactly the fraud a signature alone cannot catch."""
+    import json as _json
+
+    from . import attest
+    from .keys import verify_signature
+
+    path = Path(args.file)
+    if not path.is_file():
+        print(f"no such attestation: {path}", file=sys.stderr)
+        return 2
+    doc = _json.loads(path.read_text(encoding="utf-8"))
+    if doc.get("schema") != attest.SCHEMA:
+        print(f"not a Provenrail attestation (schema {doc.get('schema')!r})", file=sys.stderr)
+        return 2
+
+    failures: list[str] = []
+    warnings: list[str] = []
+
+    digest = attest.document_hash(doc)
+    if digest != doc.get("document_hash"):
+        failures.append("the document hash does not match its contents: this file has been "
+                        "edited since it was written")
+    sig = doc.get("signature")
+    if not sig:
+        warnings.append("this attestation is unsigned, so it proves only what the repository "
+                        "shows; anyone could have produced it")
+    elif not verify_signature(sig.get("public_key", ""), bytes.fromhex(digest),
+                              sig.get("value", "")):
+        failures.append("the signature does not verify against the document hash")
+
+    repo = Path(args.repo)
+    try:
+        head_ok = attest._is_repo(repo)
+    except Exception:
+        head_ok = False
+    if not head_ok:
+        print(f"{repo} is not a git repository, and this check has to be run against the "
+              f"repository the document describes.", file=sys.stderr)
+        return 2
+
+    attested = {c["sha"]: c for c in doc.get("commits") or []}
+    try:
+        rebuilt = {c.sha: c for c in attest.read_commits(
+            repo, since=(doc.get("range") or {}).get("since"),
+            until=(doc.get("range") or {}).get("until") or "HEAD")}
+    except attest.GitError as e:
+        print(f"could not read this repository's history: {e}", file=sys.stderr)
+        return 2
+
+    missing = [sha for sha in attested if sha not in rebuilt]
+    if missing:
+        failures.append(f"{len(missing)} attested commit(s) are not in this repository, "
+                        f"starting with {missing[0][:12]}: the document describes a different "
+                        f"history")
+    mismatched = []
+    for sha, entry in attested.items():
+        actual = rebuilt.get(sha)
+        if actual is None:
+            continue
+        fresh = actual.to_dict()
+        for field in ("author", "committer", "authored_at", "subject", "ai_assisted"):
+            if fresh.get(field) != entry.get(field):
+                mismatched.append((sha, field, entry.get(field), fresh.get(field)))
+    if mismatched:
+        sha, field, claimed, actual = mismatched[0]
+        failures.append(f"{len(mismatched)} commit field(s) disagree with this repository, "
+                        f"starting with {sha[:12]} {field}: the document says {claimed!r}, "
+                        f"the repository says {actual!r}")
+
+    leaves = doc.get("leaves") or []
+    recomputed = [attest.Commit(
+        sha=c["sha"], parents=c["parents"], author=c["author"], committer=c["committer"],
+        authored_at=c["authored_at"], committed_at=c["committed_at"], subject=c["subject"],
+        body="", insertions=c["insertions"], deletions=c["deletions"], files=c["files_changed"],
+        findings=[attest.Finding(f["tool"], f["source"], f.get("grade", attest.ASSERTED),
+                                 f.get("detail", ""))
+                  for f in c.get("findings", [])],
+    ).leaf() for c in doc.get("commits") or []]
+    if leaves != recomputed:
+        failures.append("the leaf hashes do not match the commit entries they claim to cover")
+
+    extra = [sha for sha in rebuilt if sha not in attested]
+    if extra:
+        warnings.append(f"{len(extra)} commit(s) in this repository are outside the attested "
+                        f"range and this document makes no finding about them")
+
+    anchored_at = None
+    anchor_trust = None
+    if args.receipt:
+        from .anchor import merkle_root
+        from .verifier.verify import Report, _verify_anchor_receipt
+
+        if not Path(args.receipt).is_file():
+            print(f"no such anchor receipt: {args.receipt}", file=sys.stderr)
+            return 2
+        envelope = _json.loads(Path(args.receipt).read_text(encoding="utf-8"))
+        receipt = envelope.get("receipt") or envelope
+        # The outer envelope is convenience, not evidence. If the service's stated root and the
+        # signed root disagree, the envelope was edited after signing, and trusting either one
+        # would let a valid signature over some other root vouch for this document.
+        outer_root = envelope.get("merkle_root")
+        signed_root = receipt.get("merkle_root")
+        if outer_root is not None and signed_root is not None and outer_root != signed_root:
+            failures.append(f"this receipt states root {outer_root} but its signature covers "
+                            f"{signed_root}: the two disagree, so it has been altered")
+        root_under_signature = signed_root or outer_root
+        if not root_under_signature:
+            failures.append("that file carries no Merkle root, so it is not an anchor receipt")
+        else:
+            covers = envelope.get("covers_up_to")
+            # An attestation is a fixed document, not a growing stream, so a receipt that
+            # covers part of it is not a timestamp for it. Downgrading that to a warning, as
+            # the bundle path reasonably does, would let a receipt minted at commit 100 be
+            # presented as the timestamp on a document covering 150.
+            if covers is not None and covers != len(leaves):
+                failures.append(f"this receipt covers {covers} commits and the document lists "
+                                f"{len(leaves)}: it does not timestamp this document")
+            actual = merkle_root(leaves) if leaves else ""
+            if root_under_signature != actual:
+                failures.append(f"the anchored root is {root_under_signature}, but these "
+                                f"commits hash to {actual}: this receipt describes a different "
+                                f"set of commits")
+            # The same receipt check `pr verify` performs, not a second, weaker one.
+            report = Report()
+            anchor_trust = _verify_anchor_receipt(
+                receipt, report, seq=envelope.get("anchor_id", "receipt"))
+            for finding in report.findings:
+                if finding.severity == "fail":
+                    failures.append(finding.detail)
+                elif finding.severity == "warn":
+                    warnings.append(finding.detail)
+            if anchor_trust != "fail":
+                anchored_at = receipt.get("gen_time")
+
+    if args.json:
+        print(_json.dumps({"ok": not failures, "failures": failures, "warnings": warnings,
+                           "anchored_at": anchored_at, "anchor_trust": anchor_trust},
+                          indent=2))
+        return 1 if failures else 0
+
+    if failures:
+        print("ATTESTATION REJECTED")
+        for line in failures:
+            print(f"  [fail] {line}")
+        for line in warnings:
+            print(f"  [warn] {line}")
+        return 1
+
+    s = doc.get("summary") or {}
+    print("ATTESTATION VERIFIED")
+    print(f"  {s.get('commits_total')} commits, {s.get('commits_ai_assisted')} AI-assisted "
+          f"({s.get('percent_commits_ai_assisted')}%), re-derived from this repository")
+    if doc.get("signature"):
+        print(f"  signed by {doc['signature']['public_key'][:16]}... and unchanged since")
+    if anchored_at and anchor_trust == "trusted":
+        print(f"  existed no later than {anchored_at}, and that time is proved by an "
+              f"independent authority")
+    elif anchored_at:
+        # The weaker of the two anchor outcomes must never wear the stronger sentence: a
+        # self-signed receipt proves the document is unchanged, not when it existed.
+        print(f"  anchored at {anchored_at}, but that time is self-asserted: nothing "
+              f"independent proves when it was anchored")
+    for line in warnings:
+        print(f"  [warn] {line}")
+    print("\n  What this does NOT prove:")
+    for limit in (doc.get("limits") or [])[:2]:
+        print(f"    - {limit}")
+    return 0
+
+
+def _cmd_attest_anchor(args) -> int:
+    """Timestamp an attestation with an authority that is not us and not the customer.
+
+    Reuses the anchor service unchanged: what travels is a 32-byte root and a count, never the
+    document and never a line of the customer's code. The stream is derived from the
+    repository's first commit, so the service's monotonic-coverage rule applies across
+    attestations of the same repo: a later one must cover at least as many commits, and a
+    shorter history cannot be quietly substituted for one already anchored."""
+    import json as _json
+
+    import httpx
+
+    from . import attest
+    from . import license as lic
+    from .anchor import merkle_root
+
+    path = Path(args.file)
+    if not path.is_file():
+        print(f"no such attestation: {path}", file=sys.stderr)
+        return 2
+    doc = _json.loads(path.read_text(encoding="utf-8"))
+    leaves = doc.get("leaves") or []
+    if not leaves:
+        print("this attestation covers no commits, so there is nothing to anchor.",
+              file=sys.stderr)
+        return 2
+    if attest.document_hash(doc) != doc.get("document_hash"):
+        print("this attestation has been edited since it was written; anchoring it would "
+              "timestamp a document that does not match its own contents.", file=sys.stderr)
+        return 2
+
+    key = args.key or lic.load_license_token()
+    if not key:
+        print("No licence key. An independent timestamp is what a paid plan sells: it is the "
+              "one part of this document you cannot mint for yourself.\n"
+              "  Have a plan?  copy the key from https://provenrail.com/account, then "
+              "`pr activate <key>`\n"
+              "  No key yet?   every account gets one anchor free: "
+              "https://provenrail.com/account", file=sys.stderr)
+        return 2
+
+    payload = {"stream_id": attest.stream_id(doc), "merkle_root": merkle_root(leaves),
+               "covers_up_to": len(leaves)}
+    try:
+        resp = httpx.post(args.url.rstrip("/") + "/v1/anchors", json=payload,
+                          timeout=args.timeout, headers={"Authorization": f"Bearer {key}"})
+    except httpx.HTTPError as e:
+        print(f"could not reach the anchor service at {args.url}: {e}", file=sys.stderr)
+        return 3
+    if resp.status_code >= 400:
+        try:
+            body = resp.json()
+            detail = body.get("error") or body.get("detail") or resp.text
+        except ValueError:
+            detail = resp.text
+        print(f"the anchor service refused this attestation: {detail}", file=sys.stderr)
+        return 3
+    out = resp.json()
+    Path(args.receipt_out).write_text(_json.dumps(out, indent=2) + "\n", encoding="utf-8")
+    print(f"anchored {len(leaves)} commits of {path}")
+    print(f"  anchor id  {out['anchor_id']}")
+    print(f"  timestamp  {out['receipt'].get('gen_time')} ({out['receipt'].get('kind')})")
+    print(f"\nReceipt written to {args.receipt_out}. Give your customer both files and this "
+          f"command:")
+    print(f"  pr attest-verify {path} --receipt {args.receipt_out}")
+    print("\nAnd this URL, which needs no account and no permission from you:")
+    print(f"  {args.url.rstrip('/')}/v1/anchors/{out['anchor_id']}")
+    return 0
+
+
 def _cmd_anchor_verify(args) -> int:
     """Prove that an anchor receipt covers this bundle, using nothing but the two files.
 
@@ -1319,6 +1640,55 @@ def build_parser() -> argparse.ArgumentParser:
     an.add_argument("--timeout", type=float, default=30.0)
     an.add_argument("--json", action="store_true")
     an.set_defaults(func=_cmd_anchor_push)
+
+    at = sub.add_parser("attest",
+                        help="sign a statement of which commits an AI agent had a hand in",
+                        formatter_class=argparse.RawDescriptionHelpFormatter,
+                        epilog="""what this is for:
+  Software contracts have started asking suppliers to disclose AI authorship. Every other way
+  of answering, a commit trailer or a git note, is written by the party being asked and can be
+  changed afterwards. Signing binds the answer to a set of commit ids, which are content
+  hashes, so it cannot be pointed at a different tree or edited once a dispute begins.
+
+  It does not make the findings true. That is stated in the document, and `pr attest-verify`
+  re-derives them from the reader's own clone rather than reading the summary back.""")
+    at.add_argument("--repo", default=".", help="path to the git repository (default: .)")
+    at.add_argument("--since", help="start of the commit range, exclusive (a tag, sha or date "
+                                    "git understands). Omit to cover the whole history.")
+    at.add_argument("--until", default="HEAD", help="end of the range (default: HEAD)")
+    at.add_argument("--out", default="ai-attestation.json", help="where to write the document")
+    at.add_argument("--records", help="a Provenrail bundle of recorded agent sessions. Commits "
+                                      "authored inside a recorded session are reported at a "
+                                      "higher evidence grade, because a signed record is not "
+                                      "something the committer typed.")
+    at.add_argument("--blame", action="store_true",
+                    help="also report what share of the CURRENT tree's lines came from "
+                         "AI-assisted commits. Slower: it blames every tracked file.")
+    at.add_argument("--unsigned", action="store_true",
+                    help="write the document without signing it (for inspection)")
+    at.add_argument("--json", action="store_true")
+    at.set_defaults(func=_cmd_attest)
+
+    atv = sub.add_parser("attest-verify",
+                         help="check an attestation against the repository it describes",
+                         epilog=EXIT_CODES, formatter_class=argparse.RawDescriptionHelpFormatter)
+    atv.add_argument("file", help="path to the attestation JSON")
+    atv.add_argument("--repo", default=".", help="the repository to check it against")
+    atv.add_argument("--receipt", help="an anchor receipt from `pr attest-anchor`, to check the "
+                                       "claimed time as well as the claimed history")
+    atv.add_argument("--json", action="store_true")
+    atv.set_defaults(func=_cmd_attest_verify)
+
+    ata = sub.add_parser("attest-anchor",
+                         help="timestamp an attestation with an independent authority")
+    ata.add_argument("file", help="path to the attestation JSON")
+    ata.add_argument("--url", default=DEFAULT_ANCHOR_URL,
+                     help=f"anchor service base URL (default: {DEFAULT_ANCHOR_URL})")
+    ata.add_argument("--key", help="licence key (defaults to the activated one)")
+    ata.add_argument("--receipt-out", default="attest-receipt.json",
+                     help="where to write the anchor receipt")
+    ata.add_argument("--timeout", type=float, default=30.0)
+    ata.set_defaults(func=_cmd_attest_anchor)
 
     av = sub.add_parser("anchor-verify",
                         help="prove an anchor receipt covers this bundle, offline, without "
