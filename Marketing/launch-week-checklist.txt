@@ -33,7 +33,17 @@ Directory profiles from Marketing/directory-profiles.txt, if they are still not 
 
 WHAT SUCCESS LOOKS LIKE, DECIDED BEFORE THE FACT SO IT CANNOT BE MOVED AFTERWARDS
 
-Plugin installs are the only number that matters in week one. Under 100 in 30 days with every post above actually made means the distribution thesis is wrong and no repositioning fixes it. Between 100 and 1,000 means the front door works and the question moves to whether any of them ever pay. Over 1,000 means stop building and start answering.
+The tool sends no telemetry and never will, so there is no install counter and any threshold written in installs would be one nobody can evaluate. These four numbers are the ones that actually exist, with today's baseline beside each so the comparison is real rather than remembered.
+
+Unique cloners of the GitHub repo, 14 day window. Baseline 2026-09-07: 23. This is the closest proxy there is for plugin installs, because /plugin marketplace add clones the repo. Read it with: gh api repos/pofky/provenrail/traffic/clones
+
+Unique repo views, 14 day window. Baseline 2026-09-07: 5. Read it with: gh api repos/pofky/provenrail/traffic/views
+
+Referred pageviews on the site. Baseline: 14 in the 17 days to 2026-09-07, from the pageviews table in Supabase. Filter on ref_host not null; the rest is bots and our own checks.
+
+GitHub stars. Baseline: 0. A weak signal on its own and a fast one, which is what makes it useful in week one.
+
+The kill criterion, decided now: if every post above is actually made and, 30 days later, unique cloners have not roughly tripled off a baseline of 23, the distribution thesis is wrong and no further repositioning fixes it. The next move at that point is not another rewrite, it is talking to people one at a time.
 
 For pr attest, the number is ten conversations. Ten people who ship to enterprise customers, asked whether the AI disclosure clause is real yet. Zero contracts naming AI authorship means the trigger is not here and the feature waits.
 
