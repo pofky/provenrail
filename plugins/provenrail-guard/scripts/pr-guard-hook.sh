@@ -29,9 +29,19 @@ PAYLOAD="$(cat)"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # This plugin's own version, from the manifest beside it. Used only to refuse an older CLI.
+# Read with shell built-ins rather than sed: this runs on every tool call an agent makes, and a
+# process spawn here is a few milliseconds multiplied by a few hundred an hour.
 plugin_version() {
-  sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-    "$HERE/../.claude-plugin/plugin.json" 2>/dev/null | head -1
+  local line rest
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      *'"version"'*)
+        rest="${line#*\"version\"}"; rest="${rest#*:}"; rest="${rest#*\"}"
+        printf '%s' "${rest%%\"*}"
+        return 0;;
+    esac
+  done < "$HERE/../.claude-plugin/plugin.json" 2>/dev/null
+  return 0
 }
 
 # True when $1 is >= $2, comparing dotted numbers left to right. `sort -V` is not portable
@@ -48,16 +58,19 @@ at_least() {
   return 0
 }
 
-# A candidate is ours if `--help` says so, and usable if it is not older than this plugin.
+# A candidate is ours if `--version` says so, and usable if it is not older than this plugin.
+# ONE process, not two: `pr --version` both identifies it (the POSIX text-formatting `pr` does
+# not print our name) and gives the number, and every spawn here is paid on every tool call.
 usable_pr() {
-  local bin="$1" version
-  "$bin" --help 2>&1 | grep -qi provenrail || return 1
-  version="$("$bin" --version 2>/dev/null | tr -cd '0-9.' )"
+  local bin="$1" line version
+  line="$("$bin" --version 2>/dev/null)" || return 1
+  case "$line" in *[Pp]rovenrail*) ;; *) return 1;; esac
+  version="$(printf '%s' "$line" | tr -cd '0-9.')"
   [ -n "$version" ] || return 1
   at_least "$version" "$(plugin_version)"
 }
 
-find_pr() {
+probe_pr() {
   if command -v pr >/dev/null 2>&1; then
     # `pr` is also a POSIX text-formatting utility. Only accept ours.
     if usable_pr pr; then command -v pr; return 0; fi
@@ -68,6 +81,32 @@ find_pr() {
     fi
   done
   return 1
+}
+
+# Which engine answers changes when somebody installs or upgrades something, which is roughly
+# never, and the probe costs a process spawn against a Python CLI, which is roughly 50 ms. Paid
+# on every tool call an agent makes, that is the difference between a plugin people keep and one
+# they blame for the session feeling slow. So the answer is remembered for a day, in a file
+# keyed by this plugin's version so an update re-probes immediately.
+#
+# The cache can only ever pick the WRONG ENGINE, never the wrong verdict: both engines read the
+# same rules and reach the same decision, and a stale entry naming a binary that no longer
+# exists is discarded rather than trusted.
+find_pr() {
+  local cache stamp cached now found
+  cache="${TMPDIR:-/tmp}/.provenrail-guard-engine-$(plugin_version)"
+  if [ -f "$cache" ]; then
+    { IFS= read -r stamp; IFS= read -r cached; } < "$cache" 2>/dev/null || true
+    now="$(date +%s)"
+    if [ -n "${stamp:-}" ] && [ "$((now - stamp))" -lt 86400 ] 2>/dev/null; then
+      if [ -z "${cached:-}" ]; then return 1; fi       # remembered: no usable CLI
+      if [ -x "$cached" ]; then printf '%s' "$cached"; return 0; fi
+    fi
+  fi
+  found="$(probe_pr || true)"
+  printf '%s\n%s\n' "$(date +%s)" "$found" > "$cache" 2>/dev/null || true
+  [ -n "$found" ] || return 1
+  printf '%s' "$found"
 }
 
 find_python() {
@@ -100,13 +139,22 @@ if [ -n "${PR_BIN:-}" ]; then
   run_and_forward "$PR_BIN" guard hook --event "$EVENT"
 fi
 
+# PostToolUse is the RECORDER, and the bundled engine is not a recorder: on a post event it
+# does nothing but emit a notice the pre path emits anyway. Spawning a Python process per tool
+# call to do that is around a tenth of a second an agent pays hundreds of times an hour for
+# nothing, and hooks are wired to every tool now. Nothing is lost by not running: capturing what
+# the agent DID is what installing the CLI adds, and the CLI branch above already returned.
+if [ "$EVENT" = "post" ]; then
+  exit 0
+fi
+
 PY_BIN="$(find_python || true)"
 if [ -n "${PY_BIN:-}" ] && [ -f "$HERE/guard_standalone.py" ]; then
   run_and_forward "$PY_BIN" "$HERE/guard_standalone.py" --event "$EVENT"
 fi
 
-# Neither engine is available. Say so once a day rather than on every tool call, and get out
-# of the way.
+# Neither engine is available, on a pre event. Say so once a day rather than on every tool
+# call, and get out of the way.
 STAMP="${TMPDIR:-/tmp}/.provenrail-guard-missing-$(date +%Y%m%d)"
 if [ ! -f "$STAMP" ]; then
   : > "$STAMP"

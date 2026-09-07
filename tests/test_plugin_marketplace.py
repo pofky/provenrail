@@ -142,5 +142,15 @@ def test_hook_script_forwards_stderr_rather_than_discarding_it() -> None:
     does not make sessions noisy."""
     script = (PLUGIN_DIR / "scripts" / "pr-guard-hook.sh").read_text(encoding="utf-8")
     assert "guard hook" in script
-    assert "2>/dev/null)" not in script, "the hook's stderr must reach the user"
-    assert ">&2" in script
+    # Only the DECISION call is covered. Discarding stderr elsewhere is right and deliberate:
+    # the `--version` probe and the cache read are allowed to be noisy on a machine where they
+    # fail, and none of that noise is something the user can act on.
+    body = script.split("run_and_forward() {", 1)[1].split("\n}", 1)[0]
+    invocation = [ln for ln in body.splitlines() if '"$@"' in ln]
+    assert invocation, "run_and_forward no longer invokes the engine"
+    for line in invocation:
+        assert "2>/dev/null" not in line, "the hook's stderr must reach the user"
+    assert ">&2" in body
+    for line in script.splitlines():
+        if "run_and_forward " in line and not line.lstrip().startswith("#"):
+            assert "2>/dev/null" not in line, f"stderr discarded on the decision call: {line}"

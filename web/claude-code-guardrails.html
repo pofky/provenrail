@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Claude Code Guardrails: Stop rm -rf Before It Runs</title>
-  <meta name="description" content="Claude Code's permission prompt is easy to click through and leaves no record. Deny rm -rf, force push and leaked keys, and sign every decision into a receipt.">
+  <title>Claude Code Guardrails: Stop git reset --hard and rm -rf</title>
+  <meta name="description" content="The commands that destroy work are git reset --hard, git checkout -- . and git clean -fd, not rm -rf. Stop them before they run, only when there is uncommitted work to lose, and sign every decision into a receipt.">
   <link rel="canonical" href="https://provenrail.com/claude-code-guardrails">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Claude Code guardrails: stop the agent running rm -rf">
-  <meta name="twitter:description" content="Claude Code's permission prompt is easy to click through and leaves no record. Deny rm -rf, force push and leaked keys, and sign every decision into a receipt.">
+  <meta name="twitter:title" content="Claude Code guardrails: stop git reset --hard over uncommitted work">
+  <meta name="twitter:description" content="The commands that destroy work are git reset --hard, git checkout -- . and git clean -fd, not rm -rf. Stop them before they run, only when there is uncommitted work to lose, and sign every decision into a receipt.">
   <meta name="twitter:image" content="https://provenrail.com/og.png">
   <meta name="robots" content="index,follow">
-  <meta property="og:title" content="Claude Code guardrails: stop the agent running rm -rf">
-  <meta property="og:description" content="Claude Code's permission prompt is easy to click through and leaves no record. Deny rm -rf, force push and leaked keys, and sign every decision into a receipt.">
+  <meta property="og:title" content="Claude Code guardrails: stop git reset --hard over uncommitted work">
+  <meta property="og:description" content="The commands that destroy work are git reset --hard, git checkout -- . and git clean -fd, not rm -rf. Stop them before they run, only when there is uncommitted work to lose, and sign every decision into a receipt.">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://provenrail.com/claude-code-guardrails">
   <meta property="og:image" content="https://provenrail.com/og.png">
@@ -313,10 +313,10 @@ pr verify guard-receipt.json</code></pre>
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "Claude Code guardrails: stop the agent running rm -rf",
-    "description": "Install a Claude Code hook that denies destructive tool calls before they run and signs every decision into a hash-chained receipt anyone can verify.",
+    "headline": "Claude Code guardrails: stop git reset --hard, git clean -fd and rm -rf",
+    "description": "Install a Claude Code hook that screens where a destructive command points rather than what it is called, stops the git commands that destroy uncommitted work, and signs every decision into a hash-chained receipt anyone can verify.",
     "datePublished": "2026-08-04",
-    "dateModified": "2026-08-04",
+    "dateModified": "2026-09-07",
     "author": { "@type": "Organization", "name": "Provenrail" },
     "publisher": { "@type": "Organization", "name": "Provenrail", "url": "https://provenrail.com" },
     "mainEntityOfPage": "https://provenrail.com/claude-code-guardrails",
@@ -329,11 +329,12 @@ pr verify guard-receipt.json</code></pre>
     "@context": "https://schema.org",
     "@type": "FAQPage",
     "mainEntity": [
-      { "@type": "Question", "name": "How do I stop Claude Code from running rm -rf?", "acceptedAnswer": { "@type": "Answer", "text": "Install a PreToolUse hook that inspects the command before it runs and returns a deny decision. The provenrail-guard plugin does this: run /plugin marketplace add pofky/provenrail then /plugin install provenrail-guard@provenrail inside Claude Code, then pr guard install in the project. Recursive and forced deletion, terraform destroy, git push --force, DROP TABLE, chmod 777 and leaked API keys are denied at the tool boundary." } },
+      { "@type": "Question", "name": "How do I stop Claude Code from running rm -rf?", "acceptedAnswer": { "@type": "Answer", "text": "Install a PreToolUse hook that inspects the command before it runs and returns a deny decision. The provenrail-guard plugin does this: run /plugin marketplace add pofky/provenrail then /plugin install provenrail-guard@provenrail inside Claude Code. It screens the target rather than the verb, so a recursive delete of a home directory, a whole disk, a system path or an unset variable followed by a slash is denied, while rm -rf inside your own project or build directory runs untouched. terraform destroy, git push --force, DROP TABLE, chmod 777 and leaked API keys are also denied at the tool boundary." } },
+      { "@type": "Question", "name": "What actually destroys work when a coding agent goes wrong?", "acceptedAnswer": { "@type": "Answer", "text": "Not rm -rf. Reading the public data-loss reports filed against Claude Code, the commands are git reset --hard, git checkout -- ., git clean -fd, git stash, git worktree remove --force, and framework database resets such as prisma migrate reset run against a live database. The provenrail-guard plugin covers those by default, and asks only when git status shows uncommitted changes or unpushed commits, because on a clean, pushed tree those commands destroy nothing." } },
       { "@type": "Question", "name": "Is Claude Code's permission prompt enough to prevent destructive commands?", "acceptedAnswer": { "@type": "Answer", "text": "It is a good default but not a control. Long sessions produce approval fatigue, permission modes that skip prompts remove it entirely, and the transcript that records your approval is an editable local file that proves nothing to a third party. A hook decides before the tool runs, independently of the model, and can leave tamper-evident evidence." } },
-      { "@type": "Question", "name": "Does a Claude Code guardrail hook slow the agent down?", "acceptedAnswer": { "@type": "Answer", "text": "No meaningful amount. The verdict is a local pattern match computed before any network call, costing milliseconds, and records are written to a local journal and shipped asynchronously." } },
+      { "@type": "Question", "name": "Does a Claude Code guardrail hook slow the agent down?", "acceptedAnswer": { "@type": "Answer", "text": "Around a tenth of a second per tool call, measured, and no network call is in the decision path. The verdict is computed locally and records are shipped asynchronously. Which engine answers is remembered rather than probed on every call, and the git rules only run git status on a command that already matched a rule." } },
       { "@type": "Question", "name": "What happens if the guardrail is not installed?", "acceptedAnswer": { "@type": "Answer", "text": "The plugin hook fails open: it exits zero silently and nothing is blocked or recorded, printing a hint once a day rather than failing on every tool call. A guardrail that bricks the agent gets uninstalled before it guards anything. Run pr guard status to see what is actually armed." } },
-      { "@type": "Question", "name": "Can the agent disable the guardrail?", "acceptedAnswer": { "@type": "Answer", "text": "The hook runs outside the model's context and the model does not get a vote on the verdict. Any process with write access can edit the settings file, and that edit is itself a tool call the guardrail sees. Guardrails reduce the blast radius of a mistake; they are not a security boundary against an adversary who already has shell access." } },
+      { "@type": "Question", "name": "Can the agent disable the guardrail?", "acceptedAnswer": { "@type": "Answer", "text": "The hook runs outside the model's context and the model does not get a vote on the verdict. Any process with write access can edit the settings file, and a write to .provenrail.json or .claude/settings.json now turns into a permission prompt rather than passing silently. Guardrails reduce the blast radius of a mistake; they are not a security boundary against an adversary who already has shell access." } },
       { "@type": "Question", "name": "Is the Claude Code guardrail plugin free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The SDK, CLI, browser verifier and plugin are MIT licensed and free including for commercial use. Paid plans cover the hosted append-only sink, which is what makes a log evidence rather than a file the accused controls." } }
     ]
   }

@@ -375,3 +375,59 @@ def test_every_command_shown_on_the_site_still_gets_the_verdict_shown(tmp_path_f
     got = guard.decide(policy, "Bash", {"command": command}, None, str(work))
     assert got["verdict"] == expected, (
         f"{page} shows {command!r} as {expected}, engine says {got['verdict']} ({got['rule']})")
+
+
+def test_every_json_ld_block_on_every_page_parses():
+    """Structured data is invisible when it breaks: search engines drop it silently and the page
+    still looks fine. Editing an FAQ answer by hand is exactly how a stray quote gets in."""
+    import json as _json
+
+    bad = []
+    for path in sorted((ROOT / "web").glob("*.html")):
+        text = path.read_text(encoding="utf-8")
+        for block in re.findall(
+                r'<script type="application/ld\+json">\s*(.*?)\s*</script>', text, re.S):
+            try:
+                _json.loads(block)
+            except ValueError as exc:
+                bad.append(f"{path.name}: {exc}")
+    assert not bad, "invalid JSON-LD:\n  " + "\n  ".join(bad)
+
+
+def test_the_page_title_and_the_headline_argue_the_same_thing():
+    """The `<title>` and the social cards led with `rm -rf` for a release after the page itself
+    moved to `git reset --hard`. Nobody sees the mismatch: the title is what search results and
+    a pasted link show, and it is the one line most readers ever get."""
+    text = (ROOT / "web" / "claude-code-guardrails.html").read_text(encoding="utf-8")
+    title = re.search(r"<title>(.*?)</title>", text, re.S).group(1)
+    heading = re.search(r"<h1>(.*?)</h1>", text, re.S).group(1)
+    for phrase in ("git reset --hard",):
+        assert phrase in title, f"the page title does not mention {phrase!r}"
+        assert phrase in heading, f"the h1 does not mention {phrase!r}"
+    for meta in ("og:title", "twitter:title"):
+        card = re.search(rf'(?:property|name)="{meta}" content="(.*?)"', text).group(1)
+        assert "git reset --hard" in card, f"{meta} still leads with something else: {card}"
+
+
+def test_no_page_claims_an_ordinary_delete_is_denied():
+    """`rm -rf ./build` is allowed on purpose and any copy that says otherwise is a promise the
+    engine breaks the first time someone tries it, which is worse than never claiming it."""
+    from provenrail import guard
+    from provenrail.easy import load_policy
+
+    policy = load_policy({"use": guard.DEFAULT_PACKS})
+    repo = str(ROOT)
+    offences = []
+    # Deletes a reader could reasonably read off a page as "this gets blocked".
+    for command in ("rm -rf ./build", "rm -rf ./src", "rm -rf node_modules", "rm -rf dist"):
+        if guard.decide(policy, "Bash", {"command": command}, None, repo)["verdict"] != "allow":
+            continue                      # if it ever IS denied, the copy may say so
+        for path in sorted((ROOT / "web").glob("*.html")):
+            if path.name == "changelog.html":
+                continue                  # the changelog records what USED to happen
+            text = path.read_text(encoding="utf-8")
+            for line in text.splitlines():
+                if command in line and re.search(r"\bden(y|ied|ies)\b|\bblocked\b", line, re.I):
+                    offences.append(f"{path.name}: {line.strip()[:120]}")
+    assert not offences, ("copy claims an allowed delete is blocked:\n  "
+                          + "\n  ".join(offences))

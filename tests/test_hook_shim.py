@@ -134,3 +134,78 @@ def test_an_ordinary_command_produces_no_output_from_either_engine(work):
 @pytest.mark.skipif(os.name == "nt", reason="the shim is a POSIX shell script")
 def test_the_shim_is_valid_shell():
     assert subprocess.run(["bash", "-n", str(HOOK)], capture_output=True).returncode == 0
+
+
+def test_the_engine_choice_is_remembered_so_it_is_not_probed_every_call(work, tmp_path):
+    """The probe spawns a Python CLI, which is around 50 ms, and this shim now runs in front of
+    EVERY tool call rather than seven named ones. Paid a few hundred times an hour that is the
+    difference between a plugin people keep and one they blame for the session feeling slow.
+    Measured before the cache: 215 ms per call, of which 112 ms was `pr --help` plus
+    `pr --version` on a CLI that was then rejected for being too old."""
+    bin_dir = tmp_path / "counted"
+    bin_dir.mkdir()
+    counter = tmp_path / "probes"
+    fake = bin_dir / "pr"
+    fake.write_text(
+        "#!/bin/sh\n"
+        f'echo x >> "{counter}"\n'
+        'case "$1" in\n'
+        '  --version) echo "provenrail 99.0.0"; exit 0;;\n'
+        "esac\n"
+        "cat >/dev/null\n"
+        'printf \'{"hookSpecificOutput":{"hookEventName":"PreToolUse",'
+        '"permissionDecision":"deny","permissionDecisionReason":"ANSWERED-BY-FAKE-CLI"}}\'\n',
+        encoding="utf-8")
+    fake.chmod(0o755)
+
+    for _ in range(4):
+        assert "ANSWERED-BY-FAKE-CLI" in _run(work, [str(bin_dir)])
+
+    calls = counter.read_text(encoding="utf-8").count("x")
+    # Four decisions, but only ONE of the calls may be a version probe.
+    assert calls == 5, f"expected 4 decisions + 1 probe, got {calls} invocations"
+
+
+def test_a_remembered_binary_that_has_gone_away_is_not_used(work, tmp_path):
+    """A cache entry can only ever pick the wrong ENGINE, never the wrong verdict, and a stale
+    entry naming a binary that no longer exists has to fall back rather than fail."""
+    bin_dir = tmp_path / "vanishing"
+    _fake_pr(bin_dir, "99.0.0")
+    assert "ANSWERED-BY-FAKE-CLI" in _run(work, [str(bin_dir)])
+
+    (bin_dir / "pr").unlink()
+    out = _run(work, [str(bin_dir)])
+    assert "ANSWERED-BY-FAKE-CLI" not in out
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_the_bundled_engine_is_not_spawned_at_all_for_a_post_event(work):
+    """PostToolUse is the recorder, and the bundled engine is not a recorder: on a post event it
+    does nothing but emit a notice the pre path emits anyway. Spawning Python per tool call for
+    that is around 40 ms an agent pays for nothing, now that hooks are wired to every tool."""
+    payload = {"hook_event_name": "PostToolUse", "tool_name": "Bash",
+               "tool_input": {"command": "rm -rf /"}, "session_id": "shim", "cwd": str(work)}
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(work),
+           "CLAUDE_PLUGIN_ROOT": str(PLUGIN), "TMPDIR": str(work / "tmp")}
+    (work / "tmp").mkdir(exist_ok=True)
+    proc = subprocess.run(["bash", "-x", str(HOOK), "post"], input=json.dumps(payload),
+                          capture_output=True, text=True, cwd=str(work), env=env)
+    assert proc.returncode == 0
+    assert proc.stdout == ""
+    assert "guard_standalone.py" not in proc.stderr, "the bundled engine ran on a post event"
+
+
+def test_a_post_event_still_reaches_an_installed_cli(work, tmp_path):
+    """That skip must not cost the recorder its input: recording what the agent DID is the whole
+    reason the post hook exists, and it is what installing the CLI adds."""
+    bin_dir = tmp_path / "recorder"
+    _fake_pr(bin_dir, "99.0.0")
+    payload = {"hook_event_name": "PostToolUse", "tool_name": "Bash",
+               "tool_input": {"command": "ls"}, "session_id": "shim", "cwd": str(work)}
+    env = {"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(work),
+           "CLAUDE_PLUGIN_ROOT": str(PLUGIN), "TMPDIR": str(work / "tmp")}
+    (work / "tmp").mkdir(exist_ok=True)
+    proc = subprocess.run(["bash", str(HOOK), "post"], input=json.dumps(payload),
+                          capture_output=True, text=True, cwd=str(work), env=env)
+    assert proc.returncode == 0
+    assert "ANSWERED-BY-FAKE-CLI" in proc.stdout
