@@ -1,43 +1,39 @@
-TITLE (80 char limit, currently 79)
+TITLE (80 char limit, currently 76)
 
-Show HN: Tamper-evident audit trail for AI coding agents, verifiable in-browser
-
-
-BODY (paste into the text field, leave the URL field pointing at https://provenrail.com)
-
-I build with coding agents daily and kept hitting the same thing: when the agent does something destructive, the only account of what happened is a log the same process could have written anything into. Claude Code's permission prompt is one keypress and leaves nothing behind. In April 2026 a coding agent deleted a company's production database and every backup stored alongside it in a single API call, and the most recent recoverable backup was three months old. The agent then wrote its own confession listing the rules it had broken, which is useful for learning and useless for prevention.
-
-So Provenrail does two things. It blocks the destructive call at the agent's own tool boundary before it runs, and it signs every decision into a hash-chained record that lives off the agent's box.
-
-The record is the part I would like you to attack. Each entry is JCS-canonicalised and Ed25519-signed by the agent, and carries the hash of the previous entry. The sink independently chains what it receives, so there are two chains that have to agree, and the sink cannot quietly reorder or drop anything without breaking its own. Heads get folded into an RFC 6962 Merkle tree, checkpointed into a transparency log, and optionally countersigned by witnesses running on separate infrastructure. Time comes from an RFC 3161 authority. Verification trusts neither the agent nor the sink nor us.
-
-You can try it without signing up for anything: https://provenrail.com/verify?demo runs the real verifier on a real record entirely in your browser. Then https://provenrail.com/verify?tamper runs the identical code over a record where one byte was changed, so you can watch it fail rather than take my word that it would.
-
-Two things I did deliberately that I think matter more than the feature list.
-
-The verifier is written twice, once in Python and once in JavaScript, by the same person, which is not independence but does catch the class of bug where a verifier and the thing it verifies share an assumption. Thirteen conformance vectors are frozen in the repo, each with an expected verdict, and both implementations have to agree on every one. If you write a third verifier, those vectors are the contract.
-
-And the honest limitation, stated in the README rather than buried: the SDK runs inside the agent process, so a genuinely hostile agent can simply not call it. Nothing here makes capture complete, and the tool never claims a run was complete. What it does is get whatever was recorded off the box fast enough that it becomes immutable, and make tampering after the fact detectable. Anyone selling you provable completeness for an in-process recorder is selling you something that does not exist.
-
-Guardrails ship as 36 rules in 7 packs (destructive, secrets, money, production, access, exfiltration, blast radius). The Claude Code integration is a plugin install and nothing else, with no Python on the machine required: the hook falls back to a bundled stdlib-only engine that blocks, asks and journals locally, and installing the CLI later upgrades the same journal in place. 26 rules are armed with no config, because installing a plugin called guard is the opt-in and a guard waiting for a config file protects nobody. Both engines are held in lockstep by 39 cases driven through each of them, for the same reason the two verifiers are.
-
-The newest piece is `pr attest`, which is the same machinery pointed at a question that started showing up in software contracts this year: which of this code did an AI agent write. Every published way of answering, a Co-authored-by trailer or a git note, is written by the party being asked and can be edited afterwards. `pr attest` reads the history, names the source of every finding, and signs the result, which binds it to a set of commit ids that are themselves content hashes, so it cannot be pointed at a different tree or rewritten once a dispute starts. `pr attest-verify` is what the receiving side runs against their own clone, and it re-derives the findings rather than reading the summary back. It does not prove the findings are true, a developer who strips the trailer gets reported as human, and the document says so in its own limits field rather than in a footnote.
-
-MIT licensed, Python and TypeScript SDKs, self-hostable recording server, and a free tier that is not a trial. Every account also gets one independent RFC 3161 timestamp free, because the argument for paying is easier to check on your own run than to read on a pricing page. Source: https://github.com/pofky/provenrail
-
-What I most want picked apart: the threat model. I have tried to be careful about what the two chains actually prove versus what people will assume they prove, and I would rather find the gap here than after someone relies on it.
+Show HN: I measured my agent guardrail against 36,977 real commands
 
 
-FIRST COMMENT (post this yourself right after submitting, as the author)
+BODY (paste into the text field, leave the URL field pointing at https://provenrail.com/claude-code-guardrails)
 
-A few things I expect to come up, answered up front.
+I have been maintaining a guardrail plugin for coding agents. It blocked rm -rf, terraform destroy, force pushes, DROP TABLE, committed keys. The usual list. I had never checked whether that list was the right one, or what it cost.
 
-Why not just use a transparency log directly. You can, and the design borrows from Certificate Transparency on purpose. The gap is capture: a log proves an entry was in it, not that the entry describes what the agent did. That is what the client-side signing and the tool-boundary interception are for, and it is also why I am careful to say tamper-evident rather than tamper-proof.
+So I checked both halves.
 
-Why should I trust your verifier. You should not, which is why the conformance vectors exist and why there are two implementations. The browser one is about 1,300 lines of plain JavaScript with zero dependencies, so reading it is a realistic afternoon rather than a project.
+For the false positives I pulled every Bash command my own agents had actually run out of my local transcripts. 36,977 of them, across 1,247 sessions, replayed offline with the working directory each one ran in. My shipped rules interrupted 923 and refused 305. Reading the samples was unpleasant. rm -rf .next out before a build, denied. rm -f coverage.xml, escalated. chmod +x on a script, denied because a UUID in the path contained the digits 4732 and the pattern was scanning the whole line for three octal digits. wrangler deploy --dry-run, escalated. A Tailwind class reading "min-w-0 truncate text-sm", denied as a SQL TRUNCATE. Two rules, both about rm, accounted for 687 of the 923.
 
-What happens if your company disappears. The sink is self-hostable, the record format is documented, and verification is offline and MIT licensed. A bundle verified today verifies with no network access and no server of mine involved. I keep old bundles as test fixtures for exactly this reason: a record written by the first published version still verifies under today's verifier.
+For the false negatives I read the data-loss issues people file against Claude Code. That was worse. The command in those reports is almost never rm -rf. It is git reset --hard (#34327, #7232, #17190), git checkout -- . (#81508), git clean -fd (#45974, #87360), git stash (#85879), git worktree remove --force (#46444), prisma migrate reset and artisan migrate:fresh against a live database (#80868, #90808). I ran all of them through my own default rules and every single one was allowed. A guard that stops your build directory and waves through the thing that eats your afternoon is worse than no guard, because you believe it.
 
-Is this EU AI Act compliance in a box. No. Article 12 record-keeping moved to December 2027 under the Digital Omnibus, and no tool makes you compliant on its own. It produces technical evidence an auditor can independently check, which is one input among many.
+The fix for the false positives turned out to be one idea. I was screening the verb. Nobody has ever lost work to the letters rm -rf; they lost it to the target. rm -rf .next regenerates in twelve seconds and rm -rf ~/ ends a laptop, and no pattern can separate those, because the difference is not in the text, it is in where the text points. That needs the working directory, which a hook has and a regex does not.
 
-Why would a signature on an AI authorship claim be worth anything when you cannot verify the claim. Because the two failures are different. Nobody can check whether a supplier's disclosure was honest at the moment they read it, but they can check whether it is the same disclosure that was made before the dispute began, and today they cannot even do that. That is the whole of what the signature buys and I have tried hard not to let the copy imply more.
+So rules can now carry a predicate: a named function that sees the same single command the regex matched, plus the call's context, and gets the last word. The delete predicate resolves every target against the repository root. Inside the repo, under a temp root, in a package cache, or in a directory named node_modules/dist/.next/target: allowed silently. A home directory, a whole disk, a two-segment system path, --no-preserve-root, or an unset variable followed by a slash (rm -rf $BUILD/ with BUILD empty is rm -rf /): refused. Leaves the project but is none of those: asks.
+
+The git predicate asks a different question and I think it is the better example. git reset --hard on a tree with nothing uncommitted and nothing unpushed destroys nothing, so the rule should not fire. It runs git status --porcelain, checks git rev-list @{upstream}..HEAD, and asks only when there is work there that exists nowhere else. Eight milliseconds, and only on commands that already matched. Anything it cannot determine counts as at risk, because a guard that could not look has not checked.
+
+Three more things were pure noise and are now gone. Rules about shell commands were reading the content of files being written, so an agent could not write docs/security.md explaining what rm -rf / does, or a migration containing DROP TABLE. A --dry-run and a wrangler d1 execute --local were treated as the act rather than the rehearsal. And the segmenter split commands on operators without tracking quotes, so a newline inside --command "DELETE FROM ... WHERE ..." separated the --local flag that made the call harmless from the statement it qualified, and a local test database got refused five separate times in the corpus.
+
+Same corpus afterwards: 222 interruptions, 16 refusals, and fifteen of the sixteen refusals are my own repo's adversarial test fixtures, files that literally contain rm -rf / as a test payload. On 40 commands taken from those public reports the old rules allowed 40 of 40 and the new ones allow 0 of 40. On 43 ordinary deletes and git operations, 21 were interrupted before and 0 are now. Both corpora are in the test suite, so each claim is a test rather than a sentence in a README, and tools/measure_guard.py runs the same measurement over your own transcripts with no network call in it.
+
+The install is two lines inside Claude Code and there is nothing else to set up:
+
+  /plugin marketplace add pofky/provenrail
+  /plugin install provenrail-guard@provenrail
+
+No package, no account, no server, no config file. The plugin carries a stdlib-only copy of the engine so 41 rules are armed on the next tool call, and the decision is computed locally so it never waits on a network. Installing the CLI on top signs the same local history into an Ed25519-chained record that a second, independently written verifier checks in your browser, which is the part I built first and now think of as the second reason to install it rather than the first.
+
+What I would like picked apart:
+
+The predicate is a real widening of what a rule can do, and I have tried to make it only ever narrow a rule: an unknown predicate name evaluates to true, and one that raises evaluates to true, so a bug in that file cannot open a hole that was previously closed. I would like someone to tell me that reasoning is wrong.
+
+And the limitation I would rather say than have found: this is a hook, so a command written to defeat a pattern still defeats it. V=-rf; rm $V, a script invoked by name, a delete inside a python -c. That is true of every hook of this kind and it is documented on the page rather than in a footnote. What target resolution buys is precision on the commands agents actually emit, not immunity to one written to get around it.
+
+MIT. Source, both corpora and the measurement scripts: https://github.com/pofky/provenrail

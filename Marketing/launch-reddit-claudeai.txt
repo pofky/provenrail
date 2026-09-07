@@ -1,55 +1,58 @@
-SUBREDDIT: r/ClaudeAI
-FLAIR: Built with Claude (or Productivity, whichever exists at the time)
-POST TYPE: text post, not link post
+I read the data-loss reports on this repo. Almost none of them are rm -rf. My own guard plugin allowed every single one, so I rewrote it.
 
+I have been building a guardrail plugin for Claude Code and I had it aimed at the wrong thing.
 
-TITLE
+Like every other hook of this kind, mine blocked rm -rf. Then I went and read the actual issues people file here when an agent destroys their work, and the command is almost never rm -rf. It is this:
 
-A plugin that blocks rm -rf before Claude Code runs it. One command, nothing else to install.
+#34327 "destroyed user's uncommitted work by running git reset --hard on session start"
+#7232 "CRITICAL: Claude executed git reset --hard without authorization causing data destruction"
+#81508 "ran git checkout -- unprompted and destroyed all uncommitted work"
+#45974 "ran git clean -fd without permission, destroyed untracked files"
+#85879 "git stash ran on my working tree with no corresponding tool call in any transcript, 170 files"
+#46444 "worktree auto-cleanup permanently deleted 10 days of uncommitted project work"
+#87360 "an agent-authored script ran git clean -xdff"
+#90808 "ran a destructive migrate:fresh command against the live app DB instead of an isolated one"
+#86872 "sub-agent ran recursive delete outside working dir, wiped entire user profile, ~235k files"
 
+I ran all forty commands I collected from those reports through my own plugin's default rules. It allowed all forty.
 
-BODY
+To be fair to the other hooks in this space: several of them already block the git commands. Matt Pocock's and Dicklesworthstone's both do, and they were right and I was not. What I think is missing everywhere, including in mine until this week, is the other half of the problem.
 
-Claude Code's permission prompt stopped working for me somewhere around the twentieth one in an hour. I was not reading them any more, I was pressing the key, which is exactly the state you are in when the one that matters arrives. And once you have clicked through it there is nothing written down anywhere about what you approved.
+So I rewrote it. Two things changed.
 
-So I built a PreToolUse hook that decides at the tool boundary instead of asking me every time. It is a plugin, and it is genuinely one command:
+FIRST, it now covers the git commands. git reset --hard and --merge, git checkout -- ., git restore, git clean -f, git stash drop, git branch -D, git worktree remove --force, git push --delete, plus the database resets (prisma migrate reset, supabase db reset, rails db:drop, artisan migrate:fresh, manage.py flush, alembic downgrade base, dropdb, FLUSHALL) and the cloud teardowns (aws rds delete-db-instance, s3 rb --force, gcloud sql instances delete, az group delete, fly volumes destroy, wrangler d1 delete, terraform state rm, helm uninstall, kubectl delete pvc, docker compose down -v). git reflog expire and filter-branch are refused outright, because the reflog is what recovers a bad reset.
+
+SECOND, and this is the part I care about more, it stopped screening the verb.
+
+Nobody has ever lost work to the letters rm -rf. They lost it to the target. rm -rf .next comes back in twelve seconds. rm -rf ~/ is the end of a laptop. Those are indistinguishable to a regex, because the difference is not in the text, it is in where the text points.
+
+I had a way to check that. I pulled every Bash command my own agents had run out of my local transcripts: 36,977 of them, across 1,247 sessions, replayed offline with the directory each one actually ran in. My shipped rules interrupted 923 and refused 305. Almost none were dangerous. rm -rf .next out before a build. rm -f coverage.xml. chmod +x on a script, denied because a UUID in the path happened to contain the digits 4732. wrangler deploy --dry-run. A Tailwind class reading "min-w-0 truncate text-sm", denied as a SQL TRUNCATE. That is a plugin you uninstall by lunchtime, and when you uninstall it you also lose the rules that were doing real work.
+
+Now the rules resolve the target. A delete inside your repo, under a temp directory, in a package cache or in a build directory runs without a word. A home directory, a whole disk, a two-segment system path, or an unset variable followed by a slash (the classic rm -rf $BUILD/ where BUILD is empty) is refused. A delete that merely leaves the project asks.
+
+The git rules do the same thing with a different question. git reset --hard on a tree with nothing uncommitted and nothing unpushed destroys nothing at all, so it says nothing. The rule runs git status --porcelain, checks for commits your remote has not seen, and asks only when there is work there that exists nowhere else.
+
+Same 36,977 commands after the rewrite: 222 interruptions, 16 refusals. Fifteen of those sixteen are my own repo's adversarial test fixtures, the ones that literally contain the string rm -rf / inside a test payload. On the 40 commands I took from the reports above: the old rules allowed all 40, the new ones allow none. On a list of 43 ordinary deletes and git operations: 21 interrupted before, 0 now.
+
+The script that does this is in the repo. python tools/measure_guard.py reads your own transcripts, replays them offline, and prints the counts and the samples. It makes no network call. Run it before you trust my numbers, and run it after a week to see what it costs you specifically.
+
+Install is two lines inside Claude Code, and there is nothing else:
 
 /plugin marketplace add pofky/provenrail
 /plugin install provenrail-guard@provenrail
 
-That is the whole setup. No pip install, no account, no server, nothing leaves your machine. The next tool call your agent makes is already being checked.
+No pip install, no account, no server, no config file. The plugin carries its own stdlib-only engine, so 41 rules are armed on the next tool call. Nothing leaves your machine, and the verdict is computed locally, so it never waits on a network.
 
-26 rules are armed out of the box. rm -rf, dd of=/dev/something, terraform destroy, git push --force, DROP TABLE, DELETE with no WHERE, kubectl delete namespace, chmod 777 and committed API keys are denied before execution, and Claude sees a normal denial naming the rule, so it adapts instead of hanging. Reading a .env, a deploy, a migration, a DNS or IAM change turn into a permission prompt rather than a hard block, because a guardrail that blocks legitimate work gets uninstalled by lunchtime and takes the useful rules with it.
+/guard-status shows what it has actually stopped. /guard-card prints that in a form you can paste in a thread: every command is reduced to its verb and its flags and every operand is dropped, so git reset --hard origin/main shows as git reset --hard and an env assignment carrying an API key shows as export. I checked that reduction against all 36,977 commands in my corpus and no path, hostname, URL or key survives it.
 
-/guard-status shows what is armed and, more usefully, what it has actually stopped. A guardrail that has never fired and a guardrail that is silently broken look identical from the outside, so that report leads with the count rather than the config.
+Three things I want to be honest about, because I would rather you hear them from me.
 
-Turning it down is a file:
+It is a hook, so it only sees what goes through the tool boundary. A command written to defeat a pattern (V=-rf; rm $V, a script invoked by name, a delete inside a python one-liner) gets past it. That is true of every hook of this kind including mine, and #85274 documents it well. What the target resolution buys is precision on the commands agents actually emit, not immunity to one written to get around it.
 
-echo '{"policy": {"use": []}}' > .provenrail.json
+The path logic is POSIX, so a PowerShell recursive delete always asks rather than being classified.
 
-An empty list arms nothing and tells you so once a day, so a disarmed guard can never quietly look like a working one. Name the packs you want instead: destructive, secrets, production, access, money, exfiltration, blast-radius. 36 rules total, and you can add your own with a regex.
+And I have not tested whether plugin PreToolUse hooks fire inside Task subagents, which is exactly where #86872 and #87360 happened. #78797 suggests deny rules do not always propagate there. If someone knows, I would like to know too.
 
-Being straight about the limits, because this subreddit will find them anyway.
+MIT, source is at github.com/pofky/provenrail. Both corpora are in the test suite, the dangerous one and the ordinary one, so you can check both halves rather than take my word for either.
 
-It only sees what Claude Code routes through its hook system. It cannot constrain a process that never calls the hook, and I never claim otherwise anywhere in the tool. The rules match tool names and argument text, so a command obfuscated past a regex is a command that gets through. This raises the floor a long way, it is not a sandbox.
-
-If anything at all goes wrong inside the hook it exits with no opinion and your tool call proceeds. A guardrail that bricks your agent is worse than no guardrail. The cost of that choice is that a broken guard is quiet, which is the reason /guard-status reports what it stopped rather than what it claims to watch.
-
-There is a paid part and I would rather say so than have you find it. The local history is a plain text file in your project, which is enough for you to see what happened and not enough to show anybody else, because you could have written it yourself. Installing the CLI on top signs every decision into a hash-chained record, and a paid plan adds an RFC 3161 timestamp from an independent authority. The plugin, the rules and the verifier are MIT and free either way, and I use the free path myself on projects where nobody is asking me for evidence.
-
-You can see what the signed version looks like without installing anything. This is a real record verifying in your browser:
-
-https://provenrail.com/verify?demo
-
-And this is the same code over the same record with one byte changed:
-
-https://provenrail.com/verify?tamper
-
-Source is github.com/pofky/provenrail. The hook is one bash file and one Python file with no dependencies, so reading it before you run it is about ten minutes, and you should.
-
-If you think a rule is wrong or missing, tell me. That is the most useful thing I can get out of posting this.
-
-
-NOTES FOR POSTING (do not paste this section)
-
-Post on a weekday morning US time. Reply to every comment in the first two hours, that window decides whether it spreads. Do not cross-post the identical text to several subreddits on the same day, rewrite the opening for each. If someone asks whether you are selling something, the answer is in the post already, point at it rather than restating it. Never argue with a sceptical comment, agree with the accurate part first. If someone posts a command the rules do not catch, add it and say you did.
+If you can name a destructive command it misses, I will add it and ship the same day.

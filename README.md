@@ -33,9 +33,12 @@ refused; a delete that merely leaves the project asks. `dd of=/dev/...`,
 need a human (reading `.env`, deploying, migrating, a cloud teardown) become a permission
 prompt, and the approval is recorded as human oversight.
 
-Measured against 36,929 Bash commands from real agent sessions: 206 interruptions and 16
-refusals, and fifteen of the sixteen are this repository's own adversarial test fixtures.
-Against 47 commands taken from public data-loss reports: none allowed.
+Measured on one frozen corpus of 36,977 Bash commands from 1,247 real agent sessions,
+replayed with the directory each ran in: 0.3.1 interrupted 923 and refused 305; 0.4.0
+interrupts 222 and refuses 16, and fifteen of the sixteen are this repository's own
+adversarial test fixtures. On 40 commands taken from public data-loss reports, 0.3.1
+allowed all 40 and 0.4.0 allows none. Run it on your own transcripts with
+`python tools/measure_guard.py`, which makes no network call.
 
 `/guard-status` shows what is armed and what it has actually stopped. `/guard-card` prints
 a summary safe to post: every command is reduced to its verb and flags, and every operand
