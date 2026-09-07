@@ -1,0 +1,136 @@
+"""Which engine answers the hook, and what happens when neither can.
+
+The shim in front of both engines is three dozen lines of shell that nobody reads and that
+every single tool call goes through. Two of its failures are silent by construction: it exits 0
+with no output when anything goes wrong, and Claude Code reads no output as "no opinion". So
+the shim's own behaviour has to be driven, not reasoned about.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+from pathlib import Path
+
+import pytest
+
+PLUGIN = Path(__file__).resolve().parent.parent / "plugins" / "provenrail-guard"
+HOOK = PLUGIN / "scripts" / "pr-guard-hook.sh"
+
+
+def _fake_pr(directory: Path, version: str) -> Path:
+    """A stand-in CLI that identifies itself as ours and answers every call with a marker."""
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "pr"
+    path.write_text(
+        "#!/bin/sh\n"
+        'case "$1" in\n'
+        '  --help) echo "provenrail: guardrails for coding agents"; exit 0;;\n'
+        f'  --version) echo "provenrail {version}"; exit 0;;\n'
+        "esac\n"
+        "cat >/dev/null\n"
+        'printf \'{"hookSpecificOutput":{"hookEventName":"PreToolUse",'
+        '"permissionDecision":"deny","permissionDecisionReason":"ANSWERED-BY-FAKE-CLI"}}\'\n',
+        encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+def _run(work: Path, path_entries: list[str], command: str = "rm -rf /") -> str:
+    payload = {"hook_event_name": "PreToolUse", "tool_name": "Bash",
+               "tool_input": {"command": command}, "session_id": "shim", "cwd": str(work)}
+    env = {"PATH": ":".join([*path_entries, "/usr/bin", "/bin"]),
+           "HOME": str(work),
+           "CLAUDE_PLUGIN_ROOT": str(PLUGIN),
+           "TMPDIR": str(work / "tmp")}
+    (work / "tmp").mkdir(exist_ok=True)
+    proc = subprocess.run(["bash", str(HOOK), "pre"], input=json.dumps(payload),
+                          capture_output=True, text=True, cwd=str(work), env=env)
+    assert proc.returncode == 0, f"the shim must never fail the session: {proc.stderr}"
+    return proc.stdout
+
+
+@pytest.fixture()
+def work(tmp_path):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "-c", "user.email=a@b", "-c", "user.name=t", "commit", "-q",
+                    "--allow-empty", "-m", "init"], cwd=tmp_path, check=True)
+    (tmp_path / ".provenrail.json").write_text(
+        json.dumps({"policy": {"use": ["destructive"]}}), encoding="utf-8")
+    return tmp_path
+
+
+def _plugin_version() -> str:
+    return json.loads((PLUGIN / ".claude-plugin" / "plugin.json")
+                      .read_text(encoding="utf-8"))["version"]
+
+
+def test_a_cli_at_least_as_new_as_the_plugin_answers(work, tmp_path):
+    """The installed CLI is preferred when it is current, because it signs what it decides."""
+    bin_dir = tmp_path / "newbin"
+    _fake_pr(bin_dir, "99.0.0")
+    assert "ANSWERED-BY-FAKE-CLI" in _run(work, [str(bin_dir)])
+
+
+def test_a_cli_older_than_the_plugin_is_skipped_for_the_bundled_engine(work, tmp_path):
+    """Updating the plugin ships new rules. An older `pr` left on the machine from months ago
+    would answer with its own older ruleset, the user would see none of what the update added,
+    and nothing anywhere would say why. This was real: a 0.2.30 CLI on the developer's own
+    machine silently shadowed every rule added in 0.4."""
+    bin_dir = tmp_path / "oldbin"
+    _fake_pr(bin_dir, "0.2.30")
+    out = _run(work, [str(bin_dir)])
+    assert "ANSWERED-BY-FAKE-CLI" not in out
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_the_exact_plugin_version_counts_as_new_enough(work, tmp_path):
+    bin_dir = tmp_path / "samebin"
+    _fake_pr(bin_dir, _plugin_version())
+    assert "ANSWERED-BY-FAKE-CLI" in _run(work, [str(bin_dir)])
+
+
+def test_a_pr_that_is_not_ours_is_ignored(work, tmp_path):
+    """`pr` is also a POSIX text-formatting utility, and paginating the hook payload into
+    stdout would be read by Claude Code as a decision."""
+    bin_dir = tmp_path / "notours"
+    bin_dir.mkdir()
+    other = bin_dir / "pr"
+    other.write_text("#!/bin/sh\necho 'pr - print files'\ncat\n", encoding="utf-8")
+    other.chmod(0o755)
+    out = _run(work, [str(bin_dir)])
+    assert "print files" not in out
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_crashing_cli_never_breaks_the_session(work, tmp_path):
+    """Exit 0, no output. Claude Code reads that as no opinion and the call proceeds, which is
+    the right failure: a guardrail that bricks the agent is uninstalled, and then it guards
+    nothing at all."""
+    bin_dir = tmp_path / "brokenbin"
+    bin_dir.mkdir()
+    broken = bin_dir / "pr"
+    broken.write_text(
+        "#!/bin/sh\n"
+        'case "$1" in\n'
+        '  --help) echo provenrail; exit 0;;\n'
+        '  --version) echo "provenrail 99.0.0"; exit 0;;\n'
+        "esac\n"
+        "echo 'boom' >&2\nexit 3\n", encoding="utf-8")
+    broken.chmod(0o755)
+    assert _run(work, [str(bin_dir)]) == ""
+
+
+def test_the_bundled_engine_answers_with_no_cli_at_all(work):
+    out = _run(work, [])
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_an_ordinary_command_produces_no_output_from_either_engine(work):
+    assert _run(work, [], command="ls -la") == ""
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the shim is a POSIX shell script")
+def test_the_shim_is_valid_shell():
+    assert subprocess.run(["bash", "-n", str(HOOK)], capture_output=True).returncode == 0

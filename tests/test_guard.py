@@ -426,12 +426,32 @@ def test_an_explicit_journal_override_still_wins(tmp_path, monkeypatch):
 # ------------------------------------------------- hooks installed but nothing armed
 
 
-def test_hooks_without_a_policy_say_so_instead_of_going_quiet(tmp_path, monkeypatch):
-    """A silent allow is indistinguishable from a working guardrail. If the hooks are wired but
-    no rules are armed, the user has to be told, or they run unguarded believing otherwise."""
+def test_no_config_file_arms_the_defaults_rather_than_nothing(tmp_path, monkeypatch):
+    """Installing the CLI on top of a working plugin used to DISARM it.
+
+    The plugin's hook script prefers `pr` whenever it finds one. `pr guard hook` read the
+    policy from `.provenrail.json` and, finding no file, armed nothing and allowed everything,
+    while the zero-install engine in the same plugin armed the default packs. So the documented
+    upgrade path, `uv tool install provenrail`, silently turned the guard off. Both engines now
+    answer the same question the same way: no config file means the defaults, and a config
+    file, once present, wins completely."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "nowhere"))
     monkeypatch.setenv("PROVENRAIL_GUARD_JOURNAL", str(tmp_path / "journal.jsonl"))
+
+    code, out, err = guard.run_hook(json.dumps(_hook(command="rm -rf /")))
+    assert code == 0
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_an_explicit_empty_policy_arms_nothing_and_says_so(tmp_path, monkeypatch):
+    """A silent allow is indistinguishable from a working guardrail. Someone who wrote
+    `{"policy": {"use": []}}` outranks our defaults, and still has to be told what it means."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "nowhere"))
+    monkeypatch.setenv("PROVENRAIL_GUARD_JOURNAL", str(tmp_path / "journal.jsonl"))
+    (tmp_path / ".provenrail.json").write_text(json.dumps({"policy": {"use": []}}),
+                                               encoding="utf-8")
 
     code, out, err = guard.run_hook(json.dumps(_hook(command="rm -rf /")))
     assert code == 0 and out == ""          # never block on a configuration problem
@@ -443,6 +463,8 @@ def test_the_no_policy_warning_is_at_most_daily(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "nowhere"))
     monkeypatch.setenv("PROVENRAIL_GUARD_JOURNAL", str(tmp_path / "journal.jsonl"))
+    (tmp_path / ".provenrail.json").write_text(json.dumps({"policy": {"use": []}}),
+                                               encoding="utf-8")
 
     first = guard.run_hook(json.dumps(_hook(command="ls")))[2]
     second = guard.run_hook(json.dumps(_hook(command="ls")))[2]

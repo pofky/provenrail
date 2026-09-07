@@ -602,13 +602,28 @@ def run_hook(raw: str, default_event: str = "pre",
 
     hook = parse_hook_input(data, default_event=default_event)
     try:
-        from .easy import _load_config_file, load_policy
+        from .easy import _load_config_file, find_config_file, load_policy
         # `--use` on the hook arms those packs for this invocation, without a config file. It
         # used to be accepted and then ignored, so `pr guard hook --use destructive` in a folder
         # with no `.provenrail.json` allowed everything while its help text said the packs were
         # armed: the worst shape a guardrail failure can take.
-        policy = (load_policy({"use": list(use)}) if use
-                  else load_policy((_load_config_file() or {}).get("policy")))
+        if use:
+            policy = load_policy({"use": list(use)})
+        else:
+            config = _load_config_file() if find_config_file() else None
+            if config is None:
+                # No config file at all. The zero-install plugin arms the default packs here,
+                # and this path did not, so installing the CLI on top of a working plugin
+                # SILENTLY DISARMED it: the hook script prefers `pr` when it finds one, `pr`
+                # found no policy, and every tool call proceeded unguarded. An upgrade that
+                # turns the guard off is the worst shape this failure can take, because the
+                # user did the thing the docs told them to do.
+                #
+                # A config file, once present, still wins completely, including an explicit
+                # empty `use` that arms nothing: whoever wrote it outranks our defaults.
+                policy = load_policy({"use": list(DEFAULT_PACKS)})
+            else:
+                policy = load_policy(config.get("policy"))
     except Exception as exc:  # a broken policy config must be loud, not silently permissive
         return 0, "", f"provenrail: could not load the policy ({exc}); NOT enforcing\n"
 

@@ -4,13 +4,19 @@
 # Claude Code pipes the hook payload on stdin and reads our decision from stdout. This script
 # picks who answers it:
 #
-#   1. `pr` (the installed Provenrail CLI), when it is on the machine. Blocks, asks, AND signs
-#      every decision into a hash-chained record someone else can verify.
+#   1. `pr` (the installed Provenrail CLI), when it is on the machine AND is at least as new as
+#      this plugin. Blocks, asks, AND signs every decision into a hash-chained record someone
+#      else can verify.
 #   2. the bundled zero-dependency engine next to this file, otherwise. Blocks, asks, and
 #      journals locally. No pip install, no account, no sink, nothing to set up.
 #
 # So `/plugin install` protects the very next tool call, and installing Provenrail later
 # upgrades the same journal in place rather than starting a new one.
+#
+# The version comparison is not tidiness. Updating the plugin ships new rules; an older `pr`
+# left on the machine from months ago would answer with its own older ruleset and the user
+# would see none of what the update added, with nothing anywhere saying why. Whichever engine
+# knows more rules answers.
 #
 # The hard rule: this must NEVER break the user's session. If nothing can answer, or anything
 # at all goes wrong, we exit 0 with no output, which Claude Code reads as "no opinion" and the
@@ -22,13 +28,42 @@ EVENT="${1:-pre}"
 PAYLOAD="$(cat)"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# This plugin's own version, from the manifest beside it. Used only to refuse an older CLI.
+plugin_version() {
+  sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "$HERE/../.claude-plugin/plugin.json" 2>/dev/null | head -1
+}
+
+# True when $1 is >= $2, comparing dotted numbers left to right. `sort -V` is not portable
+# enough to rely on inside a hook that has to work on whatever machine it lands on.
+at_least() {
+  local have="$1" want="$2" h w i
+  for i in 1 2 3; do
+    h="$(printf '%s' "$have" | cut -d. -f$i | tr -cd '0-9')"
+    w="$(printf '%s' "$want" | cut -d. -f$i | tr -cd '0-9')"
+    h="${h:-0}"; w="${w:-0}"
+    [ "$h" -gt "$w" ] 2>/dev/null && return 0
+    [ "$h" -lt "$w" ] 2>/dev/null && return 1
+  done
+  return 0
+}
+
+# A candidate is ours if `--help` says so, and usable if it is not older than this plugin.
+usable_pr() {
+  local bin="$1" version
+  "$bin" --help 2>&1 | grep -qi provenrail || return 1
+  version="$("$bin" --version 2>/dev/null | tr -cd '0-9.' )"
+  [ -n "$version" ] || return 1
+  at_least "$version" "$(plugin_version)"
+}
+
 find_pr() {
   if command -v pr >/dev/null 2>&1; then
     # `pr` is also a POSIX text-formatting utility. Only accept ours.
-    if pr --help 2>&1 | grep -qi provenrail; then command -v pr; return 0; fi
+    if usable_pr pr; then command -v pr; return 0; fi
   fi
   for candidate in "$HOME/.local/bin/pr" "$HOME/.cargo/bin/pr" /opt/homebrew/bin/pr /usr/local/bin/pr; do
-    if [ -x "$candidate" ] && "$candidate" --help 2>&1 | grep -qi provenrail; then
+    if [ -x "$candidate" ] && usable_pr "$candidate"; then
       echo "$candidate"; return 0
     fi
   done
