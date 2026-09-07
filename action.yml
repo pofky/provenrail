@@ -1,0 +1,165 @@
+# A GitHub Action that produces a signed AI authorship attestation for the commits in a push
+# or a pull request, and uploads it as a build artifact.
+#
+# Why an action at all: the answer to "which of this code did an AI write" ages the moment
+# someone rebases, and a document produced by hand months later is a document nobody can place
+# in time. Running it in CI means the attestation exists, signed, at the moment the commits
+# landed, which is the only point at which nobody has a reason to shade it.
+#
+# The signing key is generated in the runner unless one is supplied, and a key that lives for
+# one job proves only that the document is internally consistent. Supply `signing-key` from a
+# repository secret when you want the signature to mean "this organisation said so", and add
+# `licence-key` to have an independent authority timestamp it.
+name: Provenrail AI authorship attestation
+description: Sign a statement of which commits an AI agent had a hand in, and optionally have an independent authority timestamp it.
+author: Provenrail
+branding:
+  icon: git-commit
+  color: yellow
+
+inputs:
+  since:
+    description: >-
+      Start of the commit range, exclusive: a tag, a sha, or anything git understands.
+      Defaults to the base of the pull request, or the commit before the push.
+    required: false
+    default: ""
+  until:
+    description: End of the range.
+    required: false
+    default: HEAD
+  blame:
+    description: >-
+      Also report what share of the lines currently in the tree came from AI-assisted commits.
+      Slower, because it blames every tracked file.
+    required: false
+    default: "false"
+  output:
+    description: Where to write the attestation.
+    required: false
+    default: ai-attestation.json
+  signing-key:
+    description: >-
+      A PKCS8 PEM Ed25519 private key, from a repository secret. Without one, a key is generated
+      for this job and discarded, which makes the document self-consistent but anonymous.
+    required: false
+    default: ""
+  licence-key:
+    description: >-
+      A Provenrail licence key. When set, the attestation is anchored and an RFC 3161 timestamp
+      from an independent authority is written alongside it. A 32-byte root travels; no line of
+      your code is ever sent.
+    required: false
+    default: ""
+  version:
+    description: Version of the provenrail package to install.
+    required: false
+    default: ""
+
+outputs:
+  attestation:
+    description: Path to the signed attestation.
+    value: ${{ steps.attest.outputs.attestation }}
+  receipt:
+    description: Path to the anchor receipt, empty when no licence key was supplied.
+    value: ${{ steps.attest.outputs.receipt }}
+  commits-ai-assisted:
+    description: How many commits in the range were found to be AI-assisted.
+    value: ${{ steps.attest.outputs.commits-ai-assisted }}
+  percent-ai-assisted:
+    description: What percentage of the commits in the range were found to be AI-assisted.
+    value: ${{ steps.attest.outputs.percent-ai-assisted }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install provenrail
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.version }}" ]; then
+          python3 -m pip install --quiet "provenrail==${{ inputs.version }}"
+        else
+          python3 -m pip install --quiet provenrail
+        fi
+
+    - name: Attest
+      id: attest
+      shell: bash
+      env:
+        PROVENRAIL_SIGNING_KEY: ${{ inputs.signing-key }}
+        PROVENRAIL_LICENCE_KEY: ${{ inputs.licence-key }}
+      run: |
+        set -euo pipefail
+
+        # A shallow checkout is the default for actions/checkout, and an attestation over a
+        # truncated history would name a range it cannot see. Say so rather than signing it.
+        if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+          echo "::error::This repository was checked out shallow, so most of its history is not"
+          echo "::error::here and an attestation over it would cover commits it cannot read."
+          echo "::error::Add 'fetch-depth: 0' to your actions/checkout step."
+          exit 1
+        fi
+
+        SINCE="${{ inputs.since }}"
+        if [ -z "$SINCE" ]; then
+          if [ -n "${GITHUB_BASE_REF:-}" ]; then
+            git fetch --quiet origin "$GITHUB_BASE_REF"
+            SINCE="origin/$GITHUB_BASE_REF"
+          elif [ -n "${GITHUB_EVENT_BEFORE:-}" ] && \
+               git cat-file -e "${GITHUB_EVENT_BEFORE}^{commit}" 2>/dev/null; then
+            SINCE="$GITHUB_EVENT_BEFORE"
+          fi
+        fi
+
+        # These are if-statements rather than `test ... && ...` on purpose. Under `set -e` an
+        # and-list whose left side is false exits the script, so the action would fail whenever
+        # `since` was unset or `blame` was off, which is the common case.
+        ARGS=(attest --until "${{ inputs.until }}" --out "${{ inputs.output }}")
+        if [ -n "$SINCE" ]; then ARGS+=(--since "$SINCE"); fi
+        if [ "${{ inputs.blame }}" = "true" ]; then ARGS+=(--blame); fi
+
+        # The device key is read from the working directory, so writing the supplied secret
+        # there is what makes the signature the organisation's rather than the runner's.
+        if [ -n "${PROVENRAIL_SIGNING_KEY}" ]; then
+          printf '%s' "${PROVENRAIL_SIGNING_KEY}" > .provenrail.key
+          chmod 600 .provenrail.key
+        fi
+
+        python3 -m provenrail "${ARGS[@]}"
+
+        if [ -n "${PROVENRAIL_LICENCE_KEY}" ]; then
+          python3 -m provenrail attest-anchor "${{ inputs.output }}" \
+            --key "${PROVENRAIL_LICENCE_KEY}" --receipt-out attest-receipt.json
+          echo "receipt=attest-receipt.json" >> "$GITHUB_OUTPUT"
+        else
+          echo "receipt=" >> "$GITHUB_OUTPUT"
+        fi
+
+        # The key must not survive the step, whether it was supplied or generated here.
+        rm -f .provenrail.key
+
+        echo "attestation=${{ inputs.output }}" >> "$GITHUB_OUTPUT"
+        python3 - "${{ inputs.output }}" >> "$GITHUB_OUTPUT" <<'PY'
+        import json, sys
+        s = json.load(open(sys.argv[1]))["summary"]
+        print("commits-ai-assisted=%d" % s["commits_ai_assisted"])
+        print("percent-ai-assisted=%s" % s["percent_commits_ai_assisted"])
+        PY
+
+    - name: Summary
+      shell: bash
+      run: |
+        {
+          echo "### AI authorship attestation"
+          echo
+          echo "\`${{ steps.attest.outputs.commits-ai-assisted }}\` commits in this range were"
+          echo "found to be AI-assisted (\`${{ steps.attest.outputs.percent-ai-assisted }}%\`)."
+          echo
+          echo "This does not prove the findings are true. They are read from commit metadata,"
+          echo "so a commit whose author removed that metadata reads as human-authored."
+          echo "Anyone can re-derive them from their own clone with:"
+          echo
+          echo "\`\`\`"
+          echo "pr attest-verify ${{ steps.attest.outputs.attestation }}"
+          echo "\`\`\`"
+        } >> "$GITHUB_STEP_SUMMARY"

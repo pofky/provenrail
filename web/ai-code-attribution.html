@@ -140,6 +140,7 @@
       <a href="#what-it-buys">What signing buys</a>
       <a href="#what-it-does-not-prove">What it does not prove</a>
       <a href="#transcript">A real run</a>
+      <a href="#ci">In CI</a>
       <a href="#faq">FAQ</a>
     </div>
 
@@ -201,6 +202,25 @@ ATTESTATION VERIFIED
     - The findings are read from commit metadata: trailers, author and committer identity. A commit whose author removed that metadata is reported as human-authored, and no signature on this document changes that.
     - Detection covers the tools listed in `detectors`. A tool not on that list is not detected, so AI involvement is understated rather than overstated.</code></pre>
     <p>The verifier prints the limits alongside the verdict, in the same terminal output, not in a separate document a reader has to go find.</p>
+
+    <h2 id="ci">Running it in CI</h2>
+    <p>The answer to "which of this code did an AI write" ages the moment somebody rebases, and a
+    document produced by hand months later is a document nobody can place in time. Running it on
+    every push means the attestation exists, signed, at the moment the commits landed, which is
+    the only point at which nobody has a reason to shade it.</p>
+    <pre><code>- uses: actions/checkout@v4
+  with: {fetch-depth: 0}     # a shallow clone would attest to a stump; the action refuses one
+- uses: pofky/provenrail@v0.3.1
+  with:
+    blame: "true"
+    signing-key: ${{ secrets.PROVENRAIL_SIGNING_KEY }}   # optional
+    licence-key: ${{ secrets.PROVENRAIL_LICENCE_KEY }}   # optional, adds the independent timestamp
+- uses: actions/upload-artifact@v4
+  with: {name: ai-attestation, path: ai-attestation.json}</code></pre>
+    <p>Without a signing key one is generated for the job and discarded, which makes the document
+    internally consistent but anonymous. Supply one from a repository secret when the signature
+    should mean "this organisation said so". The key is removed from the workspace before the job
+    ends either way.</p>
 
     <h2 id="faq">Questions</h2>
     <dl class="faq">
