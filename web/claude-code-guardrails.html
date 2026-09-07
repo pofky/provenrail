@@ -166,8 +166,10 @@
     <p>No package to install, no account, no server, nothing to configure. The plugin carries its own dependency-free engine, so <strong>41 rules are armed on the next tool call your agent makes</strong>. Installing a plugin called "guard" is the opt-in; a guard that waits for a config file protects nobody.</p>
     <p>No signup, no API key, no network call in the decision path. The verdict is computed locally before anything is sent anywhere, so a guardrail never waits on a server and never fails because one is down.</p>
     <pre><code>/guard-status   what is armed, and what it has actually stopped
+/guard-card     a summary of what it stopped, safe to paste anywhere
 /guard-rules    every rule, including the packs that are off by default</code></pre>
     <p><code>/guard-status</code> leads with what the guard has stopped rather than with what it is configured to watch, because a guardrail that has never fired and one that is silently broken look identical from the outside.</p>
+    <p><code>/guard-card</code> prints the same history in a form you can post. What makes it postable is what it leaves out: every command is reduced to its verb and its flags and every operand is dropped, so <code>git reset --hard origin/main</code> becomes <code>git reset --hard</code> and an environment assignment carrying an API key becomes <code>export</code>. The directory is a truncated hash rather than a name. We checked the reduction against all 36,977 commands in the corpus: no path, hostname, URL or key survives it.</p>
 
     <h3>Turning it up, or off</h3>
     <p>Write a <code>.provenrail.json</code> at your repo root. It wins over the defaults completely:</p>

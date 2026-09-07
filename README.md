@@ -14,18 +14,33 @@ Inside Claude Code:
 ```
 
 That is the whole setup. No `pip install`, no account, no server, nothing leaves your
-machine, and the next tool call your agent makes is already being checked. 26 rules are
+machine, and the next tool call your agent makes is already being checked. 41 rules are
 armed with no config file, because installing a plugin called "guard" is the opt-in and a
 guard that waits for configuration protects nobody.
 
-`rm -rf`, `dd of=/dev/...`, `terraform destroy`, `git push --force`, `DROP TABLE`, `DELETE`
-with no `WHERE`, `kubectl delete namespace`, `chmod 777` and committed API keys are denied
-at the tool boundary, and the agent is told which rule fired. Actions that need a human
-(reading `.env`, deploying, migrating, DNS and IAM changes) become a permission prompt
-instead of a hard block, and the approval is recorded as human oversight.
+Read the public data-loss reports filed against coding agents and the command is almost
+never `rm -rf`. It is `git reset --hard`, `git checkout -- .`, `git clean -fd`,
+`git stash drop`, `prisma migrate reset`, a provider volume delete. Those are stopped, and
+they are stopped by what they would actually destroy: the git rules run `git status` and
+check for unpushed commits, so on a clean, pushed tree they say nothing, because there
+nothing is at stake.
 
-`/guard-status` shows what is armed and what it has actually stopped. `/guard-rules` lists
-every rule, including the packs that are off by default. To change or disable it, write a
+The same idea runs the rest. `rm -rf .next` inside your project is allowed outright;
+`rm -rf ~/`, a whole disk, a system path or an unset variable followed by a slash is
+refused; a delete that merely leaves the project asks. `dd of=/dev/...`,
+`terraform destroy`, a force push, `DROP TABLE`, `DELETE` with no `WHERE`,
+`kubectl delete namespace`, `chmod 777` and committed API keys are denied. Actions that
+need a human (reading `.env`, deploying, migrating, a cloud teardown) become a permission
+prompt, and the approval is recorded as human oversight.
+
+Measured against 36,929 Bash commands from real agent sessions: 206 interruptions and 16
+refusals, and fifteen of the sixteen are this repository's own adversarial test fixtures.
+Against 47 commands taken from public data-loss reports: none allowed.
+
+`/guard-status` shows what is armed and what it has actually stopped. `/guard-card` prints
+a summary safe to post: every command is reduced to its verb and flags, and every operand
+is dropped, so it cannot carry a path, a hostname or a key. `/guard-rules` lists every
+rule, including the packs that are off by default. To change or disable it, write a
 `.provenrail.json` at your repo root; it wins over the defaults completely, including an
 explicit `{"policy": {"use": []}}`, which arms nothing and says so once a day.
 

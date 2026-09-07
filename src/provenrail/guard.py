@@ -627,7 +627,9 @@ def run_hook(raw: str, default_event: str = "pre",
     # where recording works, and `pr guard card` would have nothing to show on a healthy setup
     # while the zero-install plugin showed the full list.
     if not recorded or verdict != "allow":
-        journal({"event": hook["event"], "tool": hook["tool"],
+        import time as _time
+        journal({"at": int(_time.time()),
+                 "event": hook["event"], "tool": hook["tool"],
                  "session_id": hook.get("session_id", ""),
                  "verdict": verdict,
                  "rule": (decision or {}).get("rule"),

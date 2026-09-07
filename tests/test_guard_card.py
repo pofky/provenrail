@@ -158,3 +158,22 @@ def test_an_allowed_call_gets_no_shape():
     decision = guard.decide(policy, "Bash", {"command": "ls -la"}, None, str(Path.cwd()))
     assert decision["verdict"] == "allow"
     assert decision["shape"] == ""
+
+
+def test_the_journal_records_when_a_decision_happened(tmp_path, monkeypatch):
+    """The card prints a date next to every entry, and an entry with no timestamp printed
+    1970-01-01, which reads as a broken tool rather than a recent block."""
+    monkeypatch.setenv("PROVENRAIL_GUARD_JOURNAL", str(tmp_path / ".provenrail-guard.jsonl"))
+    (tmp_path / ".provenrail.json").write_text(
+        json.dumps({"policy": {"use": list(guard.DEFAULT_PACKS)}}), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    payload = {"hook_event_name": "PreToolUse", "tool_name": "Bash",
+               "tool_input": {"command": "rm -rf /Volumes/BackupDisk"},
+               "session_id": "s1", "cwd": str(tmp_path)}
+    guard.run_hook(json.dumps(payload))
+
+    entries = [e for e in guard.read_journal() if e.get("verdict") == "deny"]
+    assert entries, "a denied call was not journalled"
+    assert entries[-1]["at"] > 1_700_000_000
+    assert entries[-1]["shape"] == "rm -rf"
