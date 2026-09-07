@@ -1,8 +1,8 @@
 # HANDOFF
 
-Last updated 2026-09-07. Branch `main`, tag `v0.3.0`.
-**0.3.0 is on PyPI and the site is deployed.** Verified from the index (`pip install provenrail`
--> 0.3.0, `pr demo` + `pr verify` green, a tampered copy exits 1) and from a fresh public clone of
+Last updated 2026-09-07. Branch `main`, tag `v0.3.1`.
+**0.3.1 is on PyPI and the site is deployed.** Verified from the index (`pip install provenrail`
+-> 0.3.1, `pr demo` + `pr verify` green, a tampered copy exits 1) and from a fresh public clone of
 `pofky/provenrail` (the plugin hook blocks `rm -rf` with nothing else installed).
 Read this first, then `WORKLOG.md` for history.
 
@@ -70,7 +70,26 @@ three JSON-LD blocks on `/ai-code-attribution` parse, and every internal href ac
 resolves. Homepage title, description and both social cards now match the new hero.
 `llms.txt` gained the attribution section and its four questions.
 
-**1019 tests pass. Ruff clean.**
+**An adversarial pass over 0.3.0 found three total bypasses of the guard, all now fixed and
+covered, all reproduced against the running code before being touched.** They are worth reading
+because each had passing tests over it:
+
+- **Padding hid any command from every content rule.** The match text was truncated to 20,000
+  characters before any rule ran, so twenty thousand characters of comment in front of
+  `rm -rf /` matched nothing. Both engines. Matching now covers the whole argument, and one too
+  large to screen asks a human rather than passing.
+- **A `limit` rule under its cap returned an allow immediately**, so `blast-radius` plus any
+  deny pack disarmed the deny pack for 500 calls a session. An allow is provisional now. The
+  bundled engine did not short-circuit, so the *signed* engine was the permissive half.
+- **The hook command was unquoted**, so an install path with a space word-split, the shell
+  exited 127 with no output, and Claude Code reads no output as "no opinion".
+- Two more in attest: `repository.head` was the only field the verifier never re-derived, and
+  `git blame` on a tracked binary killed `--blame` with an error about a bundle.
+
+Proven closed from a fresh public clone, installed under a path containing a space, with
+nothing else on the machine.
+
+**1043 tests pass. Ruff clean.**
 
 ## Next in order
 
@@ -89,6 +108,13 @@ resolves. Homepage title, description and both social cards now match the new he
 
 ## Traps
 
+- **An allow found while scanning rules is provisional, never final.** Returning ALLOW from
+  inside the loop is what let one broad `limit` rule preempt every deny rule after it. Any
+  future effect that allows must set `provisional` and keep scanning.
+  `test_a_blast_radius_cap_does_not_disarm_the_deny_rules_after_it`.
+- **A cap on the text a content rule sees is a bound on WORK, never on what gets screened.**
+  Silently truncating it is a bypass with padding, in one line. If the text is over the cap the
+  answer is to escalate, not to match a prefix. Both engines, `MAX_MATCH_TEXT`.
 - **Never write a second enforcement engine.** There are now two engines (installed and bundled)
   exactly as there are two verifiers, and both pairs are held together by lockstep tests over
   shared frozen data. If you add a rule, run `python tools/vendor_guard_rules.py`; a test will fail
@@ -128,6 +154,14 @@ resolves. Homepage title, description and both social cards now match the new he
   stranger has walked. The first real install is the first honest data point.
 - **The v0.3.0 tag points at an empty commit** titled "0.3.0 build artifacts" (`dist/` is
   gitignored). The annotation carries the real message. Left alone rather than force-pushed.
+  `v0.3.1` is on a real commit.
+- **0.3.0 was on PyPI for about an hour with all three bypasses in it.** Nobody is known to have
+  installed it. It has not been yanked, because yanking a version whose successor is already up
+  buys nothing and burns the number.
+- **A 100,000-level nested JSON payload forces the standalone hook to fail open** via
+  `RecursionError` caught by its blanket handler. That is the file's documented fail-open design
+  rather than a hidden defect, and Claude Code's own tool input never has that shape, but it is
+  the one way to make the guard say nothing on purpose.
 - **The free anchor has still never been claimed through the UI by a real signed-in account.**
 - **Server auth and RBAC have never been verified against live Supabase**, only in-process.
 - DM Sans is still a widely used free font; the design research asks for something less common.
