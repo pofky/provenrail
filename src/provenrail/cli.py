@@ -1521,6 +1521,10 @@ def _cmd_guard(args) -> int:
         print("they never depended on those counters.")
         return 0
 
+    if action == "card":
+        print(guard.card(), end="")
+        return 0
+
     if action == "receipt":
         rc = _cmd_export(argparse.Namespace(out=args.out, stream=None))
         if rc != 0:
@@ -1751,7 +1755,8 @@ def build_parser() -> argparse.ArgumentParser:
            which exits 1 when there are denials.
   others   0 on success, non-zero when the command could not do what was asked.""")
     g.add_argument("action", nargs="?",
-                   choices=["install", "uninstall", "status", "receipt", "reset", "hook"],
+                   choices=["install", "uninstall", "status", "card", "receipt", "reset",
+                            "hook"],
                    help="install/uninstall Claude Code hooks, show status, export a receipt, "
                         "or reset the blast-radius counters")
     g.add_argument("--use", help="comma-separated guardrail packs to arm (default: "

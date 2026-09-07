@@ -251,7 +251,32 @@ def decide(policy: Any, tool: str, tool_input: Any,
     else:
         verdict = "deny"
     return {"verdict": verdict, "rule": decision.rule_id, "reason": decision.reason,
-            "effect": effect or (DENY if verdict == "deny" else ALLOW)}
+            "effect": effect or (DENY if verdict == "deny" else ALLOW),
+            "shape": _matched_shape(policy, decision.rule_id, ctx) if verdict != "allow" else ""}
+
+
+def _matched_shape(policy: Any, rule_id: str | None, ctx: dict[str, Any]) -> str:
+    """The verb and flags of the single command that fired the rule, with operands dropped.
+
+    This is what makes a block worth showing anyone. "destructive.recursive-force-remove" says
+    nothing; "rm -rf, outside the project" is a sentence. It is not the command: every operand
+    is dropped, because operands are where a path, a hostname and an API key live, and a block
+    is only shareable if what it records cannot be a secret.
+    """
+    from .shell import command_shape, segments
+
+    text = ctx.get("match_text", "")
+    if not isinstance(text, str) or not text:
+        return ""
+    rule = next((r for r in getattr(policy, "rules", []) if r.id == rule_id), None)
+    if rule is None or not getattr(rule, "arg_contains", ""):
+        return command_shape(text)
+    import re as _re
+    pattern = _re.compile(rule.arg_contains, _re.IGNORECASE | _re.DOTALL)
+    for part in segments(text):
+        if pattern.search(part):
+            return command_shape(part)
+    return command_shape(text)
 
 
 # ---------------------------------------------------------------- recording
@@ -301,6 +326,50 @@ def read_journal() -> list[dict[str, Any]]:
         except ValueError:
             continue
     return out
+
+
+def card() -> str:
+    """A paste-ready summary of what the guard has stopped in this project.
+
+    The only visible moment a guardrail has is the moment it says no, and until now that moment
+    left nothing behind but a rule id in a terminal that scrolls away. Every public thread about
+    a coding agent destroying someone's work is a post-mortem written afterwards; this is the
+    same story told before the loss, which is the version worth reading.
+
+    Nothing identifying goes in. Not the project name, not a path, not an operand: the directory
+    becomes a truncated hash so two cards from the same project match without naming it, and
+    each command is reduced by `shell.command_shape` to its verb and flags. That is what makes
+    it something a person can paste in public without reading it line by line first.
+    """
+    import hashlib
+    import time
+
+    entries = [e for e in read_journal() if e.get("verdict") in ("deny", "ask")]
+    digest = hashlib.sha256(str(_journal_path().parent).encode("utf-8")).hexdigest()[:8]
+    if not entries:
+        return ("Provenrail guard has not had to stop anything here yet.\n\n"
+                "  Armed and watching. `pr guard status` shows what is armed.\n")
+
+    denies = sum(1 for e in entries if e["verdict"] == "deny")
+    plural = "" if len(entries) == 1 else "s"
+    lines = [
+        f"Provenrail guard stopped {len(entries)} command{plural} in this repo "
+        f"({denies} refused, {len(entries) - denies} sent to me to approve).",
+        "",
+    ]
+    for entry in entries[-10:]:
+        stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(entry.get("at", 0)))
+        shape = entry.get("shape") or entry.get("tool") or "?"
+        lines.append(f"  {stamp}  {entry.get('verdict', '?'):<8} {shape}")
+        lines.append(f"  {' ' * len(stamp)}  {entry.get('rule') or ''}")
+    lines += [
+        "",
+        f"  repo {digest} (hashed, not the name). Commands are shown as verb and flags only;",
+        "  every operand is dropped, so nothing here can be a path or a key.",
+        "",
+        "  Signed and verifiable version:  pr guard receipt && pr verify guard-receipt.json",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 PENDING_FILENAME = ".provenrail-guard-pending.json"
@@ -552,11 +621,18 @@ def run_hook(raw: str, default_event: str = "pre",
         mark_ask(hook.get("session_id", ""), hook.get("tool", ""), decision["rule"] or "")
 
     recorded = record_hook(hook, decision)
-    if not recorded:
+    verdict = (decision or {}).get("verdict", "allow")
+    # Journalled whenever the guard had an opinion, not only when the sink was unreachable.
+    # Otherwise the local history, and everything built on it, is empty on exactly the installs
+    # where recording works, and `pr guard card` would have nothing to show on a healthy setup
+    # while the zero-install plugin showed the full list.
+    if not recorded or verdict != "allow":
         journal({"event": hook["event"], "tool": hook["tool"],
                  "session_id": hook.get("session_id", ""),
-                 "verdict": (decision or {}).get("verdict", "allow"),
+                 "verdict": verdict,
                  "rule": (decision or {}).get("rule"),
+                 "shape": (decision or {}).get("shape", ""),
+                 "recorded": bool(recorded),
                  "reason": (decision or {}).get("reason", "")})
 
     if decision is None or decision["verdict"] == "allow":

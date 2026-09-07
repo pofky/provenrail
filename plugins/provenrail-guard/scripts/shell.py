@@ -180,3 +180,57 @@ def segments(command: str) -> list[str]:
             for piece in split_commands(outer or inner):
                 _add(piece)
     return parts or [command]
+
+
+#: A word that reads as a subcommand: letters, digits and hyphens, nothing else. `delete-db-
+#: instance` and `migrate` qualify; `myapp_production`, `s3://bucket`, `./script.sh` and
+#: `"DROP` do not. Everything a secret can hide in fails this on the first character class.
+_SUBCOMMAND = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,23}$")
+
+#: `NAME=value` in front of the command it runs.
+_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def command_shape(command: str, limit: int = 6) -> str:
+    """The verb and its flags, with every operand dropped.
+
+    `git reset --hard origin/main` becomes `git reset --hard`, and an environment assignment
+    carrying an API key becomes `export`. This is what a journal line is allowed to remember
+    about a command, and what a shareable summary is allowed to print. The rule is deliberately
+    crude in the safe direction: a secret always arrives as an operand, so no operand is kept.
+    A truncation or a redaction pass would have to be right every time; dropping the whole
+    category has to be right once.
+    """
+    if not isinstance(command, str):
+        return ""
+    parts = segments(command)
+    if not parts:
+        return ""
+    out: list[str] = []
+    words = 0
+    after_flag = False
+    for token in parts[0].split():
+        if len(out) >= limit:
+            break
+        if not out and _ASSIGNMENT.match(token):
+            # `SC=/private/tmp/.../scratchpad cmd ...`: an environment prefix, whose value is
+            # an operand. Skip it and keep looking for the verb.
+            continue
+        if token.startswith("-"):
+            out.append(token)
+            # `--db-instance-identifier prod` and `-m "fix login"`: the next word belongs to
+            # the flag, and a flag's value is an operand like any other.
+            after_flag = token != "--" and not token.startswith("--no-")
+            continue
+        if after_flag:
+            break
+        if not out and "/" in token:
+            # An absolute or relative path to the program. The directories are the operand
+            # part; the program's own name is the verb.
+            token = token.rsplit("/", 1)[-1]
+        # Four bare words is `npx wrangler d1 delete`, and past that a bare word is an operand.
+        if words >= 4 or not _SUBCOMMAND.match(token):
+            break
+        out.append(token)
+        words += 1
+    return " ".join(out)

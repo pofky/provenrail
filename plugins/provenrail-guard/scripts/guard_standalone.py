@@ -44,7 +44,7 @@ from pathlib import Path
 # second time here. Imported by path, because this file runs before Provenrail is installed.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from predicates import evaluate as predicate_ok   # noqa: E402
-from shell import segments                        # noqa: E402
+from shell import command_shape, segments         # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 RULES_FILE = HERE / "rules.json"
@@ -516,11 +516,16 @@ def run(raw, default_event="pre"):
         # Provenrail adds. What it must not lose is what it stopped.
         return "", notice
 
-    append_journal(config_path, {
+    entry = {
         "at": int(time.time()), "event": "pre", "tool": hook["tool"],
         "session_id": hook["session_id"], "verdict": verdict, "rule": rule_id,
         "reason": reason, "by": "standalone",
-    })
+    }
+    if verdict != "allow":
+        # The verb and its flags, never the operands. See `shell.command_shape`: this is what
+        # makes `/guard-card` something a person can paste in public without reading it first.
+        entry["shape"] = matched_shape(rules, rule_id, match_text(hook["input"]))
+    append_journal(config_path, entry)
 
     text = "Provenrail guardrail %s: %s" % (rule_id, reason)
     if verdict == "ask":
@@ -534,6 +539,83 @@ def run(raw, default_event="pre"):
         "permissionDecisionReason": text,
     }}
     return json.dumps(out), notice
+
+
+def matched_shape(rules, rule_id, text):
+    """The shape of the single command that fired `rule_id`."""
+    if not isinstance(text, str) or not text:
+        return ""
+    rule = next((r for r in rules if r.get("id") == rule_id), None)
+    pattern = (rule or {}).get("arg_contains") or ""
+    if not pattern:
+        return command_shape(text)
+    compiled = re.compile(pattern, re.IGNORECASE | re.DOTALL)
+    for part in segments(text):
+        if compiled.search(part):
+            return command_shape(part)
+    return command_shape(text)
+
+
+def read_journal(config_path):
+    path = journal_path(config_path)
+    entries = []
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except ValueError:
+                continue
+    return entries
+
+
+def card():
+    """A paste-ready summary of what the guard has stopped here.
+
+    The one visible moment this product has is the moment it says no, and until now that moment
+    left nothing behind but a rule id in a terminal that scrolls away. Every incident thread
+    about a coding agent is a post-mortem written after the loss; this is the same story told
+    before it, which is the version worth reading.
+
+    Nothing identifying goes in. Not the repository name, not a path, not an operand: the
+    directory is a truncated hash so two cards from the same project match without naming it,
+    and each command is reduced to its verb and flags.
+    """
+    import hashlib
+
+    config_path = find_config_file()
+    entries = [e for e in read_journal(config_path) if e.get("verdict") in ("deny", "ask")]
+    root = str(state_dir(config_path))
+    digest = hashlib.sha256(root.encode("utf-8")).hexdigest()[:8]
+    lines = []
+    if not entries:
+        lines.append("Provenrail guard has not had to stop anything here yet.")
+        lines.append("")
+        lines.append("  Armed and watching. `/guard-status` shows what is armed.")
+        return "\n".join(lines) + "\n"
+
+    denies = sum(1 for e in entries if e["verdict"] == "deny")
+    asks = len(entries) - denies
+    lines.append("Provenrail guard stopped %d command%s in this repo (%d refused, %d sent to me "
+                 "to approve)." % (len(entries), "" if len(entries) == 1 else "s", denies, asks))
+    lines.append("")
+    for entry in entries[-10:]:
+        stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(entry.get("at", 0)))
+        shape = entry.get("shape") or entry.get("tool") or "?"
+        lines.append("  %s  %-8s %s" % (stamp, entry.get("verdict", "?"), shape))
+        lines.append("  %s  %s" % (" " * len(stamp), entry.get("rule") or ""))
+    lines.append("")
+    lines.append("  repo %s (hashed, not the name). Commands are shown as verb and flags only;"
+                 % digest)
+    lines.append("  every operand is dropped, so nothing here can be a path or a key.")
+    lines.append("")
+    lines.append("  This card is a local text file and anyone could have typed it. For a "
+                 "version")
+    lines.append("  signed and hash-chained so somebody else can check it:")
+    lines.append("      uv tool install provenrail && pr guard receipt")
+    return "\n".join(lines) + "\n"
 
 
 def status():
@@ -562,17 +644,7 @@ def status():
         lines.append("  Nothing is being blocked. Remove \"policy\" from the config to restore "
                      "the defaults.")
 
-    entries = []
-    path = journal_path(config_path)
-    if path.is_file():
-        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entries.append(json.loads(line))
-            except ValueError:
-                continue
+    entries = read_journal(config_path)
     denies = [e for e in entries if e.get("verdict") == "deny"]
     prompts = [e for e in entries if e.get("verdict") == "ask"]
     lines.append("")
@@ -580,8 +652,9 @@ def status():
                  % (len(denies), len(prompts)))
     for entry in entries[-8:]:
         stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(entry.get("at", 0)))
-        lines.append("    %s  %-5s %-10s %s"
-                     % (stamp, entry.get("verdict", "?"), entry.get("tool", "?"),
+        lines.append("    %s  %-5s %-22s %s"
+                     % (stamp, entry.get("verdict", "?"),
+                        entry.get("shape") or entry.get("tool", "?"),
                         entry.get("rule") or ""))
     if not entries:
         lines.append("    (nothing yet: either the agent has done nothing dangerous, or the "
@@ -591,12 +664,17 @@ def status():
                  "machine can edit it.")
     lines.append("  For a receipt someone else can verify: uv tool install provenrail && "
                  "pr guard receipt")
+    if denies or prompts:
+        lines.append("  To show someone what it caught: /guard-card")
     return "\n".join(lines) + "\n"
 
 
 def main(argv):
     if "--status" in argv:
         sys.stdout.write(status())
+        return 0
+    if "--card" in argv:
+        sys.stdout.write(card())
         return 0
     event = "pre"
     for i, arg in enumerate(argv):
