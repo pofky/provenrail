@@ -1,272 +1,143 @@
 # HANDOFF
 
-Last updated 2026-08-21. Branch `main`.
-**Everything below is DEPLOYED and driven against production.** Edge functions
-(`anchor`, `trial-license`, `polar-webhook`, `pageview`) deployed to `jzgamrptvsdxnwtuascx`, site
-deployed to provenrail.com via `wrangler pages deploy web --project-name provenrail` run FROM THE
-REPO ROOT. **0.2.33 is on PyPI** and verified from the index (`pip install provenrail` -> 0.2.33, `pr demo`
-+ `pr verify` green, a tampered copy exits 1), so the commands the account page prints work for
-someone installing today.
+Last updated 2026-09-07. Branch `main`, tag `v0.3.0`.
+**0.3.0 is on PyPI and the site is deployed.** Verified from the index (`pip install provenrail`
+-> 0.3.0, `pr demo` + `pr verify` green, a tampered copy exits 1) and from a fresh public clone of
+`pofky/provenrail` (the plugin hook blocks `rm -rf` with nothing else installed).
 Read this first, then `WORKLOG.md` for history.
-
-## Proven live, 2026-08-21
-
-The free anchor was driven end to end against production with a throwaway Supabase account,
-which was deleted afterwards along with its anchor row (`external_anchors`, `anchor_accounts`,
-`profiles`, auth user: all confirmed gone, and the anchor URL now 404s):
-
-1. `POST /functions/v1/trial-license` with a real session issued a `plan: free` licence key.
-   A second call returned the same key with `reissued: true`, minting nothing.
-2. `pr activate` accepted it offline ("free tier, expires 2027-08-21").
-3. `pr demo` then `pr anchor-push bundle.json` anchored 6 records against provenrail.com and
-   came back with a **real RFC 3161 timestamp from FreeTSA**, not the self-signed fallback.
-4. `pr anchor-verify bundle.json anchor-receipt.json` printed "VERIFIED. These records existed
-   in this order at that time, and the time is proved by a third party", exit 0.
-5. A second push was refused 403: "your one free anchor has been used."
-6. The public auditor page rendered at the edge, named neither the account nor the email, and
-   printed the exact command an auditor pastes.
-
-That run found one real defect that no test would have caught: the refusal advice told the
-customer to rotate a key that was not stale, and printed the raw JSON envelope, because the
-hosted service answers `error` and the self-hosted sink answers `detail` and only one was read.
-Both fixed, and now covered by `test_a_refusal_tells_the_customer_what_actually_happened`.
-
-## This session, 2026-08-21: the funnel, not the cryptography
-
-Two independent reviews (product/UX and commercial) reached the same verdict from different
-directions: the product is finished, the distribution is zero, and the site addressed the wrong
-buyer in its first sentence. Nothing about the evidence format changed today. What changed is
-everything between a stranger arriving and a receipt in their hands.
-
-The decisions, so the next session does not relitigate them:
-
-- **The homepage leads with the proof, not the guardrail.** "Know what your AI agent did. Prove it
-  to anyone." The tamper widget moved above the install snippet, because a visitor who performs
-  the proof themselves in five seconds has understood the product, and a visitor reading an
-  install command has only been given homework. The guardrail is still there, one line down and
-  one CTA over: it is what converts on Hacker News and r/ClaudeAI, and the launch copy in
-  `Marketing/` still leads with it. Different audience, different first sentence, same product.
-- **One free anchor, ever, per verified account.** Until today the only feature worth paying for
-  was also the only feature nobody could try, so the argument had to be made in prose on a
-  pricing page. It is now made by a receipt with somebody else's signature on it. One, not an
-  allowance: an allowance needs metering, resets and defending, and a count of rows the service
-  already writes needs none of those.
-- **Prices stay in USD.** The Polar products are USD and Polar prices are immutable, so an EUR
-  page would contradict its own checkout. Moving currency means new Polar products; do it before
-  the first customer or not until there is a reason. Recorded in `DISTRIBUTION.md` section 7.
-- **No Evidence Report SKU.** It was the highest revenue-per-hour idea in the commercial review
-  and it requires receiving customer bundles, which is the exact data-liability line the whole
-  strategy exists to stay behind. Refused deliberately, not overlooked.
 
 ## Where things stand
 
-The strategy changed direction this session, deliberately, and the code followed it.
+The direction changed this session, on measurement rather than on feeling, and the code followed
+it. The evidence and the reasoning are in `docs/repositioning-research-2026-09-07.md`; do not
+relitigate it without reading that file first.
 
-Provenrail no longer sells hosted record storage, because the operator trades as a Lithuanian
-`individuali veikla` with no liability shield, and hosting other people's agent records makes him
-a GDPR processor personally. `BUSINESS.md` had said so since June; the pricing page was selling it
-anyway. What the paid tiers sell now is **independent anchoring**: the customer self-hosts the
-AGPL sink, keeps every record, and sends a Merkle root. That is the one thing a self-hoster cannot
-manufacture for themselves, and it is sellable today with no company, no certification and no
-insurance. See `docs/cost-to-execute-2026-08-18.md` for the liability ladder and where the line
-is, and `docs/PRD-anchor-only-service.md` for the design.
+What the numbers said: 2,534 pageviews ever, 115 in the seventeen days to 2026-09-07, of which
+**fourteen carried a referrer**. Four profiles, one anchor account, five anchors, every one the
+operator's. Package downloads are mirror noise. Nothing has ever been posted anywhere. So the
+product was not rejected, it was never shown.
 
-Six audits ran this session: CLI/SDK flows, web flows, competitive, cost-to-execute, an
-adversarial review of the new anchor code, and a live end-to-end journey against real servers.
-The last two found real defects in code that had shipped hours earlier, and they are the reason
-to keep running an adversarial pass over anything new: `pr anchor-verify` reported VERIFIED over
-bundles it should have refused, three separate ways. All three are fixed and reproduced by tests.
+Three things argued for a shift anyway, independent of reach. The buyer for "prove what your agent
+did" wants a hosted system of record with a DPA, which is exactly the processor role a Lithuanian
+`individuali veikla` must refuse. Article 12 moved to December 2027, so nobody has a dated
+obligation any more. And the neighbouring category raised roughly $3.6B in 2026 while observability
+became a free-tier price war. Underneath all three: the product is insurance, and its value landed
+after an incident the visitor had not had.
 
-The question that was left to the operator last session, whether to operate a hosted anchor
-service, was answered by removing its cost. It runs as a Supabase edge function on the free tier
-the project already pays nothing for, so there is no monthly bill to justify before a single
-customer exists. `supabase/functions/anchor/`, fronted at `provenrail.com/v1/anchors` by
-`functions/v1/anchors.js` so the CLI's `--url` is the product's own domain.
-
-949 tests pass. Ruff clean. `deno check` is now a test.
+**So the front door is now the guardrail, which is felt daily and before the incident, and the
+invoice is AI code attribution, which somebody else asks the customer for.** Same engine, same
+chain, same verifier. The compliance framing is still true and is no longer load-bearing.
 
 ## Done and verified
 
-**2026-08-21, driven and checked:**
+**The guard works with nothing installed.** `/plugin install provenrail-guard@provenrail` is the
+whole setup: no package, no account, no server, no config file, 26 rules armed on the next tool
+call. `plugins/provenrail-guard/scripts/guard_standalone.py` is a stdlib-only copy of the
+enforcement path; `pr-guard-hook.sh` prefers the installed CLI when it exists and falls back to it
+otherwise. Both write the same journal in the same place, so installing Provenrail later signs the
+history in place.
 
-- **The whole first-run flow, run for real** in a scratch directory against a live local
-  recording server: `pr quickstart` (numbered steps, no jargon), `pr demo`, `pr verify` (VERIFIED
-  plus the new note naming the time gap), `pr anchor-push bundle.json --url http://localhost:...`
-  (anchor issued, auditor URL printed, receipt written to `anchor-receipt.json` by default),
-  `pr anchor-verify bundle.json anchor-receipt.json` (VERIFIED, time self-asserted, exit 0). Also
-  drove the three refusal paths: no bundle, missing file, no licence key, each printing the
-  commands that fix it instead of an argparse error.
-- **The homepage after the rewrite**, in a real browser at 375px: the hero renders the new
-  headline, the CTAs point at `#try-it` then `#live-proof`, section order is hero, try-it,
-  install, and the live tamper widget still goes VERIFIED then TAMPERING DETECTED in its new
-  position. No horizontal overflow (scrollWidth 375 = innerWidth).
-- **The free-anchor gate**, six cases driven against the real decision function through Deno
-  (`tests/deno/anchor_gate_test.ts`, wired into pytest): trial granted at zero anchors, refused
-  at one with a message naming the allowance and the pricing page, fail-CLOSED (503) when the
-  count query errors rather than granting unlimited free anchors, a paid plan never counted, an
-  expired key refused, a foreign-signed key never resolving to an account.
-- **Claiming the free anchor cannot overwrite a paid key**, seven cases through Deno
-  (`tests/deno/trial_license_test.ts`): a subscriber is refused 409 with nothing written, even
-  when their real key has not landed from the webhook yet; a second click returns the same key
-  rather than minting another; a key that failed to store is never handed out; with no signing
-  secret nothing is issued. The issued key is verified with the anchor service's own verifier and
-  comes back valid, plan `free`, bound to that account.
-- **951 tests pass, ruff clean, `deno check` green** over the anchor function, the new
-  `account.ts`, `trial-license`, the shared minter and `polar-webhook`.
+- Driven from a fresh `git clone` of the public repo with `PATH=/usr/bin:/bin` and a scratch
+  `$HOME`: `rm -rf /` denied, `ls -la` allowed, `cat .env` asked, journal written, `--status`
+  correct.
+- **39 lockstep cases** through BOTH engines pack by pack (`tests/test_guard_standalone.py`),
+  including the three payload shapes that have previously disarmed the guard: a bare string
+  command, an argv array, and an unrecognised shape.
+- The vendored `rules.json` is generated by `tools/vendor_guard_rules.py` and a test fails if the
+  checked-in copy is stale, which is the failure a lockstep test alone cannot see.
 
-**Not verified, and the reason:** nobody has claimed a free anchor through the UI, because that
-needs a magic-link session against deployed functions and the deploy has not run.
+**`pr attest` / `pr attest-verify` / `pr attest-anchor`.** `src/provenrail/attest.py`, 24 tests in
+`tests/test_attest.py`, all driven against real git repositories.
 
-- **The hosted anchor service is live and a customer can reach it with no provisioning step.**
-  `supabase/functions/anchor/` on the free tier, migration `20260819_anchor_service.sql`,
-  fronted on the product's own domain by `functions/v1/anchors.js` and
-  `functions/v1/anchors/[id].js`. Authentication is the licence key the Polar webhook already
-  mints, verified at the edge with Ed25519, so buying the plan is the entire onboarding.
-  Verified live: builder key anchors with no row existing beforehand, free key 403 naming the
-  plan, expired key 403 saying renew, malformed and absent keys 401.
-- **Every hosted anchor carries an RFC 3161 timestamp** from FreeTSA, whose root is already in
-  the verifier's trust store, so `pr anchor-verify` validates the certificate chain with no
-  flags and reports "the time is proved by a third party". Falls back to a self-signed receipt
-  only when the authority is unreachable, and the fallback cannot wear the stronger label.
-- **The auditor page renders at the edge**, `functions/v1/anchors/[id].js`, so it works with
-  JavaScript off, and it says what an anchor does *not* prove in the same words as the page the
-  self-hosted sink serves. `tests/test_anchor_page_lockstep.py` holds the two together.
-- **Three defects found by driving the real thing**, none visible by reading the source:
-  the RFC 3161 nonce was non-minimal DER whenever its random bytes began with a zero, so roughly
-  one anchor in 250 was silently refused by the authority and fell back to self-signed;
-  `pr anchor-verify` printed its strongest result under `[warn]`; and the verifier reported the
-  `gen_time` written *beside* an RFC 3161 token rather than the one signed *inside* it, so a
-  receipt could display any date it liked while every cryptographic check passed.
+- Anchored **against production** and verified green: a real FreeTSA RFC 3161 timestamp over a real
+  attestation, `anc_4934497ed71b847b27394c70d2cc2351`.
+- Rejected four separate ways: history rewritten, a finding edited, a receipt covering other
+  commits, and an envelope disagreeing with its own signature.
+- The document carries its own `limits`, and the verifier prints them beside the verdict.
 
+**Copy pinned by tests, not by intention.** Five new checks in `tests/test_claims_hygiene.py`: no
+page may say the attestation proves its findings true, the attribution page must carry the limit it
+would be relied on for, the advertised detector list must match `AGENT_SIGNATURES` in both
+directions, no page may offer to receive customer code, and the advertised rule counts must match
+the catalogue. **Each was confirmed to fail when the copy is wrong**, not merely to pass today.
 
-- **Anchor-only trust service.** `POST /v1/anchors` (root + coverage only), `GET /v1/anchors/{id}`
-  (public, unauthenticated, never names the account), `GET /v1/anchors` (per account).
-  `src/provenrail/server/app.py`, storage in `server/storage.py`, `anchor_root()` on all three
-  backends in `anchor.py`. Coverage is monotonic per stream and a fork at equal coverage is
-  refused. Driven end to end through the CLI in `tests/test_anchor_only.py`, including the two
-  attacks that matter: an edited record and a dropped tail both stop matching the receipt.
-- **Released as 0.2.31** and tagged `v0.2.31`. PyPI, the wheel, the plugin manifest and
-  `provenrail.__version__` all agree.
-- **`pr anchor-push` / `pr anchor-verify`.** Verify is deliberately offline and never calls the
-  issuing service. It calls `_verify_anchor_receipt`, the same code `pr verify` uses, and also
-  runs the bundle's own chain check. It did neither at first, and each omission was a hole: a
-  signature over any other root passed for any bundle, a garbage RFC 3161 token counted as a
-  trusted timestamp, and editing a payload under its unchanged hash read as VERIFIED. See
-  `docs/adversarial-anchor-review-2026-08-18.md`.
-- **Anchor conflicts and duplicates settle before the timestamp is minted**, so a refusal costs
-  no TSA round-trip, and an identical retry returns the existing anchor instead of a new id.
-- **Pricing repositioned** away from hosted storage, HIPAA claim removed, "hosted convenience"
-  contradiction fixed. Pinned by two tests in `tests/test_claims_hygiene.py`.
-- **The word "attestation" is gone** from shipped copy and CLI output. It names a licensed
-  practitioner's opinion under ISAE 3000. The codebase's own word, "anchor receipt", is used.
-- **`web/for-agencies.html` and `web/vs-microsoft-agt.html`** shipped, linked from the footer of
-  all 20 pages and from the compare page body, in the sitemap. Verified in a browser at 375px and
-  1280px.
-- **Four flow-audit fixes**: a bad `--tlog-pubkey` no longer reports TAMPERING DETECTED (it was
-  exit 1 on a shell typo), `LicenseInfo` is falsy when invalid, `FlightRecorder.session_id`
-  exists, the starlette/httpx warning is filtered.
-- **EU AI Act page** no longer says Article 50 is "three days away" 16 days after it took force.
-- **`/start` no longer says Provenrail can host the record**, which contradicted the whole
-  liability position in the guide aimed at the least experienced reader. Homepage plan copy and
-  its JSON-LD now match `/pricing`.
-- **A dead sink no longer wedges the next `pr quickstart`**: the pid is checked for liveness and
-  a stale file is cleared with a line saying so.
+**Site deployed and checked in a real browser** at 375px and 1280px: no horizontal overflow, the
+three JSON-LD blocks on `/ai-code-attribution` parse, and every internal href across all 21 pages
+resolves. Homepage title, description and both social cards now match the new hero.
+`llms.txt` gained the attribution section and its four questions.
 
-## Open, and why
-
-- **The nav carries 12 items on the homepage**, where Linear ships 5 and Stripe 6, and five of
-  them are `/#anchor` links that jump back to the homepage from every other page. Cutting it is
-  an information-architecture decision across 20 pages, so it was left for a deliberate pass
-  rather than folded into a fix-up commit. `docs/ux-audit-2026-08-18.md` finding 4.
-- **DM Sans is a widely used free Google font.** Optical sizing and its stylistic alternates are
-  now on, which fixes the flatness, but the design research asks for a typeface that is not one
-  click away for everyone. Evaluate Satoshi, General Sans or Clash Display for display headings.
-- **Server auth and RBAC have never been verified against live Supabase**, only in-process.
-- **RFC 3161 through `pr anchor-push` is solved for the hosted service and still open for the
-  self-hosted sink**: the Python server falls back to a local anchor in open mode, and
-  `--anchor rfc3161` on the server only affects the scheduler. The hosted path is unaffected.
-- **The positive licence-key path was proven against the real module, not the real secret.**
-  `PROVENRAIL_LICENSE_SECRET` is a Supabase secret and cannot be read back, so the end-to-end run
-  used a test issuer via `LICENSE_PUBLIC_KEY` against the live database. The first real purchase
-  is still the first production key this code will ever see.
-- **The free anchor has never run end to end against a real signed-in account.** The allowance
-  gate is driven directly (`tests/deno/anchor_gate_test.ts`, six cases including fail-closed on a
-  broken count), and `trial-license` type-checks, but no human has clicked the button, because
-  claiming a key needs a magic-link session and the functions are not deployed yet. First thing
-  to prove after deploying.
+**1019 tests pass. Ruff clean.**
 
 ## Next in order
 
-1. **Deploy what is committed.** `supabase functions deploy anchor trial-license polar-webhook
-   pageview --project-ref jzgamrptvsdxnwtuascx`, then `npx wrangler pages deploy web
-   --project-name provenrail` from the repo root. Then sign in at `/account`, claim the free
-   anchor, and run the five steps the page prints. Everything else on this list assumes this is
-   done, and none of today's work reaches a single visitor until it is.
-2. **Get the first paying customer.** The offer is now complete and reachable: the service runs,
-   the licence key is the only credential, and the pricing page describes what actually happens.
-   Nothing else on this list matters until someone has paid. Distribution is still zero.
-3. **Execute the 30-day plan in `DISTRIBUTION.md`.** The launch copy has existed and gone unused
-   since 2026-08-05: `Marketing/launch-sequence.md` holds the order, `Marketing/*.txt` the
-   paste-ready posts, and `Marketing/outreach-agencies.txt` the by-hand agency outreach written
-   today. Distribution is the binding constraint, and it is the only item here that has never
-   been attempted.
-4. **Publish `/for-agencies` and `/vs-microsoft-agt`** anywhere real people are: Indie Hackers, X,
-   the relevant subreddits. Both pages exist; distribution is still zero. See
-   `docs/distribution-virality-playbook.md` in engine-agentic.
-5. **Go verifier binary.** Auditors do not run Python, and "verify it yourself" is the core claim.
-   5 to 10 days per `docs/cost-to-execute-2026-08-18.md`.
-6. **21 CFR Part 11 validation pack.** A document sale, legal under `individuali veikla`, and the
-   fastest high-value euro.
+1. **Post something. This week.** `Marketing/launch-week-checklist.txt` is the whole plan, day by
+   day, with the success numbers decided in advance so they cannot be moved afterwards. Every file
+   it names already exists. This is the only item on the list that has never been attempted, and
+   nothing below it means anything until it is.
+2. **Ten outreach messages** from `Marketing/outreach-ai-disclosure.txt`, by hand. They ask whether
+   the AI disclosure clause is real yet. If ten people say no, `pr attest` waits, and that is a
+   result rather than a failure.
+3. **Watch installs, not stars.** Under 100 plugin installs in 30 days with the posts actually made
+   falsifies the distribution thesis, and no further repositioning fixes it.
+4. **Go verifier binary**, still. Auditors do not run Python and "verify it yourself" is the core
+   claim. 5 to 10 days per `docs/cost-to-execute-2026-08-18.md`.
+5. **21 CFR Part 11 validation pack.** A document sale, legal under `individuali veikla`.
 
 ## Traps
 
-- **`supabase functions deploy` does not type-check.** A genuine type error deploys happily and
-  fails at the first request that reaches the line. `deno check` runs as a test now; keep it.
-- **The RFC 3161 nonce must be a minimal DER INTEGER.** Prepending `0x00` unconditionally is the
-  obvious thing to write and is wrong: it is needed only when the high bit is set. FreeTSA
-  rejects the non-minimal form, the service falls back to self-signed, and it reads as the
-  authority being flaky rather than as our encoding being wrong. `tests/test_rfc3161_der.py`.
-- **The trusted time comes out of the token, never from the field beside it.** That field is not
-  covered by the authority's signature. Anything that reports it as "the timestamp" is reporting
-  a number the issuer chose.
-- **The hosted service must never gain a field a record could arrive in.** That absence is the
-  whole reason a sole proprietor can operate it.
-  `tests/test_anchor_edge_function.py::test_the_edge_function_cannot_receive_a_record` reads the
-  handler and fails if a fourth body field appears.
+- **Never write a second enforcement engine.** There are now two engines (installed and bundled)
+  exactly as there are two verifiers, and both pairs are held together by lockstep tests over
+  shared frozen data. If you add a rule, run `python tools/vendor_guard_rules.py`; a test will fail
+  if you forget. If you change matching semantics, change `policy.py` and mirror it, never only one.
+- **`glob_ok` in the standalone deliberately has no length guard**, unlike `Rule.offline_reverifiable`.
+  Adding one there and not in `policy.matches` would put the two engines on different answers for a
+  long pattern, which is precisely the divergence class that cost this project three verifier holes.
+- **The standalone journals only denies and asks.** A line per allowed call would add thousands of
+  rows a day to a file whose purpose is to be readable. Recording what the agent DID is what
+  installing the CLI adds.
+- **`git log --shortstat` prints AFTER the format string**, so the diffstat lands at the head of the
+  NEXT record. `attest.py` attributes it backwards on purpose. Reading it as part of its own record
+  puts the stat text inside the next commit's sha and reports every commit as zero lines changed,
+  which is what the first version did.
+- **A partial anchor receipt is a FAILURE for an attestation**, not a warning, unlike the bundle
+  path. An attestation is a fixed document; downgrading this would let a receipt minted at commit
+  100 be presented as the timestamp on a document covering 150.
+- **The word "attestation" is back, in the supply-chain sense only** (in-toto, SLSA, sigstore: a
+  signed statement about an artefact). It must never appear as "compliance attestation" or
+  "attestation report", which name a licensed practitioner's opinion under ISAE 3000.
+  `test_attestation_is_not_used_as_a_product_noun` fails the build for those.
+- **Do not sell hosted record storage.** Unchanged, and now doubly load-bearing: the attribution
+  service works only because there is no field a repository could arrive in.
+- Everything else in the 2026-08-21 trap list still applies: the RFC 3161 nonce must be minimal
+  DER, trusted time comes out of the token and never from the field beside it, `supabase functions
+  deploy` does not type-check, and the anchor coverage check is the product rather than a limitation.
 
-- **Never write a second verifier.** All three anchor-verify holes came from reimplementing in
-  the CLI what `verifier/verify.py` already did correctly. The weaker copy looked right and was
-  not. If a check exists, call it.
-- **Do not sell hosted record storage.** Tier 5 and 6 on the liability ladder need a company
-  first. `tests/test_claims_hygiene.py::test_no_page_sells_a_liability_the_operator_cannot_carry`
-  will fail the build if the copy drifts back; do not weaken it to make a page pass.
-- **Naming HIPAA 164.312(b) as a control a report maps to is fine.** Selling a mapping is content.
-  The banned thing is offering to be a business associate. The test draws that line on purpose.
-- **`_checked_root` runs before any timestamp is minted.** Timestamping an unvalidated root would
-  produce a receipt that can never match any bundle: an attestation-shaped object that proves
-  nothing. Do not move that check later for convenience.
-- **The anchor coverage check is the product, not a limitation.** Anyone who proposes relaxing it
-  so a customer can "fix" a stream is proposing that we sign a rewritten history.
-- **Two pages landed inside unrelated commits** (`abbd278` carries `vs-microsoft-agt.html`)
-  because `git add -A` swept in a subagent's in-flight file. Watch for this when agents write
-  files while the main session commits.
-- The `/pv` 501 console error on a local `python -m http.server` is the analytics beacon, not a
-  page defect. It works on Cloudflare, where `functions/pv.js` answers it.
+## Open, and why
+
+- **Nobody has installed the plugin except us.** Everything above is a claim about a funnel that no
+  stranger has walked. The first real install is the first honest data point.
+- **`pr attest --records` has never run against a real recorded session end to end**, only against
+  a bundle built in a test. The grade-upgrade path is covered by tests and by reading; it has not
+  been driven.
+- **The v0.3.0 tag points at an empty commit** titled "0.3.0 build artifacts" (`dist/` is
+  gitignored). The annotation carries the real message. Left alone rather than force-pushed.
+- **The free anchor has still never been claimed through the UI by a real signed-in account.**
+- **Server auth and RBAC have never been verified against live Supabase**, only in-process.
+- DM Sans is still a widely used free font; the design research asks for something less common.
 
 ## Environment
 
-- Python venv: `/Volumes/T7/Projects/AgenticTools/.venv` (3.14). Run `pytest -q` from the repo
-  root; `--timeout` is not available, pytest-timeout is not installed.
-- Lint: `python -m ruff check src tests`.
+- Python venv: `/Volumes/T7/Projects/AgenticTools/.venv` (3.14). `pytest -q` from the repo root.
+- Lint: `python -m ruff check src tests tools`.
+- Regenerate the plugin's rule data: `python tools/vendor_guard_rules.py` (`--check` in tests).
 - Local site: `cd web && python3 -m http.server 8901`. Clean URLs are a Cloudflare Pages feature,
-  so `.html` is needed locally but not in production. Do not add `/x /x.html 200` rewrites to
-  `web/_redirects`; the header comment there explains the redirect loop it causes.
-- Polar credentials at `~/.config/provenrail/polar.env`. Supabase project `provenrail-production`
-  (ref `jzgamrptvsdxnwtuascx`, eu-central-1).
-- Anchor signing key at `~/.config/provenrail/anchor-key.env`, and the operator's own test
-  account key at `~/.config/provenrail/anchor-selftest.env`. Both chmod 600, neither in the repo.
-  The public half is `06b41ad8a0ee2860a3e6e0a871fd0966685aa21bb7eec64664674b1afc366f50`; it is in
-  every receipt the service self-signs, so rotating it invalidates those and nothing else.
-- Deploy the anchor function with `supabase functions deploy anchor --project-ref jzgamrptvsdxnwtuascx`,
-  and the site with `npx wrangler pages deploy web --project-name provenrail` from the repo root
+  so `.html` is needed locally but not in production.
+- Deploy the site: `npx wrangler pages deploy web --project-name provenrail` **from the repo root**
   (wrangler bundles `./functions` relative to the working directory, not to `web/`).
+- Deploy edge functions: `supabase functions deploy anchor trial-license polar-webhook pageview
+  --project-ref jzgamrptvsdxnwtuascx`. Nothing in 0.3.0 changed them.
+- Polar credentials at `~/.config/provenrail/polar.env`. Anchor signing key at
+  `~/.config/provenrail/anchor-key.env`, the operator's own test licence key at
+  `~/.config/provenrail/anchor-selftest.env`. Both chmod 600, neither in the repo.
+- Supabase project `provenrail-production` (ref `jzgamrptvsdxnwtuascx`, eu-central-1). Read row
+  counts with `supabase projects api-keys --project-ref ... -o json` and PostgREST.

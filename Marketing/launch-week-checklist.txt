@@ -1,0 +1,42 @@
+LAUNCH WEEK, 0.3.0
+
+Everything here is written and waiting. What is missing is one person with accounts posting it. Nothing on this list needs a decision, only an hour.
+
+Before the first post, confirm these three in a browser, because every link below depends on them:
+  https://provenrail.com/ai-code-attribution loads
+  https://github.com/pofky/provenrail/releases/tag/v0.3.0 loads
+  pip install provenrail installs 0.3.0
+
+DAY 1, MONDAY MORNING US TIME
+
+Post Marketing/launch-reddit-claudeai.txt to r/ClaudeAI. This is the one that matters most, because it is the only post whose audience already has the pain and can act on it in one command. Do not touch anything else for two hours. Answer every comment. If someone names a destructive command the rules miss, add it to src/provenrail/rulesets.py the same day, cut a release, and reply saying it now blocks. That reply is worth more than the post.
+
+DAY 2
+
+Post the same story rewritten, not copied, to r/AI_Agents. The opening should be about running agents unattended rather than about Claude Code specifically. Link to the guardrails page, not the homepage.
+
+DAY 3
+
+Post Marketing/launch-indie-hackers.txt. Honest numbers, including the zero. Include the pageview figures from docs/repositioning-research-2026-09-07.md; a launch post with real numbers in it outperforms one without on that site.
+
+DAY 4, TUESDAY TO THURSDAY, 8 TO 10AM ET
+
+Post Marketing/launch-show-hn.txt as Show HN with the URL field pointing at https://provenrail.com. Post the prepared first comment yourself immediately after submitting. Stay on it for four hours. Expect the threat model to be attacked, which is the point; the honest limits are already in the post so nobody can catch you hiding one.
+
+DAY 5
+
+Send ten messages from Marketing/outreach-ai-disclosure.txt. Ten, by hand, one per person, to companies that ship software to enterprise customers. This is the only item on the list that answers a question rather than making noise, and the question decides whether pr attest gets more work or goes in a drawer. Record every reply verbatim.
+
+THROUGHOUT
+
+Directory profiles from Marketing/directory-profiles.txt, if they are still not done. They are slow to propagate, so late is worse than early.
+
+WHAT SUCCESS LOOKS LIKE, DECIDED BEFORE THE FACT SO IT CANNOT BE MOVED AFTERWARDS
+
+Plugin installs are the only number that matters in week one. Under 100 in 30 days with every post above actually made means the distribution thesis is wrong and no repositioning fixes it. Between 100 and 1,000 means the front door works and the question moves to whether any of them ever pay. Over 1,000 means stop building and start answering.
+
+For pr attest, the number is ten conversations. Ten people who ship to enterprise customers, asked whether the AI disclosure clause is real yet. Zero contracts naming AI authorship means the trigger is not here and the feature waits.
+
+WHAT NOT TO DO
+
+Do not post to more than one subreddit on the same day. Do not post the same text twice. Do not argue with a sceptical comment; agree with the accurate part first. Do not add features during launch week: the thing that gets a paying customer is a reply to a stranger, not another commit.
