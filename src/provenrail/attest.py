@@ -370,6 +370,10 @@ LIMITS = [
     "not changed since. An anchor additionally proves it existed no later than the anchored "
     "time. Neither proves the findings are true.",
     "Merges are excluded, so the same change is never counted twice.",
+    "The higher 'recorded' grade needs the commit to have been authored inside a recorded "
+    "agent run. A commit written by the agent and committed by a person afterwards falls "
+    "outside that window and is reported at the lower grade, which understates the evidence "
+    "rather than inventing it.",
 ]
 
 
@@ -411,7 +415,8 @@ def build(repo: Path, since: str | None = None, until: str = "HEAD",
         "recorded_sessions": [
             {"session_id": s["session_id"], "stream_id": s["stream_id"],
              "started": s["started"].isoformat(), "ended": s["ended"].isoformat(),
-             "records": s["records"], "first_record_hash": s["first_record_hash"],
+             "records": s["records"], "chains": s.get("chains", 1),
+             "first_record_hash": s["first_record_hash"],
              "last_record_hash": s["last_record_hash"]}
             for s in sessions],
         "summary": summarize(commits),
@@ -475,33 +480,58 @@ def _parse_ts(value: str) -> datetime | None:
 
 
 def sessions_from_bundle(bundle: dict[str, Any]) -> list[dict[str, Any]]:
-    """Recorded agent sessions in a bundle: when each ran, and what it is hashed as.
+    """Recorded agent runs in a bundle: when each ran, and what it is hashed as.
 
-    Only the fields a reader needs to check the claim themselves: the session id, its first
-    and last record hash, and the window. Everything else about the session stays in the
-    bundle, which is not what an attestation ships.
+    Grouped by the HOST session, not by the Provenrail session id, and the difference is the
+    whole feature. A hook fires in its own process and a chain cannot span processes, so guard
+    mode writes one short Provenrail session per tool call: a real overnight agent run appears
+    in the bundle as hundreds of sessions a few milliseconds wide. Grouping by `session_id`
+    therefore produced windows narrower than git's one-second timestamp resolution, and no
+    commit ever landed inside one. `record_hook` tags every one of them with
+    `meta.host_session_id`, which is the id of the run a human means, so that is the key.
+
+    Only the fields a reader needs to check the claim themselves: the run id, its first and
+    last record hash, and the window. Everything else about the session stays in the bundle,
+    which is not what an attestation ships.
     """
-    by_session: dict[str, dict[str, Any]] = {}
+    # Pass one: which host run does each Provenrail session belong to. The answer is in the
+    # genesis record's meta, so it has to be read before any record can be filed.
+    host_of: dict[str, str] = {}
+    for entry in bundle.get("records") or []:
+        record = entry.get("record") or {}
+        meta = (record.get("payload") or {}).get("meta") or {}
+        host = meta.get("host_session_id")
+        session = record.get("session_id")
+        if session and host:
+            host_of[session] = str(host)
+
+    by_run: dict[str, dict[str, Any]] = {}
     for entry in bundle.get("records") or []:
         record = entry.get("record") or {}
         session = record.get("session_id")
         stamp = _parse_ts(record.get("ts_utc", ""))
         if not session or stamp is None:
             continue
-        slot = by_session.setdefault(session, {
-            "session_id": session,
+        run = host_of.get(session, session)
+        slot = by_run.setdefault(run, {
+            "session_id": run,
             "stream_id": record.get("stream_id") or bundle.get("stream_id"),
             "started": stamp, "ended": stamp,
             "first_record_hash": entry.get("server_record_hash"),
             "last_record_hash": entry.get("server_record_hash"),
             "records": 0,
+            "chains": set(),
         })
         slot["records"] += 1
+        slot["chains"].add(session)
         if stamp < slot["started"]:
             slot["started"], slot["first_record_hash"] = stamp, entry.get("server_record_hash")
         if stamp > slot["ended"]:
             slot["ended"], slot["last_record_hash"] = stamp, entry.get("server_record_hash")
-    return sorted(by_session.values(), key=lambda s: s["started"])
+    runs = sorted(by_run.values(), key=lambda s: s["started"])
+    for run in runs:
+        run["chains"] = len(run["chains"])
+    return runs
 
 
 def attach_recorded_evidence(commits: list[Commit],
@@ -533,9 +563,10 @@ def attach_recorded_evidence(commits: list[Commit],
                 tool="recorded agent session",
                 source="Provenrail signed session record",
                 grade=RECORDED,
-                detail=(f"session {session['session_id']} on stream {session['stream_id']} was "
-                        f"running when this commit was authored "
-                        f"({session['records']} signed records, "
+                detail=(f"agent run {session['session_id']} on stream "
+                        f"{session['stream_id']} was running when this commit was authored "
+                        f"({session['records']} signed records across "
+                        f"{session.get('chains', 1)} chains, "
                         f"{session['first_record_hash'][:12]}..{session['last_record_hash'][:12]})"),
             ))
             upgraded += 1

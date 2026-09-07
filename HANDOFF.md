@@ -54,6 +54,10 @@ history in place.
 - Rejected four separate ways: history rewritten, a finding edited, a receipt covering other
   commits, and an envelope disagreeing with its own signature.
 - The document carries its own `limits`, and the verifier prints them beside the verdict.
+- **The `recorded` grade driven for real**, against a bundle produced by the guard hook itself:
+  four Provenrail chains collapsed into one agent run, a commit authored mid-run came back at
+  grade `recorded` citing the run id and record hashes. That drive is what found the grouping
+  defect below; reading the code would not have.
 
 **Copy pinned by tests, not by intention.** Five new checks in `tests/test_claims_hygiene.py`: no
 page may say the attestation proves its findings true, the attribution page must carry the limit it
@@ -92,6 +96,12 @@ resolves. Homepage title, description and both social cards now match the new he
 - **`glob_ok` in the standalone deliberately has no length guard**, unlike `Rule.offline_reverifiable`.
   Adding one there and not in `policy.matches` would put the two engines on different answers for a
   long pattern, which is precisely the divergence class that cost this project three verifier holes.
+- **Group recorded sessions by `meta.host_session_id`, never by `session_id`.** A hook fires in
+  its own process and a chain cannot span processes, so guard mode writes one Provenrail session
+  per tool call. Grouped by `session_id`, a real agent run appears as hundreds of windows a few
+  milliseconds wide, all narrower than git's one-second timestamps, and the `recorded` grade
+  becomes unreachable in exactly the setup the product recommends.
+  `test_a_guard_bundle_collapses_into_one_run_not_hundreds_of_sessions` holds this.
 - **The standalone journals only denies and asks.** A line per allowed call would add thousands of
   rows a day to a file whose purpose is to be readable. Recording what the agent DID is what
   installing the CLI adds.
@@ -116,9 +126,6 @@ resolves. Homepage title, description and both social cards now match the new he
 
 - **Nobody has installed the plugin except us.** Everything above is a claim about a funnel that no
   stranger has walked. The first real install is the first honest data point.
-- **`pr attest --records` has never run against a real recorded session end to end**, only against
-  a bundle built in a test. The grade-upgrade path is covered by tests and by reading; it has not
-  been driven.
 - **The v0.3.0 tag points at an empty commit** titled "0.3.0 build artifacts" (`dist/` is
   gitignored). The annotation carries the real message. Left alone rather than force-pushed.
 - **The free anchor has still never been claimed through the UI by a real signed-in account.**

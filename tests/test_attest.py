@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -382,3 +382,53 @@ def test_a_missing_receipt_file_says_so_rather_than_crashing(repo, tmp_path, mon
     code, out, err = run_cli(["attest-verify", "att.json", "--receipt", "nope.json"], repo)
     assert code == 2
     assert "no such anchor receipt" in err
+
+
+def test_a_guard_bundle_collapses_into_one_run_not_hundreds_of_sessions():
+    """The defect that only a real end-to-end drive found.
+
+    Guard mode writes one Provenrail session PER HOOK PROCESS, because a hash chain cannot span
+    processes. A four-hour agent run therefore appears in the bundle as hundreds of sessions a
+    few milliseconds wide. Grouped by `session_id`, every window was narrower than git's
+    one-second timestamp resolution and no commit could ever land inside one, so the higher
+    evidence grade was unreachable in exactly the setup the product tells people to use.
+    """
+    base = datetime(2026, 3, 1, 9, 0, tzinfo=UTC)
+    records = []
+    for i in range(50):
+        stamp = base + timedelta(seconds=i * 30)
+        records.append({"server_record_hash": f"{i:064d}", "record": {
+            "session_id": f"chain-{i}", "stream_id": "s1",
+            "ts_utc": stamp.isoformat(),
+            "payload": {"meta": {"agent": "claude-code", "host_session_id": "run-7"}}}})
+    runs = attest.sessions_from_bundle({"stream_id": "s1", "records": records})
+    assert len(runs) == 1
+    run = runs[0]
+    assert run["session_id"] == "run-7"
+    assert run["chains"] == 50
+    assert run["records"] == 50
+    assert (run["ended"] - run["started"]).total_seconds() == 49 * 30
+
+
+def test_a_bundle_with_no_host_id_still_groups_by_session(repo):
+    """SDK-recorded runs carry no host session id, and must keep working exactly as before."""
+    doc = attest.build(repo)
+    stamp = datetime.fromisoformat(doc["commits"][1]["authored_at"].replace("Z", "+00:00"))
+    bundle = {"stream_id": "s1", "records": [
+        {"server_record_hash": "a" * 64,
+         "record": {"session_id": "sdk-1", "stream_id": "s1",
+                    "ts_utc": (stamp - timedelta(minutes=1)).isoformat()}},
+        {"server_record_hash": "b" * 64,
+         "record": {"session_id": "sdk-1", "stream_id": "s1",
+                    "ts_utc": (stamp + timedelta(minutes=1)).isoformat()}},
+    ]}
+    doc = attest.build(repo, bundle=bundle)
+    assert doc["recorded_sessions"][0]["session_id"] == "sdk-1"
+    assert doc["commits"][1]["evidence_grade"] == attest.RECORDED
+
+
+def test_the_limits_admit_the_commit_after_the_run(repo):
+    """A commit the agent wrote and a person pushed afterwards falls outside the window and
+    gets the lower grade. Understating is fine; leaving it unsaid is not."""
+    doc = attest.build(repo)
+    assert any("committed by a person afterwards" in limit for limit in doc["limits"])
