@@ -281,6 +281,11 @@ def classify_target(target: str, root: str, local: dict[str, str] | None = None)
     for cache in _CACHE_DIRS:
         if _under(absolute, os.path.join(home, cache)):
             return INSIDE
+    if os.path.dirname(absolute) == home:
+        # A folder sitting directly in the home directory is a whole category of someone's
+        # life: Documents, Desktop, Projects, Downloads, or another checkout entirely. The
+        # caches above are the exception and were already returned.
+        return CATASTROPHIC
     parts = [p for p in PurePosixPath(absolute).parts if p != "/"]
     # A build directory ANYWHERE in the path, not only at the end: `/Volumes/T7/DerivedData/
     # Brewist-1.0.4-85-export` is Xcode output with a version in its name, and the thing that

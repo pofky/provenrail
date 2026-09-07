@@ -15,6 +15,8 @@ from __future__ import annotations
 import pathlib
 import re
 
+import pytest
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 #: phrase -> why it cannot be said, and what to say instead.
@@ -319,5 +321,56 @@ def test_the_advertised_rule_counts_match_the_catalogue():
             continue
         assert f"{armed} rules are armed" in text or f"{armed} rules armed" in text, (
             f"{name} does not say {armed} rules are armed by default")
+    # The pack count goes stale the same way the rule count does, so it is spelled out of the
+    # catalogue rather than written into this test.
+    words = {4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten",
+             11: "eleven", 12: "twelve"}
+    packs = words[len(rulesets.CATALOG)]
     guardrails = (ROOT / "web" / "claude-code-guardrails.html").read_text(encoding="utf-8")
-    assert f"{total} rules across seven packs" in guardrails
+    assert f"{total} rules across {packs} packs" in guardrails
+
+
+# (page, the exact command as it is written on the page, the verdict the page shows)
+# A terminal demo is a claim like any other. `rm -rf ./src` sat in the homepage demo captioned
+# "blocked" for a release after the rule stopped denying it, which is the drift this catches:
+# the string has to still be on the page AND still produce that verdict.
+DEMOED = [
+    ("web/index.html", "git reset --hard origin/main", "ask"),
+    ("web/index.html", "rm -rf ~/Projects", "deny"),
+    ("web/claude-code-guardrails.html", "git reset --hard", "ask"),
+    ("web/claude-code-guardrails.html", "git checkout -- .", "ask"),
+    ("web/claude-code-guardrails.html", "git clean -fd", "ask"),
+    ("web/claude-code-guardrails.html", "git stash drop", "ask"),
+    ("web/claude-code-guardrails.html", "rm -rf ~/", "deny"),
+    ("web/claude-code-guardrails.html", "rm -rf /usr/local", "deny"),
+    ("web/claude-code-guardrails.html", "prisma migrate reset", "ask"),
+    ("web/claude-code-guardrails.html", "supabase db reset", "ask"),
+    ("web/claude-code-guardrails.html", "pulumi destroy", "ask"),
+    ("web/claude-code-guardrails.html", "docker compose down -v", "ask"),
+    ("web/claude-code-guardrails.html", "chmod 777", "deny"),
+]
+
+
+@pytest.mark.parametrize(("page", "command", "expected"), DEMOED,
+                         ids=[f"{c}" for _, c, _ in DEMOED])
+def test_every_command_shown_on_the_site_still_gets_the_verdict_shown(tmp_path_factory, page,
+                                                                     command, expected):
+    import subprocess
+
+    from provenrail import guard
+    from provenrail.easy import load_policy
+
+    text = (ROOT / page).read_text(encoding="utf-8")
+    assert command in text, f"{page} no longer shows {command!r}; update this list deliberately"
+
+    # The git rules ask only where there is work to lose, so the claim is checked where there is.
+    work = tmp_path_factory.mktemp("demoed")
+    subprocess.run(["git", "init", "-q"], cwd=work, check=True)
+    subprocess.run(["git", "-c", "user.email=a@b", "-c", "user.name=t", "commit", "-q",
+                    "--allow-empty", "-m", "init"], cwd=work, check=True)
+    (work / "uncommitted.txt").write_text("work nobody else has\n", encoding="utf-8")
+
+    policy = load_policy({"use": guard.DEFAULT_PACKS})
+    got = guard.decide(policy, "Bash", {"command": command}, None, str(work))
+    assert got["verdict"] == expected, (
+        f"{page} shows {command!r} as {expected}, engine says {got['verdict']} ({got['rule']})")

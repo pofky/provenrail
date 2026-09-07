@@ -123,9 +123,9 @@
   <main id="main-content">
   <div class="wrap">
     <p class="eyebrow">Claude Code guardrails</p>
-    <h1>Stop Claude Code from running <code>rm -rf</code></h1>
-    <p class="lede">Claude Code asks before most dangerous commands. It does not ask for all of them, the prompt is easy to click through at speed, and nothing keeps a record of what you approved. This page shows the plugin that blocks the command outright with nothing else installed, and the receipt it can leave behind.</p>
-    <p class="updated">Last updated <time datetime="2026-08-05">5 August 2026</time></p>
+    <h1>Stop Claude Code from running <code>git reset --hard</code></h1>
+    <p class="lede">Read the data-loss reports filed against coding agents and the command is almost never <code>rm -rf</code>. It is <code>git reset --hard</code>, <code>git checkout -- .</code>, <code>git clean -fd</code>, a framework database reset, a provider volume delete. Two commands inside Claude Code arm 41 rules that catch those before they run, with no package, no account and no server. And they stay quiet when your tree is clean and pushed, because then those commands destroy nothing.</p>
+    <p class="updated">Last updated <time datetime="2026-09-07">7 September 2026</time></p>
 
     <div class="cta">
       <a class="primary" href="#install">Install the plugin</a>
@@ -134,6 +134,7 @@
     </div>
 
     <div class="toc">
+      <a href="#what-actually-goes-wrong">What goes wrong</a>
       <a href="#why-permissions-are-not-enough">Why permissions are not enough</a>
       <a href="#install">Install</a>
       <a href="#what-is-blocked">What is blocked</a>
@@ -142,6 +143,12 @@
       <a href="#limits">Limits</a>
       <a href="#faq">FAQ</a>
     </div>
+
+    <h2 id="what-actually-goes-wrong">What actually goes wrong</h2>
+    <p>Most guardrail tools, including an earlier version of this one, screen the verb. That is the wrong half of the command. Nobody has ever lost work to the letters <code>rm -rf</code>; they lost it to what came after them. <code>rm -rf .next</code> comes back in twelve seconds. <code>rm -rf ~/</code> is the end of a laptop. The two are indistinguishable to a pattern, because the difference is not in the text, it is in where the text points.</p>
+    <p>So this guard resolves the target. A delete inside your repository, under a temp directory, in a package cache or in a build directory runs without a word. A delete of a home directory, a whole disk, a two-segment system path, or a variable that becomes <code>/</code> when it is unset is refused. A delete that merely leaves the project asks.</p>
+    <p>The same idea runs the git rules. <code>git reset --hard</code> on a tree with nothing uncommitted and nothing unpushed destroys nothing at all, so it is allowed in silence. The rule runs <code>git status --porcelain</code>, checks for commits your remote has not seen, and asks only when there is work here that exists nowhere else.</p>
+    <p>We measured both halves rather than asserting them. Against 36,929 Bash commands from real agent sessions, the shipped rules now interrupt 206 and refuse 16, and fifteen of those sixteen are this repository's own adversarial test fixtures. Against a corpus of 47 commands taken from public data-loss reports, none is allowed.</p>
 
     <h2 id="why-permissions-are-not-enough">Why the permission prompt is not enough</h2>
     <p>Claude Code's permission system is a good default and it is not a control. Three things break it in practice:</p>
@@ -156,7 +163,7 @@
     <p>Two commands inside Claude Code, and that is the whole setup:</p>
     <pre><code>/plugin marketplace add pofky/provenrail
 /plugin install provenrail-guard@provenrail</code></pre>
-    <p>No package to install, no account, no server, nothing to configure. The plugin carries its own dependency-free engine, so <strong>26 rules are armed on the next tool call your agent makes</strong>. Installing a plugin called "guard" is the opt-in; a guard that waits for a config file protects nobody.</p>
+    <p>No package to install, no account, no server, nothing to configure. The plugin carries its own dependency-free engine, so <strong>41 rules are armed on the next tool call your agent makes</strong>. Installing a plugin called "guard" is the opt-in; a guard that waits for a config file protects nobody.</p>
     <p>No signup, no API key, no network call in the decision path. The verdict is computed locally before anything is sent anywhere, so a guardrail never waits on a server and never fails because one is down.</p>
     <pre><code>/guard-status   what is armed, and what it has actually stopped
 /guard-rules    every rule, including the packs that are off by default</code></pre>
@@ -164,7 +171,8 @@
 
     <h3>Turning it up, or off</h3>
     <p>Write a <code>.provenrail.json</code> at your repo root. It wins over the defaults completely:</p>
-    <pre><code>{"policy": {"use": ["destructive", "secrets", "production", "access", "money"]}}</code></pre>
+    <pre><code>{"policy": {"use": ["git-worktree", "destructive", "database", "cloud",
+                    "secrets", "production", "access", "money"]}}</code></pre>
     <p>An empty list arms nothing and says so once a day, so a disarmed guard can never quietly look like a working one. You can name a single rule id instead of a whole pack, and add your own rules with a regex.</p>
 
     <h3>Making the record into evidence</h3>
@@ -175,16 +183,23 @@ pr verify guard-receipt.json</code></pre>
     <p>Prefer not to install a plugin at all? <code>pr guard install</code> writes the same hooks into the project's <code>.claude/settings.json</code> directly, preserving any hooks already there.</p>
 
     <h2 id="what-is-blocked">What is blocked</h2>
-    <p>Four rule packs are armed by default with no configuration (destructive, secrets, production, access), which is 26 rules. 36 rules across seven packs are available. Every row below is asserted in the test suite against the default install, so this table cannot drift away from what the code does:</p>
+    <p>Seven rule packs are armed by default with no configuration (git-worktree, destructive, database, cloud, secrets, production, access), which is 41 rules. 51 rules across ten packs are available. Every row below is asserted in the test suite against the default install, so this table cannot drift away from what the code does:</p>
     <table>
       <thead><tr><th>Pack</th><th>Blocks</th><th>Example</th></tr></thead>
       <tbody>
-        <tr><td>destructive</td><td>Recursive and forced deletion, raw disk writes, history rewrites</td><td><code>rm -rf ./src</code>, <code>dd of=/dev/sda</code>, <code>git push --force</code></td></tr>
-        <tr><td>destructive</td><td>Irreversible infrastructure teardown</td><td><code>terraform destroy</code>, <code>kubectl delete namespace</code></td></tr>
+        <tr><td>git-worktree</td><td>Throwing away uncommitted or unpushed work <em>(asks, and only when there is work to lose)</em></td><td><code>git reset --hard</code>, <code>git checkout -- .</code>, <code>git restore .</code>, <code>git clean -fd</code>, <code>git stash drop</code>, <code>git branch -D</code>, <code>git worktree remove --force</code></td></tr>
+        <tr><td>git-worktree</td><td>Removing the way back</td><td><code>git reflog expire</code>, <code>git filter-branch</code>, <code>git filter-repo</code></td></tr>
+        <tr><td>git-worktree</td><td>Deleting a remote branch, or a destination directory <em>(asks)</em></td><td><code>git push --delete</code>, <code>git push origin :main</code>, <code>rsync --delete</code>, <code>Remove-Item -Recurse</code></td></tr>
+        <tr><td>destructive</td><td>A recursive delete of something that cannot be regenerated</td><td><code>rm -rf ~/</code>, <code>rm -rf /usr/local</code>, <code>rm -rf $UNSET/</code>, <code>rm --no-preserve-root</code></td></tr>
+        <tr><td>destructive</td><td>A delete that leaves the project <em>(asks)</em></td><td><code>rm -rf ../other-checkout</code></td></tr>
+        <tr><td>destructive</td><td>Raw disk writes and irreversible infrastructure teardown</td><td><code>dd of=/dev/sda</code>, <code>terraform destroy</code>, <code>kubectl delete namespace</code>, <code>git push --force</code></td></tr>
         <tr><td>destructive</td><td>Schema and data loss in SQL</td><td><code>DROP TABLE</code>, <code>DROP DATABASE</code>, <code>TRUNCATE</code>, <code>DELETE</code> with no <code>WHERE</code></td></tr>
+        <tr><td>database</td><td>Dropping and recreating a database in one command <em>(asks)</em></td><td><code>prisma migrate reset</code>, <code>supabase db reset</code>, <code>rails db:drop</code>, <code>artisan migrate:fresh</code>, <code>manage.py flush</code>, <code>alembic downgrade base</code>, <code>dropdb</code>, <code>FLUSHALL</code></td></tr>
+        <tr><td>cloud</td><td>Deleting managed storage, a database or a project <em>(asks)</em></td><td><code>aws rds delete-db-instance</code>, <code>aws s3 rb --force</code>, <code>gcloud sql instances delete</code>, <code>az group delete</code>, <code>fly volumes destroy</code>, <code>wrangler d1 delete</code>, <code>heroku pg:reset</code></td></tr>
+        <tr><td>cloud</td><td>Tearing down infrastructure or the state that describes it <em>(asks)</em></td><td><code>pulumi destroy</code>, <code>cdk destroy</code>, <code>terraform state rm</code>, <code>helm uninstall</code>, <code>kubectl delete pvc</code>, <code>docker compose down -v</code></td></tr>
         <tr><td>secrets</td><td>API keys, tokens and private keys appearing in a tool call</td><td><code>sk-proj-</code>, <code>sk-ant-</code>, <code>ghp_</code>, <code>xox*-</code>, <code>AKIA</code>, <code>AIza</code>, a JWT, a <code>BEGIN PRIVATE KEY</code> block</td></tr>
-        <tr><td>secrets</td><td>Reading a <code>.env</code> file <em>(asks, does not deny)</em></td><td>any path ending <code>.env</code> or <code>.env.local</code></td></tr>
-        <tr><td>access</td><td>Permission changes that expose files, or weaken authentication</td><td><code>chmod 777</code>, disabling MFA</td></tr>
+        <tr><td>secrets</td><td>Reading a <code>.env</code> file <em>(asks, does not deny)</em></td><td>any path ending <code>.env</code> or <code>.env.local</code>. <code>.env.example</code> and the other template spellings are excluded</td></tr>
+        <tr><td>access</td><td>Permission changes that expose files, or weaken authentication</td><td><code>chmod 777</code>, <code>chmod a+rwx</code>, disabling MFA</td></tr>
         <tr><td>production</td><td>A connection string pointed at production <em>(asks)</em></td><td><code>postgres://&hellip;db.prod&hellip;</code></td></tr>
         <tr><td>production</td><td>A deployment <em>(asks)</em></td><td><code>wrangler deploy</code>, <code>vercel deploy</code>, <code>kubectl --context production</code></td></tr>
       </tbody>
@@ -207,6 +222,9 @@ pr verify guard-receipt.json</code></pre>
       <li>A hook can only see calls that go through Claude Code's tool boundary. A process that never calls the hooks is not constrained and not recorded. Provenrail never claims completeness, here or anywhere.</li>
       <li>The policy is read from the nearest <code>.provenrail.json</code> at or above your working directory, so a monorepo package inherits the repo root's rules. <code>pr guard status</code> prints the exact file it used. If the hooks are wired but nothing is armed, the hook says so once a day rather than allowing in silence.</li>
       <li>If Provenrail is not installed, the plugin's hook exits silently and nothing is blocked or recorded. It warns once a day rather than failing on every tool call. <code>pr guard status</code> always tells you the truth about what is armed.</li>
+      <li>A rule matches text. A command written to defeat a pattern (<code>V=-rf; rm $V</code>, a script invoked by name, a delete inside a Python one-liner) is not caught, and this is not a claim we hedge: it is a property of every hook of this kind, ours included. What the target resolution buys is precision on the commands agents actually emit, not immunity to a command written to get past it.</li>
+      <li>The path logic is POSIX. A PowerShell or <code>cmd</code> recursive delete cannot be told safe from catastrophic here, so it always asks.</li>
+      <li>The git rules run <code>git status</code> in your working directory. If the repository cannot be read for any reason, the answer is "there is work at risk", because a guard that could not look has not checked.</li>
       <li>Per-session blast-radius caps carry their counts in a local state file, so a cap holds across hook processes. That file is local and editable, which makes it a convenience rather than evidence. <code>deny</code> and <code>require_oversight</code> never read it, so editing it cannot unblock anything.</li>
     </ul>
     <p>Guardrails reduce the blast radius of a mistake. They are not a security boundary against an adversary with shell access, and nobody should sell them as one.</p>

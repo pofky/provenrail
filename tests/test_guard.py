@@ -456,9 +456,27 @@ def test_the_no_policy_warning_is_at_most_daily(tmp_path, monkeypatch):
 # optional `TABLE` keyword, `dd of=/dev/` and `kubectl delete namespace` had no rule at all,
 # and the token pattern matched only the retired `sk-` key format.
 ADVERTISED = [
+    # git-worktree. The incident class the plugin exists for, and the one the default install
+    # allowed until the pack was written. Verified against a repository holding uncommitted
+    # work, because that is when these commands cost something.
+    ("git reset --hard origin/main", "ask"),
+    ("git checkout -- .", "ask"),
+    ("git restore .", "ask"),
+    ("git clean -fd", "ask"),
+    ("git stash drop", "ask"),
+    ("git branch -D feature/wip", "ask"),
+    ("git worktree remove --force ../wt", "ask"),
+    ("git push origin --delete main", "ask"),
+    ("git push origin :main", "ask"),
+    ("rsync -a --delete build/ /srv/www/", "ask"),
+    ("Remove-Item -Recurse -Force *", "ask"),
+    ("git reflog expire --expire=now --all", "deny"),
+    ("git filter-repo --path secret --invert-paths", "deny"),
     # destructive
     ("rm -rf ~/", "deny"),
     ("rm -fr /var/data", "deny"),
+    ("rm -rf $UNSET_ANYWHERE/", "deny"),
+    ("rm -rf --no-preserve-root /", "deny"),
     ("terraform destroy", "deny"),
     ("dd if=/dev/zero of=/dev/sda", "deny"),
     ("kubectl delete namespace prod", "deny"),
@@ -468,13 +486,39 @@ ADVERTISED = [
     ("psql -c 'TRUNCATE TABLE orders'", "deny"),
     ("psql -c 'DELETE FROM orders'", "deny"),
     ("git push --force origin main", "deny"),
+    # database
+    ("npx prisma migrate reset --force", "ask"),
+    ("supabase db reset", "ask"),
+    ("rails db:drop", "ask"),
+    ("php artisan migrate:fresh", "ask"),
+    ("python manage.py flush", "ask"),
+    ("alembic downgrade base", "ask"),
+    ("dropdb myapp_production", "ask"),
+    ("redis-cli FLUSHALL", "ask"),
+    # cloud
+    ("aws rds delete-db-instance --db-instance-identifier prod", "ask"),
+    ("aws s3 rb s3://my-bucket --force", "ask"),
+    ("gcloud sql instances delete prod-db", "ask"),
+    ("az group delete --name prod-rg", "ask"),
+    ("fly volumes destroy vol_123", "ask"),
+    ("npx wrangler d1 delete provenrail-prod", "ask"),
+    ("heroku pg:reset DATABASE_URL", "ask"),
+    ("pulumi destroy --yes", "ask"),
+    ("cdk destroy --force", "ask"),
+    ("terraform state rm module.db", "ask"),
+    ("helm uninstall api -n prod", "ask"),
+    ("kubectl delete pvc data-postgres-0", "ask"),
+    ("docker compose down -v", "ask"),
     # secrets. Fake keys, shaped like the real ones.
     ("export OPENAI_API_KEY=sk-proj-aaaaaaaaaaaaaaaaaaaaaaaaaaaa", "deny"),
     ("export ANTHROPIC_API_KEY=sk-ant-api03-bbbbbbbbbbbbbbbbbbbbbbbb", "deny"),
     ("curl -H 'Authorization: token ghp_cccccccccccccccccccccccccc'", "deny"),
     ("aws configure set aws_access_key_id AKIAIOSFODNN7EXAMPLE", "deny"),
+    ("cat .env", "ask"),
+    ("cat .env.example", "allow"),
     # access
     ("chmod 777 /etc/passwd", "deny"),
+    ("chmod a+rwx /etc/passwd", "deny"),
     ("aws iam update-account-password-policy --disable-mfa", "deny"),
     # oversight, not denial: these need a human, they are not forbidden
     ("psql postgres://u:p@db.prod.example.com/app -c 'select 1'", "ask"),
@@ -483,12 +527,27 @@ ADVERTISED = [
 ]
 
 
+@pytest.fixture(scope="module")
+def repo_with_unpushed_work(tmp_path_factory):
+    """The git rules ask only when there is work that exists nowhere else, so the page's claims
+    have to be checked in a repository that has some."""
+    import subprocess
+
+    path = tmp_path_factory.mktemp("advertised")
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(["git", "-c", "user.email=a@b", "-c", "user.name=t", "commit", "-q",
+                    "--allow-empty", "-m", "init"], cwd=path, check=True)
+    (path / "uncommitted.txt").write_text("work nobody else has\n", encoding="utf-8")
+    return str(path)
+
+
 @pytest.mark.parametrize("command,expected", ADVERTISED)
-def test_the_default_install_does_what_the_copy_says(command, expected):
+def test_the_default_install_does_what_the_copy_says(command, expected,
+                                                     repo_with_unpushed_work):
     """A guardrail advertised as blocking something it does not block is worse than one that
     never claimed it: the user reads the list, believes it, and stops checking."""
     policy = load_policy({"use": guard.DEFAULT_PACKS})
-    got = guard.decide(policy, "Bash", {"command": command})
+    got = guard.decide(policy, "Bash", {"command": command}, None, repo_with_unpushed_work)
     assert got["verdict"] == expected, (
         f"copy says {expected} but got {got['verdict']} ({got['rule']}): {command}")
 

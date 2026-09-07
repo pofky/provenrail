@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Agent Guardrails and Verifiable Audit Trail | Provenrail</title>
-  <meta name="description" content="Block rm -rf, terraform destroy and force pushes before your coding agent runs them. One plugin install, nothing else to set up, and a signed record anyone can verify.">
+  <meta name="description" content="Stop git reset --hard, git clean -fd and a recursive delete outside your project before your coding agent runs them. One plugin install, nothing else to set up, and a signed record anyone can verify.">
   <link rel="canonical" href="https://provenrail.com/">
   <meta name="robots" content="index,follow">
 
@@ -22,7 +22,7 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="AI Agent Guardrails and Verifiable Audit Trail | Provenrail">
-  <meta name="twitter:description" content="Block rm -rf before your coding agent runs it, with one plugin install and nothing else. Every decision signed into a record anyone can verify.">
+  <meta name="twitter:description" content="Stop git reset --hard over uncommitted work before your coding agent runs it, with one plugin install and nothing else. Every decision signed into a record anyone can verify.">
   <meta name="twitter:image" content="https://provenrail.com/og.png">
 
   <!-- Favicon -->
@@ -156,15 +156,17 @@
         <p class="hero-eyebrow">Guardrails for coding agents</p>
 
         <h1 class="hero-title" id="hero-h1">
-          Your coding agent is one command away from deleting prod. <br class="wide-only"><em>Stop it, and prove you did.</em>
+          Your agent is one <code>git reset --hard</code> away from your afternoon. <br class="wide-only"><em>Stop it, and prove you did.</em>
         </h1>
 
         <p class="hero-claim">
-          Provenrail blocks <code>rm -rf</code>, <code>terraform destroy</code>, force pushes,
-          <code>DROP TABLE</code> and committed keys at the agent's own tool boundary, before
-          they run. For Claude Code it is one plugin install and nothing else: no package, no
-          account, no server, and the next tool call is already being checked. Install the CLI
-          on top and every decision is signed into a hash-chained record your client, your
+          Provenrail catches the commands that actually destroy work: <code>git reset --hard</code>
+          and <code>git checkout -- .</code> over uncommitted changes, <code>git clean -fd</code>,
+          a framework database reset, a provider volume delete, a recursive delete pointed
+          outside your project, <code>DROP TABLE</code>, a force push, a committed key. It
+          decides at the agent's own tool boundary, before the command runs. For Claude Code it
+          is one plugin install and nothing else: no package, no account, no server. Install the
+          CLI on top and every decision is signed into a hash-chained record your client, your
           auditor or the other side of a dispute can verify without trusting the agent, the
           server, or us.
         </p>
@@ -247,7 +249,7 @@
             <h2 class="section-title" id="install-heading">Nothing to install.<br>Nothing to rewrite.</h2>
             <p class="lead">
               The <a href="/claude-code-guardrails">Claude Code plugin</a> carries its own
-              dependency-free engine, so 26 rules are armed on the next tool call with no
+              dependency-free engine, so 41 rules are armed on the next tool call with no
               package, no account and no config file. <code>/guard-status</code> shows what it
               has actually stopped. Installing the CLI later signs the same local history in
               place rather than starting a new one.
@@ -277,13 +279,15 @@
 <span class="tok-prompt">$ </span><span class="tok-var">uv tool install provenrail</span>
 <span class="tok-prompt">$ </span><span class="tok-var">pr quickstart &amp;&amp; pr guard install</span>
 
-<span class="tok-comment"># 2. Your agent tries something destructive</span>
-<span class="tok-prompt">&gt; </span><span class="tok-var">rm -rf ./src</span>
+<span class="tok-comment"># 2. Your agent reaches for the command that eats an afternoon</span>
+<span class="tok-prompt">&gt; </span><span class="tok-var">git reset --hard origin/main</span>
+<span class="tok-str">  asked  git-worktree.reset-hard  (3 files changed here exist nowhere else)</span>
+<span class="tok-prompt">&gt; </span><span class="tok-var">rm -rf ~/Projects</span>
 <span class="tok-str">  blocked  destructive.recursive-force-remove</span>
 
-<span class="tok-comment"># 3. The block is signed evidence. Check it yourself.</span>
+<span class="tok-comment"># 3. The decision is signed evidence. Check it yourself.</span>
 <span class="tok-prompt">$ </span><span class="tok-var">pr guard receipt</span>
-<span class="tok-str">  1 DENIED  rm -rf ./src</span>
+<span class="tok-str">  1 DENIED  rm -rf ~/Projects</span>
 <span class="tok-prompt">$ </span><span class="tok-var">pr verify </span><span class="tok-str">guard-receipt.json</span>
 <span class="tok-str">  RESULT: VERIFIED</span></pre>
             </div>
@@ -357,7 +361,7 @@
             <figcaption class="tour-cap">
               <span class="tour-num">Start here &middot; 25s</span>
               <span class="tour-title">Guard a coding agent</span>
-              <span class="tour-desc">Two commands, then <code>rm -rf</code> and <code>terraform destroy</code> are blocked and the block is signed evidence.</span>
+              <span class="tour-desc">Two commands, then <code>git reset --hard</code> over uncommitted work and a delete outside the project are stopped, and the decision is signed evidence.</span>
             </figcaption>
           </figure>
 
