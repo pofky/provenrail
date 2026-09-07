@@ -1,7 +1,7 @@
 # HANDOFF
 
-Last updated 2026-09-07. Branch `main`, tag `v0.4.2`.
-**0.4.2 is on PyPI and the site is deployed.** Verified from a fresh public clone of
+Last updated 2026-09-07. Branch `main`, tag `v0.4.3`.
+**0.4.3 is on PyPI and the site is deployed.** Verified from a fresh public clone of
 `pofky/provenrail` with no CLI installed: nine dangerous commands stopped, ten ordinary ones
 silent, `/guard-card` correct. Read this first, then `WORKLOG.md` for history.
 
@@ -51,8 +51,26 @@ the honest answer to "why should I believe your numbers".
 
 ## Done and verified
 
-- **0.4.2 on PyPI, site deployed, plugin at 0.4.2.** Fresh-clone end-to-end run is green with no
-  CLI installed and with one installed; `pip install provenrail` resolves to 0.4.2.
+- **0.4.3 on PyPI, site deployed, plugin at 0.4.3.** Fresh-clone end-to-end run is green with no
+  CLI installed and with one installed; `pip install provenrail==0.4.3` resolves and its wheel
+  verifies a clean bundle and rejects a changed field, a dropped record and a broken `prev_hash`.
+- **The hook costs 115 ms (bundled) / 85 ms (CLI) per tool call, pre and post combined**, measured
+  over 20 runs on a warm cache. It was 430 ms in 0.4.2, because the version probe spawned
+  `pr --help` and `pr --version` before any work and PostToolUse is matched `*` as well. The
+  resolved engine is now cached for a day in a file keyed by the plugin version, `--version` is
+  probed once, `plugin.json` is read with shell built-ins, and the bundled engine is skipped
+  entirely on post events (it is not a recorder). `tests/test_hook_shim.py` pins the probe count,
+  the vanished-binary fallback and both post-event behaviours.
+- **Every flow driven end to end against the published wheel, not just the test suite.**
+  `pr demo | verify | attest | attest-verify | quickstart | guard install/status/card/receipt |
+  rules` all pass; ten tampering variants across bundles and attestations are all rejected; the
+  live browser verifier is green on the demo and red on the tampered fixture with a clean console;
+  the live anchor service returns a public auditor URL and its receipt rejects a different bundle.
+- **`/account` and the pricing CTAs.** `/account?plan=builder` parks the plan in `localStorage`
+  and strips it from the URL, so the intent survives the sign-in round trip. Checkout itself is
+  not driven, because completing it spends real money.
+- **Mobile at 375 px.** Neither `/` nor `/claude-code-guardrails` scrolls horizontally; the wide
+  rules table and every `pre` scroll inside their own containers. Console clean on both.
 - **Target-aware deletes.** `predicates.classify_target` resolves against the repository root
   (`workspace_root` walks up to `.git`), with temp roots, package caches and build directories
   allowed, home-directory and shallow-absolute paths refused, and an unresolvable variable
@@ -72,7 +90,7 @@ the honest answer to "why should I believe your numbers".
   so `uv tool install provenrail` turned the guard off. And an older `pr` on the machine
   answered for a newer plugin, hiding every new rule. `tests/test_hook_shim.py` drives the shim
   with stand-in CLIs.
-- **1274 tests pass**, ruff clean, both engines and both verifiers in lockstep
+- **1281 tests pass**, ruff clean, both engines and both verifiers in lockstep
   (`predicate` and `not_tool` are in `web/verify.js` and in the policy hash).
 - Everything verified before this session still holds; see WORKLOG.
 
@@ -137,6 +155,10 @@ the honest answer to "why should I believe your numbers".
   deploy` does not type-check, and the anchor coverage check is the product rather than a limitation.
 
 ## Open, and why
+
+- **The stderr-forwarding test was narrowed.** It used to reject `2>/dev/null)` anywhere in the
+  shim; it now checks only the line that invokes an engine. The `--version` probe and the cache
+  read are allowed to be quiet, because their noise is not something a user can act on.
 
 - **Nobody has installed the plugin except us.** Everything above is a claim about a funnel that
   no stranger has walked. The first real install is the first honest data point.
