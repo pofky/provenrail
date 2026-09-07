@@ -194,7 +194,7 @@ def test_a_limit_rule_actually_caps_across_processes(tmp_path):
 # in only one of them is the divergence this whole file exists to prevent.
 
 ADVERSARIAL_CASES = [
-    ("Bash", {"command": "#" * 20_001 + "\nrm -rf /tmp/anything"}),
+    ("Bash", {"command": "#" * 20_001 + "\nrm -rf /var/data"}),
     ("Bash", {"command": "#" * 50_000 + "\ngit push --force origin main"}),
     ("Bash", {"command": "x" * 30_000 + "; terraform destroy -auto-approve"}),
 ]

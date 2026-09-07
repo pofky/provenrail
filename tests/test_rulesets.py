@@ -32,7 +32,7 @@ BLOCK_CASES = [
     ("destructive.truncate-tools", {"tool": "truncate_logs"}, {"tool": "read_logs"}),
     ("destructive.destroy-tools", {"tool": "destroy_stack"}, {"tool": "describe_stack"}),
     ("destructive.recursive-force-remove",
-     {"args": {"cmd": "rm -rf /var/data"}}, {"args": {"cmd": "rm file.txt"}}),
+     {"args": {"cmd": "rm -rf /var/data"}}, {"args": {"cmd": "rm -rf ./build"}}),
     ("destructive.sql-drop-or-truncate",
      {"args": {"q": "DROP TABLE users"}}, {"args": {"q": "SELECT id FROM users"}}),
     ("destructive.delete-without-where",

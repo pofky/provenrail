@@ -100,14 +100,16 @@ class Rule:
     effect: str                      # DENY | REQUIRE_OVERSIGHT | LIMIT
     event_type: str = "*"            # tool_call | data_access | model_call | mcp_call | *
     tool: str = "*"                  # glob over the tool name
+    not_tool: str = ""               # `|`-separated globs; the rule is skipped for these tools
     resource: str = "*"             # glob over a data_access resource
     provider: str = "*"             # glob over a model provider
     arg_contains: str = ""           # regex over the call's argument/request text (content gate)
+    predicate: str = ""              # named check in predicates.REGISTRY, ANDed with arg_contains
     max_per_session: int | None = None  # for LIMIT: deny once this many matches occur in a session
     reason: str = ""
 
-    _FIELDS = ("id", "effect", "event_type", "tool", "resource", "provider",
-               "arg_contains", "max_per_session", "reason")
+    _FIELDS = ("id", "effect", "event_type", "tool", "not_tool", "resource", "provider",
+               "arg_contains", "predicate", "max_per_session", "reason")
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Rule:
@@ -118,7 +120,7 @@ class Rule:
 
     @property
     def content_based(self) -> bool:
-        return bool(self.arg_contains)
+        return bool(self.arg_contains) or bool(self.predicate)
 
     @property
     def offline_reverifiable(self) -> bool:
@@ -137,12 +139,20 @@ class Rule:
     @property
     def oversized_glob(self) -> bool:
         return any(len(p or "") > MAX_GLOB_PATTERN
-                   for p in (self.tool, self.resource, self.provider))
+                   for p in (self.tool, self.not_tool, self.resource, self.provider))
 
     def matches(self, event_type: str, ctx: dict[str, Any]) -> bool:
         if self.event_type != "*" and self.event_type != event_type:
             return False
         if not _glob(self.tool, ctx.get("tool", "")):
+            return False
+        # A command rule must not read a DOCUMENT. `rm -rf /` inside a file being written is a
+        # sentence in `docs/security.md`, a line in a migration, or a test fixture, and denying
+        # it means an agent cannot write down the very commands this guard blocks. Measured on
+        # a corpus of ordinary developer work, screening `Write` and `Edit` content this way
+        # was one of the largest sources of interruption there is.
+        if self.not_tool and any(_glob(pattern, ctx.get("tool", ""))
+                                 for pattern in self.not_tool.split("|") if pattern):
             return False
         if not _glob(self.resource, ctx.get("resource", "")):
             return False
@@ -159,9 +169,42 @@ class Rule:
                 # being ignored.
                 from .sdk import _match_text
                 text = _match_text(text)
-            if not text or not re.search(self.arg_contains, text, re.IGNORECASE | re.DOTALL):
+            if not text:
+                return False
+            # Matched per command, not against the whole string the tool was handed. Measured
+            # over 36,929 real agent calls, whole-string matching denied 295 of them and almost
+            # none were dangerous: a heredoc writing a file that mentions `dd of=/dev/`, a `-f`
+            # belonging to the `pkill` after the `git push`, a migration file containing the
+            # words DROP TABLE. Those are not commands, and a guardrail that cannot tell the
+            # difference is one people switch off.
+            from .shell import segments
+
+            pattern = re.compile(self.arg_contains, re.IGNORECASE | re.DOTALL)
+            # A predicate is asked about the SAME single command the regex matched, never about
+            # the whole string: `rm -rf .next && rm -rf ~` must be caught on its second command,
+            # and a predicate that saw both at once could only answer about one of them.
+            if not any(pattern.search(part) and self._predicate_ok(part, ctx)
+                       for part in segments(text)):
+                return False
+        elif self.predicate:
+            from .shell import segments
+            if not any(self._predicate_ok(part, ctx) for part in segments(_text_of(ctx))):
                 return False
         return True
+
+    def _predicate_ok(self, command: str, ctx: dict[str, Any]) -> bool:
+        if not self.predicate:
+            return True
+        from .predicates import evaluate
+        return evaluate(self.predicate, command, ctx)
+
+
+def _text_of(ctx: dict[str, Any]) -> str:
+    text = ctx.get("match_text", "")
+    if isinstance(text, str):
+        return text
+    from .sdk import _match_text
+    return _match_text(text)
 
 
 @dataclass

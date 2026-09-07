@@ -64,7 +64,11 @@ HOOK_TIMEOUT_S = 15
 # Anything named in the marketing copy has to be in this list. `tests/test_guard.py` asserts it
 # command by command, because "we say it blocks X" and "it blocks X" drifting apart is the one
 # bug a guardrail cannot survive.
-DEFAULT_PACKS = ["destructive", "secrets", "production", "access"]
+# The packs a fresh install arms. `git-worktree` is first because it is the incident class
+# people actually report: uncommitted work destroyed by `git reset --hard` or `git checkout --`,
+# not by anything containing `rm`.
+DEFAULT_PACKS = ["git-worktree", "destructive", "database", "cloud", "secrets", "production",
+                 "access"]
 
 # Claude Code tools whose input can carry a destructive payload. Everything else (Read, Glob,
 # Grep, TodoWrite...) is still recorded on PostToolUse but is not worth a pre-dispatch gate.
@@ -210,7 +214,7 @@ def budget_status(policy: Any) -> list[dict[str, Any]]:
 
 
 def decide(policy: Any, tool: str, tool_input: Any,
-           session_id: str | None = None) -> dict[str, Any]:
+           session_id: str | None = None, cwd: str | None = None) -> dict[str, Any]:
     """Evaluate the policy for one attempted tool call. Offline, no network.
 
     Returns a dict with `verdict` ("allow" | "deny" | "ask"), the firing rule and reason.
@@ -227,7 +231,9 @@ def decide(policy: Any, tool: str, tool_input: Any,
     if policy is None:
         return {"verdict": "allow", "rule": None, "reason": "no policy configured",
                 "effect": ALLOW}
-    ctx = {"tool": tool, "match_text": match_text(tool_input)}
+    # `cwd` is what lets a rule tell `rm -rf .next` from `rm -rf ~`: the difference is not in
+    # the text, it is in where the text points. Claude Code sends it with every hook call.
+    ctx = {"tool": tool, "match_text": match_text(tool_input), "cwd": cwd or ""}
     state = SessionState(counts=load_counts(session_id) if session_id else {})
     _seed_prior_spend(policy, state)
     before = dict(state.counts)
@@ -539,7 +545,8 @@ def run_hook(raw: str, default_event: str = "pre",
         # rarely enough not to become noise the user tunes out.
         return 0, "", _no_policy_notice()
 
-    decision = (decide(policy, hook["tool"], hook["input"], hook.get("session_id") or None)
+    decision = (decide(policy, hook["tool"], hook["input"], hook.get("session_id") or None,
+                       hook.get("cwd") or None)
                 if hook["event"] == "pre" else None)
     if decision is not None and decision["verdict"] == "ask":
         mark_ask(hook.get("session_id", ""), hook.get("tool", ""), decision["rule"] or "")

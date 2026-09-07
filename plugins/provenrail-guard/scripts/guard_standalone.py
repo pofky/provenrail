@@ -39,6 +39,13 @@ import sys
 import time
 from pathlib import Path
 
+# The two engines have to reach the same verdict on the same command, so the parts that decide
+# it are vendored from `src/provenrail/` by `tools/vendor_guard_rules.py` rather than written a
+# second time here. Imported by path, because this file runs before Provenrail is installed.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from predicates import evaluate as predicate_ok   # noqa: E402
+from shell import segments                        # noqa: E402
+
 HERE = Path(__file__).resolve().parent
 RULES_FILE = HERE / "rules.json"
 
@@ -65,8 +72,8 @@ DENY = "deny"
 REQUIRE_OVERSIGHT = "require_oversight"
 LIMIT = "limit"
 ALLOW = "allow"
-ENGINE_FIELDS = ("id", "effect", "event_type", "tool", "resource", "provider",
-                 "arg_contains", "max_per_session", "reason")
+ENGINE_FIELDS = ("id", "effect", "event_type", "tool", "not_tool", "resource", "provider",
+                 "predicate", "arg_contains", "max_per_session", "reason")
 
 
 # ---------------------------------------------------------------- rules
@@ -197,6 +204,19 @@ def match_text(value):
         return value[:MATCH_TEXT_LIMIT]
     if isinstance(value, list) and all(isinstance(v, str) for v in value):
         return " ".join(value)[:MATCH_TEXT_LIMIT]
+    if isinstance(value, dict) and isinstance(value.get("command"), str):
+        # Verbatim, with its line breaks intact. JSON rendering turned every newline into a
+        # space, and a heredoc body is delimited by lines: flattened, a file being WRITTEN and
+        # a command being RUN are the same string, and the guard denied the first as if it were
+        # the second. Other keys follow after a newline so they are still screened.
+        rest = {k: v for k, v in value.items() if k != "command"}
+        text = value["command"]
+        if rest:
+            try:
+                text = text + "\n" + json.dumps(rest, default=str, ensure_ascii=False)
+            except Exception:
+                text = text + "\n" + str(rest)
+        return text[:MATCH_TEXT_LIMIT]
     try:
         text = json.dumps(value, default=str, ensure_ascii=False)[:MATCH_TEXT_LIMIT]
     except Exception:
@@ -357,29 +377,48 @@ def rule_matches(rule, event_type, ctx):
         return False
     if not glob_ok(rule.get("tool", "*"), ctx.get("tool", "")):
         return False
+    # Tools this rule is NOT about. A rule screening shell commands must not read the body of a
+    # file a Write or Edit is creating: documentation that explains `rm -rf /`, a migration that
+    # drops a table, a fixture holding a fake token. Denying those makes the guard something an
+    # agent has to be uninstalled to work around.
+    for pattern in (rule.get("not_tool") or "").split("|"):
+        if pattern and glob_ok(pattern, ctx.get("tool", "")):
+            return False
     if not glob_ok(rule.get("resource", "*"), ctx.get("resource", "")):
         return False
     if not glob_ok(rule.get("provider", "*"), ctx.get("provider", "")):
         return False
     pattern = rule.get("arg_contains") or ""
+    predicate = rule.get("predicate") or ""
     if pattern:
         text = ctx.get("match_text", "")
         if not isinstance(text, str):
             text = match_text(text)
         if not text:
             return False
-        if not re.search(pattern, text, re.IGNORECASE | re.DOTALL):
+        # Per command, not per string handed to the tool: a heredoc body writing a file that
+        # mentions `dd of=/dev/` is data, and the `-f` after `git push origin main 2>&1;` may
+        # belong to the `pkill` that follows it.
+        compiled = re.compile(pattern, re.IGNORECASE | re.DOTALL)
+        if not any(compiled.search(part) and predicate_ok(predicate, part, ctx)
+                   for part in segments(text)):
+            return False
+    elif predicate:
+        text = ctx.get("match_text", "")
+        if not isinstance(text, str):
+            text = match_text(text)
+        if not any(predicate_ok(predicate, part, ctx) for part in segments(text)):
             return False
     return True
 
 
-def decide(rules, tool, tool_input, counts):
+def decide(rules, tool, tool_input, counts, cwd=""):
     """The verdict for one attempted tool call. Mutates `counts` for `limit` rules.
 
     Returns (verdict, rule_id, reason) where verdict is "allow", "deny" or "ask".
     """
     text = match_text(tool_input)
-    ctx = {"tool": tool, "match_text": text}
+    ctx = {"tool": tool, "match_text": text, "cwd": cwd or ""}
     if len(text) > MAX_MATCH_TEXT and any(r.get("arg_contains") for r in rules):
         return "ask", UNSCREENABLE, (
             "this call's arguments are %d characters, past the %d a content rule can be "
@@ -463,7 +502,8 @@ def run(raw, default_event="pre"):
 
     counts = load_counts(config_path, hook["session_id"])
     before = dict(counts)
-    verdict, rule_id, reason = decide(rules, hook["tool"], hook["input"], counts)
+    verdict, rule_id, reason = decide(rules, hook["tool"], hook["input"], counts,
+                                      hook.get("cwd") or "")
     if counts != before:
         save_counts(config_path, hook["session_id"], counts)
     if verdict == "ask":

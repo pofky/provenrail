@@ -162,10 +162,10 @@ def test_a_forced_delete_asks_and_a_recursive_one_refuses():
     def verdict(command):
         return decide(policy, "Bash", {"command": command})["verdict"]
 
-    for denied in ("rm -rf /", "rm -fr /tmp/x", "rm -r -f /var", "rm -R build",
+    for denied in ("rm -rf /", "rm -rf ~", "rm -r -f /var", "rm -R /usr/local",
                    "rm --recursive --force /p", "find / -type f -delete"):
         assert verdict(denied) == "deny", denied
-    for asked in ("rm -f build/out.js", "rm -f a b c", "rm --force /tmp/sock"):
+    for asked in ("rm -rf ../sibling", "rm -f /etc/hosts/../../home/x/notes"):
         assert verdict(asked) == "ask", asked
     for allowed in ("rm file.txt", "rm build/out.js", "ls -la"):
         assert verdict(allowed) == "allow", allowed

@@ -68,6 +68,21 @@ def _match_text(value: Any) -> str:
         # hook path already joined argv back into a command; a caller using the `decide()` API
         # directly got the JSON, and an allow.
         return " ".join(value)[:limit]
+    if isinstance(value, dict) and isinstance(value.get("command"), str):
+        # A shell tool call. The command is returned verbatim, with its line breaks intact,
+        # because everything downstream that can tell a command from a piece of text needs
+        # them: heredoc bodies are delimited by lines, and JSON rendering turned every newline
+        # into a space, so a file being written could never be told apart from a command being
+        # run. Any other keys are appended as JSON, after a newline, so they are still screened
+        # without being read as part of the command.
+        rest = {k: v for k, v in value.items() if k != "command"}
+        text = value["command"]
+        if rest:
+            try:
+                text = text + "\n" + json.dumps(rest, default=str, ensure_ascii=False)
+            except Exception:
+                text = text + "\n" + str(rest)
+        return text[:limit]
     try:
         text = json.dumps(value, default=str, ensure_ascii=False)[:limit]
     except Exception:

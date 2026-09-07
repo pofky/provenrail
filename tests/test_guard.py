@@ -18,6 +18,10 @@ import pytest
 from provenrail import guard
 from provenrail.easy import load_policy
 
+#: A directory that is a git repository, so the delete predicates have a workspace to measure
+#: against rather than whatever directory pytest happened to start in.
+REPO = Path(__file__).resolve().parent.parent
+
 
 def _policy(*packs: str):
     return load_policy({"use": list(packs)})
@@ -61,8 +65,15 @@ def test_parse_hook_input_tolerates_missing_fields():
 # ---------------------------------------------------------------- decisions
 
 
-def test_recursive_rm_is_denied():
-    d = guard.decide(_policy("destructive"), "Bash", {"command": "rm -rf ./build"})
+def test_a_recursive_rm_is_denied_by_its_target_not_by_its_flags():
+    """`rm -rf ./build` used to be denied and is now allowed, deliberately. Over 36,929 real
+    agent commands the two rm rules produced 646 of 824 interruptions and almost none were
+    dangerous; a guard that stops a build directory clean-up is uninstalled the same day. The
+    target is what makes a delete unrecoverable, so the target is what is screened."""
+    policy = _policy("destructive")
+    inside = guard.decide(policy, "Bash", {"command": "rm -rf ./build"}, None, str(REPO))
+    assert inside["verdict"] == "allow"
+    d = guard.decide(policy, "Bash", {"command": "rm -rf ~/"}, None, str(REPO))
     assert d["verdict"] == "deny"
     assert d["rule"] == "destructive.recursive-force-remove"
 
@@ -446,7 +457,7 @@ def test_the_no_policy_warning_is_at_most_daily(tmp_path, monkeypatch):
 # and the token pattern matched only the retired `sk-` key format.
 ADVERTISED = [
     # destructive
-    ("rm -rf ./src", "deny"),
+    ("rm -rf ~/", "deny"),
     ("rm -fr /var/data", "deny"),
     ("terraform destroy", "deny"),
     ("dd if=/dev/zero of=/dev/sda", "deny"),
@@ -517,7 +528,7 @@ def test_padding_cannot_hide_a_destructive_command_from_a_content_rule():
     """
     policy = _default_policy()
     for pad in (20_001, 50_000, 500_000):
-        command = "#" * pad + "\nrm -rf /tmp/anything"
+        command = "#" * pad + "\nrm -rf /var/data"
         verdict = guard.decide(policy, "Bash", guard._coerce_tool_input({"command": command}))
         assert verdict["verdict"] == "deny", f"{pad} characters of padding hid the command"
         assert verdict["rule"] == "destructive.recursive-force-remove"

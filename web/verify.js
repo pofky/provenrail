@@ -666,7 +666,7 @@ const POLICY_MEANINGFUL = { model_call: "model_call", tool_call: "tool_call", mc
 const MAX_GLOB_PATTERN = 512;
 
 function oversizedGlob(rule) {
-  return [rule.tool, rule.resource, rule.provider].some(p => String(p ?? "").length > MAX_GLOB_PATTERN);
+  return [rule.tool, rule.not_tool, rule.resource, rule.provider].some(p => String(p ?? "").length > MAX_GLOB_PATTERN);
 }
 
 function globMatch(pattern, value) {
@@ -836,6 +836,10 @@ function policyDecide(policy, eventType, ctx, state) {
   for (const rule of policy.rules) {
     if (rule.event_type !== "*" && rule.event_type !== eventType) continue;
     if (!globMatch(rule.tool, ctx.tool)) continue;
+    // `not_tool` is a `|`-separated list of globs the rule does NOT apply to, so a rule about
+    // shell commands never reads the body of a file a Write tool is creating.
+    if (rule.not_tool && String(rule.not_tool).split("|").filter(Boolean)
+        .some(p => globMatch(p, ctx.tool))) continue;
     if (!globMatch(rule.resource, ctx.resource)) continue;
     if (!globMatch(rule.provider, ctx.provider)) continue;
     if (rule.effect === "deny") return { effect: "deny", ruleId: rule.id, reason: rule.reason || "denied by policy" };
@@ -858,10 +862,11 @@ function policyDecide(policy, eventType, ctx, state) {
 // that omitted an optional field, or any extra key. Python normalized those away and passed;
 // the browser hashed them literally and called a genuine bundle tampered. This mirrors
 // `Policy.to_dict()` field for field so both sides hash the same bytes.
-const _RULE_FIELDS = ["id", "effect", "event_type", "tool", "resource", "provider",
-                      "arg_contains", "max_per_session", "reason"];
-const _RULE_DEFAULTS = { effect: "", event_type: "*", tool: "*", resource: "*", provider: "*",
-                         arg_contains: "", max_per_session: null, reason: "", id: "" };
+const _RULE_FIELDS = ["id", "effect", "event_type", "tool", "not_tool", "resource", "provider",
+                      "arg_contains", "predicate", "max_per_session", "reason"];
+const _RULE_DEFAULTS = { effect: "", event_type: "*", tool: "*", not_tool: "", resource: "*",
+                         provider: "*", arg_contains: "", predicate: "", max_per_session: null,
+                         reason: "", id: "" };
 
 export function policyCanonicalForm(dict) {
   const d = dict && typeof dict === "object" ? dict : {};
@@ -905,8 +910,10 @@ function clamp01(v) {
 function normalizePolicy(dict) {
   const rules = (dict.rules || []).map(r => ({
     id: r.id, effect: r.effect, event_type: r.event_type ?? "*", tool: r.tool ?? "*",
-    resource: r.resource ?? "*", provider: r.provider ?? "*", arg_contains: r.arg_contains ?? "",
-    max_per_session: r.max_per_session ?? null, reason: r.reason ?? "",
+    not_tool: r.not_tool ?? "", resource: r.resource ?? "*", provider: r.provider ?? "*",
+    arg_contains: r.arg_contains ?? "",
+    predicate: r.predicate ?? "", max_per_session: r.max_per_session ?? null,
+    reason: r.reason ?? "",
   }));
   const budgets = (dict.budgets || []).map(b => ({
     id: b.id || `budget.${b.scope || "session"}`, scope: (b.scope || "session").toLowerCase(),
@@ -932,9 +939,9 @@ async function verifyPolicy(sessions, rep) {
       continue;
     }
     const full = normalizePolicy(policyDict);
-    const contentRules = full.rules.filter(r => r.arg_contains).length;
+    const contentRules = full.rules.filter(r => r.arg_contains || r.predicate).length;
     const crossSession = full.budgets.filter(b => b.scope !== "session").length;
-    const oversized = full.rules.filter(r => !r.arg_contains && oversizedGlob(r)).length;
+    const oversized = full.rules.filter(r => !r.arg_contains && !r.predicate && oversizedGlob(r)).length;
     // A content gate matches on argument text, which is hashed out of the bundle, and a
     // cross-session budget needs history this bundle does not hold. Both are reported as
     // enforced-but-not-re-checkable rather than silently trusted or silently dropped. An
@@ -942,7 +949,7 @@ async function verifyPolicy(sessions, rep) {
     // the CLI does. Leaving globMatch to quietly return false instead made this verifier call
     // a bundle fully verified while the CLI reported the same rule as unenforced.
     const reverifiable = {
-      rules: full.rules.filter(r => !r.arg_contains && !oversizedGlob(r)),
+      rules: full.rules.filter(r => !r.arg_contains && !r.predicate && !oversizedGlob(r)),
       budgets: full.budgets.filter(b => b.scope === "session"),
     };
     if (oversized) {
