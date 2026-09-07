@@ -319,7 +319,12 @@ def mark_ask(config_path, session_id, tool, rule):
 
 
 def once_a_day(config_path, name, message):
-    """Return `message` at most once per day, keyed by `name`. Silence otherwise."""
+    """Return `message` at most once per day, keyed by `name`. Silence otherwise.
+
+    `message` may be a callable, and for the armed notice it is: this runs inside every single
+    tool call, and building that string eagerly meant re-reading and re-parsing rules.json on
+    every one of them to say nothing.
+    """
     try:
         path = state_dir(config_path) / (NOTICE_FILENAME + "-" + name)
         now = time.time()
@@ -328,7 +333,7 @@ def once_a_day(config_path, name, message):
         path.write_text(str(int(now)), encoding="utf-8")
     except OSError:
         return ""
-    return message
+    return message() if callable(message) else message
 
 
 # ---------------------------------------------------------------- matching
@@ -389,10 +394,10 @@ def decide(rules, tool, tool_input, counts):
 # ---------------------------------------------------------------- the hook
 
 
-def welcome(config_path, rules, source):
+def welcome(config_path, catalog, rules, source):
     if source != "defaults":
         return ""
-    return once_a_day(config_path, "armed", (
+    return once_a_day(config_path, "armed", lambda: (
         "provenrail-guard: armed with %d rules (packs: %s) because this project has no "
         "%s.\n"
         "  Blocking now: rm -rf, dd of=/dev/, terraform destroy, git push --force, DROP/TRUNCATE, "
@@ -400,7 +405,7 @@ def welcome(config_path, rules, source):
         "  Asking first: .env reads, deploys, migrations, DNS and IAM changes.\n"
         "  Change or switch off:  echo '{\"policy\": {\"use\": []}}' > %s\n"
         "  Signed receipts anyone can verify:  uv tool install provenrail && pr guard receipt\n"
-        % (len(rules), ", ".join(load_catalog()["default_packs"]), CONFIG_FILENAME,
+        % (len(rules), ", ".join(catalog["default_packs"]), CONFIG_FILENAME,
            CONFIG_FILENAME)))
 
 
@@ -428,7 +433,7 @@ def run(raw, default_event="pre"):
             "being blocked. Remove \"policy\" from %s to get the defaults back.\n"
             % (config_path or CONFIG_FILENAME)))
 
-    notice = welcome(config_path, rules, source)
+    notice = welcome(config_path, catalog, rules, source)
     if hook["event"] != "pre":
         return "", notice
 

@@ -97,10 +97,17 @@ GENERIC_TRAILERS = (
     (r"^\s*ai-assisted:\s*(.+)$", "AI-Assisted trailer"),
 )
 
-# `git log` field separators chosen because they cannot appear in a commit field.
+# Record separator: NUL, which git forbids anywhere in commit content, so a commit author
+# cannot end a record early. \x1e was used first and is author-controllable: a subject
+# containing one truncated its own commit's body, taking the AI trailer with it, and the commit
+# was then reported as human-authored with nothing anywhere saying so.
+_RS = "\x00"
+# Field separator. \x1f is likewise author-controllable, so the split below is bounded: the body
+# is whatever remains after the seventh separator, which means an injected \x1f can shift a
+# field's meaning but can never discard content.
 _FS = "\x1f"
-_RS = "\x1e"
-_FORMAT = _FS.join(["%H", "%P", "%an <%ae>", "%cn <%ce>", "%aI", "%cI", "%s", "%B"]) + _RS
+_FIELDS = 8
+_FORMAT = _FS.join(["%H", "%P", "%an <%ae>", "%cn <%ce>", "%aI", "%cI", "%s", "%B"]) + "%x00"
 
 
 class GitError(RuntimeError):
@@ -247,8 +254,15 @@ def read_commits(repo: Path, since: str | None = None, until: str = "HEAD",
             commits[-1].files, commits[-1].insertions, commits[-1].deletions = stat
         if not rest.strip():
             continue
-        fields = rest.split(_FS)
-        if len(fields) < 8:
+        fields = rest.split(_FS, _FIELDS - 1)
+        if len(fields) < _FIELDS:
+            # A fragment, not a record. It happens when a commit field carries one of the
+            # separators this format splits on, which a commit author controls. Skipping it in
+            # silence is what the first version did, and it meant a subject containing \x1e
+            # truncated its own commit's body, taking the AI trailer with it and reporting the
+            # commit as human-authored with nothing anywhere saying so. Dropping is still the
+            # right handling, because the fragment is not a commit; what is not acceptable is
+            # dropping quietly, so `read_commits` cross-checks its own count against git below.
             continue
         sha, parents, author, committer, a_at, c_at, subject, body = fields[:8]
         commit = Commit(
@@ -260,6 +274,23 @@ def read_commits(repo: Path, since: str | None = None, until: str = "HEAD",
         )
         commit.findings = classify(commit)
         commits.append(commit)
+
+    if max_count is None:
+        # The parse is only trustworthy if it produced exactly the commits git says are in the
+        # range. This catches separator injection, a future change to git's output, and any bug
+        # in the splitting above, and it turns all of them into a refusal rather than an
+        # attestation that quietly covers fewer commits than it claims to.
+        expected = _git(repo, "rev-list", "--count", "--no-merges", rev).strip()
+        try:
+            expected_n = int(expected)
+        except ValueError as exc:
+            raise GitError(f"git could not count the commits in {rev}: {expected!r}") from exc
+        if expected_n != len(commits):
+            raise GitError(
+                f"parsed {len(commits)} commits from {rev} but git counts {expected_n}. "
+                f"A commit field almost certainly contains one of the separators this format "
+                f"splits on. Refusing to sign an attestation that would silently cover fewer "
+                f"commits than it names.")
     return commits
 
 

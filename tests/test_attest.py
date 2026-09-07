@@ -432,3 +432,53 @@ def test_the_limits_admit_the_commit_after_the_run(repo):
     gets the lower grade. Understating is fine; leaving it unsaid is not."""
     doc = attest.build(repo)
     assert any("committed by a person afterwards" in limit for limit in doc["limits"])
+
+
+def test_a_commit_cannot_hide_its_ai_trailer_with_a_separator(tmp_path):
+    """The record and field separators are author-controlled text, and the first version used
+    \\x1e and \\x1f naively. A subject containing \\x1e ended its own record early, truncating the
+    body, taking the Co-authored-by trailer with it, and the commit was reported as
+    human-authored with nothing anywhere saying so: a silent way to defeat the whole document.
+
+    Records are NUL-separated now, which git forbids inside commit content, and the field split
+    is bounded so the body absorbs anything after the seventh separator rather than losing it.
+    """
+    root = tmp_path / "inject"
+    root.mkdir()
+    git(root, "init", "-q")
+    git(root, "config", "user.name", "A Dev")
+    git(root, "config", "user.email", "dev@example.com")
+    commit(root, "f.txt", "a\n", "clean")
+    message = ("evil\x1fX\x1esubject\n\n"
+               "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>")
+    (root / "f.txt").write_text("a\nb\n", encoding="utf-8")
+    git(root, "add", "-A")
+    path = root / "msg.txt"
+    path.write_text(message, encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "commit", "-q", "-F", str(path)],
+                   check=True, capture_output=True, env=_env(None))
+
+    doc = attest.build(root)
+    assert len(doc["commits"]) == 2
+    hidden = doc["commits"][1]
+    assert hidden["ai_assisted"] is True, "a separator in the subject hid the AI trailer"
+    assert len(hidden["sha"]) == 40
+    assert hidden["insertions"] == 1
+
+
+def test_the_parse_refuses_rather_than_covering_fewer_commits_than_it_names(repo, monkeypatch):
+    """Belt and braces over the separator fix: whatever the parser does, the number of commits
+    it produced has to equal the number git counts, or the document would silently attest to a
+    subset of the range it names."""
+    real = attest._git
+
+    def short(repo_path, *args, **kwargs):
+        out = real(repo_path, *args, **kwargs)
+        if args and args[0] == "log":
+            return out.split("\x00", 1)[1]      # lose the first record
+        return out
+
+    monkeypatch.setattr(attest, "_git", short)
+    with pytest.raises(attest.GitError) as exc:
+        attest.build(repo)
+    assert "git counts" in str(exc.value)
