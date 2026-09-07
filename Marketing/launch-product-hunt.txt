@@ -36,7 +36,7 @@ FIRST COMMENT (post as maker, immediately after the listing goes live)
 
 I build with coding agents every day, and two things kept bothering me.
 
-The first is that the permission prompt does not work. After the twentieth one in an hour you stop reading, which is precisely when you approve the one that matters. Provenrail moves the decision to the agent's tool boundary instead: rm -rf, terraform destroy, force pushes, DROP TABLE and leaked keys are denied before they execute, using 36 rules across 7 packs you can extend.
+The first is that the permission prompt does not work. After the twentieth one in an hour you stop reading, which is precisely when you approve the one that matters. Provenrail moves the decision to the agent's tool boundary instead: git reset --hard over uncommitted work, git checkout -- ., git clean -fd, a recursive delete pointed outside your project, a framework database reset, terraform destroy, DROP TABLE and leaked keys are all caught before they execute, using 54 rules across 10 packs you can extend. And the rules that would be noise stay quiet: a delete inside your own build directory runs without a word, and git reset --hard says nothing on a tree that is clean and pushed, because there it destroys nothing.
 
 The second is that when something does go wrong, the only account of it is a log written by the process that did it. So every decision, allowed or denied, is signed and hash-chained off the machine. The record carries two independent chains, one from the agent and one from the receiving server, which have to agree, so nothing can be edited, reordered or truncated afterwards without it showing.
 

@@ -176,7 +176,10 @@ def test_install_creates_hooks(tmp_path):
     pre = settings["hooks"]["PreToolUse"]
     assert len(pre) == 1
     assert pre[0]["hooks"][0]["command"] == "pr guard hook --event pre"
-    assert "Bash" in pre[0]["matcher"]
+    # Every tool, not a named list. A named list covered the built-in tools and nothing else,
+    # so an MCP server's deleteVolume and a Read of ~/.ssh/id_ed25519 reached no rule at all
+    # while the catalogue advertised rules for both. Scope lives in the rules now.
+    assert pre[0]["matcher"] == "*"
     assert settings["hooks"]["PostToolUse"][0]["hooks"][0]["command"] == "pr guard hook --event post"
 
 

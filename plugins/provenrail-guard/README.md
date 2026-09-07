@@ -30,7 +30,7 @@ nothing leaves your machine. The next tool call your agent makes is already bein
   plain text file in your project, and anything on your machine can edit it, which is exactly
   why the paid layer exists.
 
-41 rules are armed by default, from seven packs: git-worktree, destructive, database, cloud,
+44 rules are armed by default, from seven packs: git-worktree, destructive, database, cloud,
 secrets, production, access. The git rules ask only when the repository is holding
 uncommitted or unpushed work, so a clean tree never sees a prompt.
 Money, exfiltration and blast-radius caps are opt in, because they match tool names a coding

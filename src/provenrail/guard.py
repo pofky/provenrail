@@ -70,9 +70,13 @@ HOOK_TIMEOUT_S = 15
 DEFAULT_PACKS = ["git-worktree", "destructive", "database", "cloud", "secrets", "production",
                  "access"]
 
-# Claude Code tools whose input can carry a destructive payload. Everything else (Read, Glob,
-# Grep, TodoWrite...) is still recorded on PostToolUse but is not worth a pre-dispatch gate.
-_DEFAULT_MATCHER = "Bash|Edit|Write|MultiEdit|NotebookEdit|WebFetch|Task"
+# Every tool. A named list looks careful and was a hole: it covered the built-in tools and
+# nothing else, so an MCP server's `deleteVolume` (the exact shape of the PocketOS incident this
+# product's own copy cites) and a `Read` of `~/.ssh/id_ed25519` were never seen by any rule,
+# while the catalogue advertised rules for both. Scope belongs in the rules, where it is
+# declared per rule and visible in `pr guard rules`, not in a matcher nobody reads. Rules that
+# do not apply to a tool now say so with `not_tool`.
+_DEFAULT_MATCHER = "*"
 
 
 class GuardError(RuntimeError):

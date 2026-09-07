@@ -94,6 +94,20 @@ class PolicyViolation(Exception):
         super().__init__(f"policy '{rule_id}' denied the action: {reason}")
 
 
+def _any_glob(patterns: str, value: str) -> bool:
+    """`|`-separated alternatives, any of which may match.
+
+    `fnmatch` has no alternation, so a rule covering several tools had to be written several
+    times or not at all, and "not at all" is what happened: the MCP delete rule was written as
+    one pattern with pipes in it, matched nothing, and reported itself armed. One separator,
+    used the same way in `tool` and in `not_tool`, is the smallest thing that makes those rules
+    expressible; a rule with no pipe in it behaves exactly as before.
+    """
+    if not patterns:
+        return True
+    return any(_glob(part, value) for part in patterns.split("|") if part)
+
+
 @dataclass
 class Rule:
     id: str
@@ -144,15 +158,14 @@ class Rule:
     def matches(self, event_type: str, ctx: dict[str, Any]) -> bool:
         if self.event_type != "*" and self.event_type != event_type:
             return False
-        if not _glob(self.tool, ctx.get("tool", "")):
+        if not _any_glob(self.tool, ctx.get("tool", "")):
             return False
         # A command rule must not read a DOCUMENT. `rm -rf /` inside a file being written is a
         # sentence in `docs/security.md`, a line in a migration, or a test fixture, and denying
         # it means an agent cannot write down the very commands this guard blocks. Measured on
         # a corpus of ordinary developer work, screening `Write` and `Edit` content this way
         # was one of the largest sources of interruption there is.
-        if self.not_tool and any(_glob(pattern, ctx.get("tool", ""))
-                                 for pattern in self.not_tool.split("|") if pattern):
+        if self.not_tool and _any_glob(self.not_tool, ctx.get("tool", "")):
             return False
         if not _glob(self.resource, ctx.get("resource", "")):
             return False

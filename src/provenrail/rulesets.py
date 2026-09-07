@@ -30,13 +30,23 @@ from typing import Any
 # Effects: "deny" blocks outright, "require_oversight" allows only after a recorded human
 # approval in the same session, "limit" allows N per session then blocks.
 
-#: Tools that write a FILE rather than run a command. A content rule about shell commands has
-#: no business reading the body of a document: `docs/security.md` explaining what `rm -rf /`
-#: does, a migration containing `DROP TABLE legacy`, a test fixture holding a fake token, and a
-#: subagent prompt quoting a dangerous command were all refused, which makes the guard something
-#: an agent has to be uninstalled to work around. The secrets pack deliberately does NOT carry
-#: this, because writing a real credential into a file IS the harm it exists to catch.
-WRITERS = "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file"
+#: Tools that carry TEXT rather than a command to run. A rule about shell commands has no
+#: business reading a document, a search query or a prompt: `docs/security.md` explaining what
+#: `rm -rf /` does, a migration containing `DROP TABLE legacy`, a test fixture holding a fake
+#: token, a web search for "git reset --hard recovery", a subagent prompt quoting a dangerous
+#: command. All of those were refused, which makes the guard something an agent has to be
+#: uninstalled to work around.
+#:
+#: The secrets pack deliberately does NOT carry this on the key-shaped rules, because writing a
+#: real credential into a file IS the harm they exist to catch.
+WRITERS = ("Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion"
+           "|TodoWrite|str_replace*|create_file|*write_file")
+
+#: The above, plus the tools that only LOOK at things. A rule about shell commands must not
+#: fire because a file being read, a glob, or a grep pattern contains the text of one:
+#: `grep -rn "rm -rf" docs/` is a search, not a delete. Reading is left in `WRITERS` rather
+#: than here on purpose, because two secrets rules are specifically about what gets read.
+NOT_A_COMMAND = WRITERS + "|Read|Glob|Grep"
 
 
 CATALOG: dict[str, dict[str, Any]] = {
@@ -57,8 +67,25 @@ CATALOG: dict[str, dict[str, Any]] = {
             {"id": "destructive.destroy-tools", "effect": "deny", "event_type": "tool_call",
              "tool": "destroy_*", "reason": "destructive tool: destroys a resource",
              "note": "Matches Terraform-style destroy_ helpers."},
+            {"id": "destructive.mcp-delete-tools", "effect": "require_oversight",
+             # The incident this product's own homepage cites was an agent calling a hosting
+             # provider's volume-delete through an MCP server. MCP tools are named
+             # `mcp__<server>__<camelCaseMethod>`, so `delete_*` never matched one, and the
+             # hook matcher did not even hand them over. Oversight rather than deny, because
+             # deleting a resource through an MCP tool is frequently the task.
+             "event_type": "tool_call",
+             # Anchored to the METHOD, which is the segment after the last `__`. Unanchored,
+             # `mcp__*[wW]ipe*` matched `mcp__ios-simulator-mcp__ui_swipe`, because "swipe"
+             # ends in "wipe", and a simulator gesture is not a resource being destroyed.
+             "tool": "mcp__*__[dD]elete*|mcp__*__[dD]estroy*|mcp__*__[dD]rop*"
+                     "|mcp__*__[rR]emove*|mcp__*__[tT]erminate*|mcp__*__[pP]urge*"
+                     "|mcp__*__[wW]ipe*|mcp__*__*_[dD]elete*|mcp__*__*_[dD]estroy*",
+             "reason": "an MCP tool that deletes or destroys a resource",
+             "note": "Matches on the tool NAME, so it needs no argument text and covers a "
+                     "server this catalogue has never heard of. Rename or scope it out if "
+                     "your agent's job is tearing down ephemeral resources."},
             {"id": "destructive.raw-device-write", "effect": "deny",
-             "not_tool": WRITERS,
+             "not_tool": NOT_A_COMMAND,
              "event_type": "tool_call", "arg_contains": r"\bdd\s[^\n]*\bof=/dev/",
              "reason": "argument writes raw bytes to a block device",
              "note": "Very low false-positive risk: `dd of=/dev/...` outside an imaging "
@@ -67,7 +94,7 @@ CATALOG: dict[str, dict[str, Any]] = {
              "event_type": "tool_call",
              # `namespaces` (plural) is equally valid kubectl and equally destructive; the
              # word boundary after `namespace` refused to match it.
-             "not_tool": WRITERS,
+             "not_tool": NOT_A_COMMAND,
              "arg_contains": r"kubectl\s+delete\s+(namespaces?|ns)\b",
              "reason": "argument deletes a Kubernetes namespace and everything in it",
              "note": "A namespace delete cascades to every resource inside it. Scope this "
@@ -81,7 +108,7 @@ CATALOG: dict[str, dict[str, Any]] = {
              # delete and a predicate decides where it points: `/`, a home directory, a whole
              # disk, a two-segment container of unrelated things, or a variable that becomes
              # `/` when it is unset. Everything inside the repository is the agent doing its job.
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\brm\s+(-[a-zA-Z]*r[a-zA-Z]*|--recursive)\b"
                              r"|\brm\s+(-[a-zA-Z]+\s+)*--recursive\b"
                              r"|\bfind\s[^\n]*\s-delete\b",
@@ -100,7 +127,7 @@ CATALOG: dict[str, dict[str, Any]] = {
              # a stale sibling checkout or it can be somebody's photographs, and no amount of
              # regex tells the two apart. A recorded human decision is the honest answer. Inside
              # the project it is not ambiguous at all, so it is not asked about.
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\brm\s+(-[a-zA-Z]+|--force|--recursive)"
                              r"|\bfind\s[^\n]*\s-delete\b",
              "predicate": "delete.outside_workspace",
@@ -117,7 +144,7 @@ CATALOG: dict[str, dict[str, Any]] = {
              # statement straight through while the copy advertised TRUNCATE as blocked.
              # Every DROP object type, not three of them. Dropping a unique index on a
              # production key, or a view a report depends on, is as destructive as the table.
-             "not_tool": WRITERS,
+             "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\b(DROP\s+(TABLE|DATABASE|SCHEMA|INDEX|VIEW|MATERIALIZED\s+VIEW"
                              r"|FUNCTION|PROCEDURE|TRIGGER|SEQUENCE|TYPE|ROLE|USER|EXTENSION"
                              r"|CONSTRAINT|COLUMN|POLICY|PUBLICATION|SUBSCRIPTION|TABLESPACE)\b"
@@ -137,7 +164,7 @@ CATALOG: dict[str, dict[str, Any]] = {
              # The table-name class excluded quotes, so a quoted identifier (`DELETE FROM
              # "users"`, which Postgres, MySQL and SQLite all accept, and which codegen emits)
              # left the name group matching nothing and the whole rule failing.
-             "not_tool": WRITERS,
+             "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\bDELETE\s+FROM\s+[\"'`]?[^\s;\"'`]+[\"'`]?\s*(;|\"|'|$)",
              "predicate": "command.not_a_rehearsal",
              "reason": "argument contains a DELETE with no WHERE clause",
@@ -185,6 +212,25 @@ CATALOG: dict[str, dict[str, Any]] = {
              "reason": "argument contains what looks like a JWT",
              "note": "Some agents legitimately pass their own JWT to a tool; scope or drop "
                      "this rule if that is your design."},
+            {"id": "secrets.credential-file-read", "effect": "require_oversight",
+             # Distinct from the `.env` rule because these are the machine's own credentials
+             # rather than the project's: an SSH private key, cloud CLI tokens, a kubeconfig, a
+             # browser cookie jar. An agent has no routine reason to open one, and until the
+             # hook matcher covered every tool this could not fire on a `Read` at all.
+             "event_type": "tool_call", "not_tool": WRITERS,
+             "arg_contains": r"\.ssh/(id_[a-z0-9]+|identity)(?![a-z0-9]|\.pub)"
+                             r"|\.aws/credentials\b"
+                             r"|\.config/gcloud/[\w./-]*credentials"
+                             r"|\.kube/config\b"
+                             r"|\.docker/config\.json\b"
+                             r"|\.netrc\b"
+                             r"|\.npmrc\b"
+                             r"|\.pypirc\b"
+                             r"|\.gnupg/[\w.-]*\.(key|gpg)\b"
+                             r"|Library/Keychains/|/etc/shadow\b",
+             "reason": "action reads a credential file belonging to this machine",
+             "note": "Oversight rather than deny: setting up a deploy legitimately touches "
+                     "these. Public keys (`id_rsa.pub`) are excluded."},
             {"id": "secrets.env-file-read", "effect": "require_oversight",
              # This one is about READING the file. The other rules in this pack deliberately do
              # screen file writes, because putting a live credential into a file is the harm
@@ -215,7 +261,7 @@ CATALOG: dict[str, dict[str, Any]] = {
             # prompts. When the repository cannot be read the answer is "at risk", because a
             # guard that could not look has not checked.
             {"id": "git-worktree.reset-hard", "effect": "require_oversight",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\bgit\s+(-[cC]\s+\S+\s+)*reset\s[^\n]*(--hard|--merge)\b",
              "predicate": "git.would_lose_work",
              "reason": "this resets the working tree and there are changes or commits here that "
@@ -225,39 +271,39 @@ CATALOG: dict[str, dict[str, Any]] = {
              # `git checkout -- .`, `git checkout .`, `git restore .`. `git restore --staged`
              # on its own only unstages and is left alone; adding `--worktree` makes it destroy
              # the file, so that spelling is caught.
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\bgit\s+checkout\s+(--\s|\.(\s|$)|[^\n]*\s--\s)"
                              r"|\bgit\s+restore\s+(?!--staged(?![^\n]*--worktree))",
              "predicate": "git.would_lose_work",
              "reason": "this discards edits in the working tree that are not committed anywhere",
              "note": "Excludes `git restore --staged`, which only unstages."},
             {"id": "git-worktree.clean-force", "effect": "require_oversight",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\bgit\s+clean\s+(-[a-zA-Z]*f|--force)",
              "predicate": "git.would_lose_work",
              "reason": "this deletes untracked files, which by definition no commit holds",
              "note": "`git clean -xdff` also removes ignored files: .env, local databases, "
                      "anything the repository was told not to track."},
             {"id": "git-worktree.stash-drop", "effect": "require_oversight",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\bgit\s+stash\s+(drop|clear)\b",
              "reason": "a dropped stash is not recoverable through any git command",
              "note": "`git stash` and `git stash pop` are untouched; only discarding is asked "
                      "about."},
             {"id": "git-worktree.branch-delete-force", "effect": "require_oversight",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\bgit\s+branch\s+(-[a-zA-Z]*D|--delete\s+--force"
                              r"|--force\s+--delete)\b",
              "predicate": "git.force_delete_branch",
              "reason": "-D deletes a branch whether or not it is merged",
              "note": "`git branch -d` refuses to delete unmerged work and is not matched."},
             {"id": "git-worktree.worktree-remove-force", "effect": "require_oversight",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\bgit\s+worktree\s+remove\s[^\n]*(--force|\s-f)\b",
              "reason": "--force removes a worktree that still has modifications in it",
              "note": "Without --force git refuses, so only the forced spelling is matched."},
             {"id": "git-worktree.history-rewrite", "effect": "deny",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\bgit\s+(filter-branch|filter-repo)\b"
                              r"|\bgit\s+reflog\s+expire\b",
              "reason": "this rewrites or expires history, which removes the last way back",
@@ -265,7 +311,7 @@ CATALOG: dict[str, dict[str, Any]] = {
                      "recovery path for every other rule in this pack. Deny rather than ask, "
                      "because no routine task needs it."},
             {"id": "git-worktree.delete-remote-branch", "effect": "require_oversight",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\bgit\s+push\s[^\n]*--delete\b"
                              r"|\bgit\s+push\s+\S+\s+:\S",
              "reason": "this deletes a branch on the remote, which may be the only copy left",
@@ -273,14 +319,14 @@ CATALOG: dict[str, dict[str, Any]] = {
             {"id": "git-worktree.recursive-delete-windows", "effect": "require_oversight",
              # The path logic the rm rules use is POSIX, so a PowerShell or cmd delete cannot be
              # told safe from catastrophic here and is always asked about.
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"Remove-Item\s[^\n]*(-Recurse|-r\b)"
                              r"|\brmdir\s+/[sS]\b|\bdel\s+/[sS]\b",
              "reason": "a recursive delete on Windows, where the target cannot be resolved here",
              "note": "Always asks: this rule has no way to tell a build directory from a home "
                      "directory on a Windows path."},
             {"id": "git-worktree.rsync-delete", "effect": "require_oversight",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\brsync\s[^\n]*--delete(-\w+)?\b",
              "reason": "--delete removes files at the destination that are absent from the source",
              "note": "A mistyped source directory turns a sync into a wipe of the destination."},
@@ -295,7 +341,7 @@ CATALOG: dict[str, dict[str, Any]] = {
             # points at production. Every one of these is one word away from being routine, so
             # every one of them asks rather than refuses, and none fires on a --dry-run.
             {"id": "database.framework-reset", "effect": "require_oversight",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "predicate": "command.not_a_rehearsal",
              "arg_contains": r"\bprisma\s+migrate\s+reset\b"
                              r"|\bprisma\s+db\s+push\b[^\n]*--force-reset"
@@ -312,7 +358,7 @@ CATALOG: dict[str, dict[str, Any]] = {
                      "database is routine; the same command reads its connection string from "
                      "the environment, and the environment is what changes."},
             {"id": "database.drop-server-side", "effect": "require_oversight",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "predicate": "command.not_a_rehearsal",
              "arg_contains": r"\bdropdb\b|\bmongo\w*\s[^\n]*dropDatabase\("
                              r"|\bdb\.dropDatabase\(|\bFLUSHALL\b|\bFLUSHDB\b",
@@ -328,7 +374,7 @@ CATALOG: dict[str, dict[str, Any]] = {
             # provider's volume-delete API. It contained no `rm`, touched no database client,
             # and every guardrail in this catalogue allowed it.
             {"id": "cloud.delete-managed-data", "effect": "require_oversight",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "predicate": "command.not_a_rehearsal",
              "arg_contains": r"\baws\s+rds\s+delete-db-(instance|cluster)\b"
                              r"|\baws\s+s3\s+rb\b[^\n]*--force"
@@ -350,7 +396,7 @@ CATALOG: dict[str, dict[str, Any]] = {
              "note": "Managed data has no reflog and usually no undo. Asks rather than refuses, "
                      "because tearing down an environment is a real task."},
             {"id": "cloud.destroy-stack", "effect": "require_oversight",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "predicate": "command.not_a_rehearsal",
              "arg_contains": r"\bpulumi\s+destroy\b|\bcdk\s+destroy\b"
                              r"|\bterraform\s+state\s+(rm|push)\b"
@@ -362,7 +408,7 @@ CATALOG: dict[str, dict[str, Any]] = {
                      "terraform forget or misremember what exists, and the next apply then "
                      "destroys it."},
             {"id": "cloud.docker-prune-volumes", "effect": "require_oversight",
-             "event_type": "tool_call", "not_tool": WRITERS,
+             "event_type": "tool_call", "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\bdocker\s+system\s+prune\b[^\n]*--volumes"
                              r"|\bdocker\s+volume\s+prune\b"
                              r"|\bdocker\s+compose\s+down\b[^\n]*(-v\b|--volumes)",
@@ -411,7 +457,7 @@ CATALOG: dict[str, dict[str, Any]] = {
              # coding agent, whose tools are Bash/Edit/Write. Without a text rule the whole
              # pack was inert for the host we actually ship for, while the copy advertised
              # "anything pointed at a production host or database".
-             "not_tool": WRITERS,
+             "not_tool": NOT_A_COMMAND,
              "arg_contains": r"(postgres(ql)?|mysql|mongodb(\+srv)?|redis|amqp)://[^\s\"']*"
                              r"(prod|production)",
              "reason": "argument points a database connection at production",
@@ -424,7 +470,7 @@ CATALOG: dict[str, dict[str, Any]] = {
              # helm command carrying `--namespace prod`, so `kubectl get pods --namespace prod`,
              # the most ordinary read there is, needed a human approval. A rule that stops people
              # looking at production is a rule they turn off.
-             "not_tool": WRITERS,
+             "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\b((kubectl\s+(apply|delete|create|replace|patch|scale|rollout|"
                              r"drain|cordon|taint|edit|set|annotate|label)|helm\s+(install|"
                              r"upgrade|uninstall|rollback|delete))\s[^\n]*(--context|--namespace)"
@@ -437,7 +483,7 @@ CATALOG: dict[str, dict[str, Any]] = {
              "note": "Oversight, not deny: shipping is the job. The point is that a human "
                      "signed off and it is recorded, not that it is impossible."},
             {"id": "production.force-push", "effect": "deny", "event_type": "tool_call",
-             "not_tool": WRITERS,
+             "not_tool": NOT_A_COMMAND,
              "arg_contains": r"git\s+push\b[^\n]*(--force\b|(?<![\w-])-f(?![\w-]))",
              "reason": "argument contains a force push",
              "note": "A force push can destroy history irrecoverably. "
@@ -447,7 +493,7 @@ CATALOG: dict[str, dict[str, Any]] = {
              # `terraform apply -destroy` and `terraform plan -destroy`, which is what a
              # modern pipeline and a modern agent both emit, and -auto-approve makes the flag
              # form the more dangerous of the two.
-             "not_tool": WRITERS,
+             "not_tool": NOT_A_COMMAND,
              "arg_contains": r"terraform\s+(destroy\b|(apply|plan)\s[^\n]*-destroy\b)",
              "predicate": "command.not_a_rehearsal",
              "reason": "argument contains terraform destroy",
@@ -480,7 +526,7 @@ CATALOG: dict[str, dict[str, Any]] = {
              # "4732" and was denied. `chmod +x` on a script an agent just wrote is one of the
              # most ordinary commands there is, and this was 9 of the 27 denies measured over
              # 36,929 real calls.
-             "not_tool": WRITERS,
+             "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\bchmod\s+(-[a-zA-Z-]+\s+)*"
                              r"(0?[0-7]{2}[2367](\s|$)"
                              r"|[a-zA-Z,+=-]*[ao][augo]*[+=][rwxXst]*w)",
@@ -488,8 +534,22 @@ CATALOG: dict[str, dict[str, Any]] = {
              "note": "World-writable is the OTHER digit carrying the write bit (2, 3, 6 or 7), "
                      "or a symbolic clause granting write to a or o, so `chmod 755` and "
                      "`chmod u+w` are untouched. Low false-positive risk."},
+            {"id": "access.disarm-the-guard", "effect": "require_oversight",
+             # The FAQ has always said that editing the policy is itself a tool call the
+             # guardrail sees. It saw it and did nothing, which is a different sentence. An
+             # agent rewriting `.provenrail.json` to `{"policy": {"use": []}}` or removing the
+             # hooks from `.claude/settings.json` is not necessarily wrong, and it is never
+             # something to do without the person noticing.
+             "event_type": "tool_call", "tool": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+             "arg_contains": r"\.provenrail\.json\b"
+                             r"|\.claude/settings(\.local)?\.json\b"
+                             r"|\.claude/hooks\b",
+             "reason": "this edits the guardrail's own configuration",
+             "note": "Asks rather than denies: changing your own policy is allowed, silently "
+                     "changing it is not. Reads are unaffected; this fires on writes and on a "
+                     "shell command that rewrites one of these files."},
             {"id": "access.disable-mfa", "effect": "deny", "event_type": "tool_call",
-             "not_tool": WRITERS,
+             "not_tool": NOT_A_COMMAND,
              "arg_contains": r"(disable|remove|deactivate)[\s_-]*(mfa|2fa|two[\s_-]?factor)",
              "reason": "argument attempts to disable multi-factor authentication",
              "note": "Rarely legitimate for an autonomous agent."},
@@ -505,7 +565,7 @@ CATALOG: dict[str, dict[str, Any]] = {
              # optional quoted identifier: `SELECT * FROM "users"` is what Postgres, Supabase and
              # most ORM codegen emit, and the unquoted-only class left the name group matching
              # nothing, so the whole rule failed on the commonest spelling.
-             "not_tool": WRITERS,
+             "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\bSELECT\s+\*\s+FROM\s+[\"'`]?[^\s;\"'`]+[\"'`]?\s*(;|\"|'|$)",
              "reason": "unbounded SELECT * with no WHERE or LIMIT",
              "note": "Fires on legitimate small-table reads too; oversight rather than deny."},
@@ -516,7 +576,7 @@ CATALOG: dict[str, dict[str, Any]] = {
             {"id": "exfiltration.paste-sites", "effect": "deny", "event_type": "tool_call",
              # A five-site list is a list an agent walks around by changing one word. This is
              # still not exhaustive and cannot be: it is a speed bump, and the note says so.
-             "not_tool": WRITERS,
+             "not_tool": NOT_A_COMMAND,
              "arg_contains": r"\b(pastebin\.com|gist\.github\.com|transfer\.sh|file\.io"
                              r"|0x0\.st|ix\.io|dpaste\.(com|org)|hastebin\.com|sprunge\.us"
                              r"|termbin\.com|paste\.rs|bashupload\.com|oshi\.at|catbox\.moe"

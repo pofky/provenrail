@@ -669,6 +669,11 @@ function oversizedGlob(rule) {
   return [rule.tool, rule.not_tool, rule.resource, rule.provider].some(p => String(p ?? "").length > MAX_GLOB_PATTERN);
 }
 
+function anyGlob(patterns, value) {
+  if (patterns === undefined || patterns === null || patterns === "") return true;
+  return String(patterns).split("|").filter(Boolean).some(p => globMatch(p, value));
+}
+
 function globMatch(pattern, value) {
   // fnmatch subset used by policy.Rule: *, ?, and [seq]. Case-insensitive, like _glob().
   const p = String(pattern == null ? "*" : pattern).toLowerCase();
@@ -835,11 +840,12 @@ function policyDecide(policy, eventType, ctx, state) {
   }
   for (const rule of policy.rules) {
     if (rule.event_type !== "*" && rule.event_type !== eventType) continue;
-    if (!globMatch(rule.tool, ctx.tool)) continue;
-    // `not_tool` is a `|`-separated list of globs the rule does NOT apply to, so a rule about
-    // shell commands never reads the body of a file a Write tool is creating.
-    if (rule.not_tool && String(rule.not_tool).split("|").filter(Boolean)
-        .some(p => globMatch(p, ctx.tool))) continue;
+    // `tool` and `not_tool` are both `|`-separated lists of globs, because fnmatch has no
+    // alternation and a rule covering several tools had to be written several times or not at
+    // all. `not_tool` is the set a rule does NOT apply to, so a rule about shell commands
+    // never reads the body of a file a Write tool is creating.
+    if (!anyGlob(rule.tool, ctx.tool)) continue;
+    if (rule.not_tool && anyGlob(rule.not_tool, ctx.tool)) continue;
     if (!globMatch(rule.resource, ctx.resource)) continue;
     if (!globMatch(rule.provider, ctx.provider)) continue;
     if (rule.effect === "deny") return { effect: "deny", ruleId: rule.id, reason: rule.reason || "denied by policy" };

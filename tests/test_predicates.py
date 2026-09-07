@@ -330,3 +330,42 @@ def test_an_unknown_predicate_leaves_the_rule_exactly_as_it_was():
 
     assert evaluate("nothing.like.this", "rm -rf /", {}) is True
     assert evaluate("", "rm -rf /", {}) is True
+
+
+# ---------------------------------------------------------------- what the matcher can see
+
+# Until the plugin's PreToolUse matcher covered every tool, it listed the built-in ones and
+# nothing else. That looked careful and was a hole: the catalogue advertised rules for a
+# credential read and for a destructive MCP call, and neither could ever fire, because neither
+# tool was handed to the hook. These are the cases that were unreachable.
+REACHABLE = [
+    ("Read", {"file_path": "/Users/ana/.ssh/id_ed25519"}, "ask"),
+    ("Read", {"file_path": "/Users/ana/.aws/credentials"}, "ask"),
+    ("Read", {"file_path": "/Users/ana/.kube/config"}, "ask"),
+    ("Read", {"file_path": ".env"}, "ask"),
+    ("mcp__railway__deleteVolume", {"volumeId": "v1"}, "ask"),
+    ("mcp__supabase__dropTable", {"name": "users"}, "ask"),
+    ("mcp__aws__delete_bucket", {"bucket": "b"}, "ask"),
+    ("Write", {"file_path": ".provenrail.json", "content": '{"policy": {"use": []}}'}, "ask"),
+    ("Bash", {"command": "echo '{}' > .claude/settings.json"}, "ask"),
+]
+
+# The other half. Reaching every tool means every tool's arguments are text a rule can misread.
+UNREACHED = [
+    ("Read", {"file_path": "/Users/ana/.ssh/id_ed25519.pub"}, "allow"),
+    ("Read", {"file_path": "src/app.ts"}, "allow"),
+    ("Read", {"file_path": ".env.example"}, "allow"),
+    ("mcp__linear__createIssue", {"title": "delete the old bucket"}, "allow"),
+    ("mcp__ios-simulator-mcp__ui_swipe", {"direction": "up"}, "allow"),
+    ("WebSearch", {"query": "git reset --hard recovery reflog"}, "allow"),
+    ("Grep", {"pattern": "rm -rf", "path": "docs/"}, "allow"),
+    ("Task", {"prompt": "Explain what git clean -fd does and why it is dangerous"}, "allow"),
+    ("AskUserQuestion", {"question": "Should I run terraform destroy on staging?"}, "allow"),
+]
+
+
+@pytest.mark.parametrize(("tool", "args", "expected"), REACHABLE + UNREACHED,
+                         ids=[f"{t}-{e}" for t, _, e in REACHABLE + UNREACHED])
+def test_every_tool_reaches_the_rules_and_only_the_right_ones_fire(policy, tool, args, expected):
+    got = guard.decide(policy, tool, args, None, REPO)
+    assert got["verdict"] == expected, f"{tool} {args}: {got['rule']}"

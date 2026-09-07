@@ -372,18 +372,24 @@ def glob_ok(pattern, value):
     return fnmatch.fnmatch((value or "").lower(), (pattern or "*").lower())
 
 
+def any_glob(patterns, value):
+    """`|`-separated alternatives, any of which may match. `fnmatch` has no alternation."""
+    if not patterns:
+        return True
+    return any(glob_ok(part, value) for part in str(patterns).split("|") if part)
+
+
 def rule_matches(rule, event_type, ctx):
     if rule.get("event_type", "*") not in ("*", event_type):
         return False
-    if not glob_ok(rule.get("tool", "*"), ctx.get("tool", "")):
+    if not any_glob(rule.get("tool", "*"), ctx.get("tool", "")):
         return False
     # Tools this rule is NOT about. A rule screening shell commands must not read the body of a
     # file a Write or Edit is creating: documentation that explains `rm -rf /`, a migration that
     # drops a table, a fixture holding a fake token. Denying those makes the guard something an
     # agent has to be uninstalled to work around.
-    for pattern in (rule.get("not_tool") or "").split("|"):
-        if pattern and glob_ok(pattern, ctx.get("tool", "")):
-            return False
+    if rule.get("not_tool") and any_glob(rule["not_tool"], ctx.get("tool", "")):
+        return False
     if not glob_ok(rule.get("resource", "*"), ctx.get("resource", "")):
         return False
     if not glob_ok(rule.get("provider", "*"), ctx.get("provider", "")):

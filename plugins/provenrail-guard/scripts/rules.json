@@ -44,9 +44,16 @@
           "reason": "destructive tool: destroys a resource"
         },
         {
+          "id": "destructive.mcp-delete-tools",
+          "effect": "require_oversight",
+          "event_type": "tool_call",
+          "tool": "mcp__*__[dD]elete*|mcp__*__[dD]estroy*|mcp__*__[dD]rop*|mcp__*__[rR]emove*|mcp__*__[tT]erminate*|mcp__*__[pP]urge*|mcp__*__[wW]ipe*|mcp__*__*_[dD]elete*|mcp__*__*_[dD]estroy*",
+          "reason": "an MCP tool that deletes or destroys a resource"
+        },
+        {
           "id": "destructive.raw-device-write",
           "effect": "deny",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "event_type": "tool_call",
           "arg_contains": "\\bdd\\s[^\\n]*\\bof=/dev/",
           "reason": "argument writes raw bytes to a block device"
@@ -55,7 +62,7 @@
           "id": "destructive.kubectl-delete-namespace",
           "effect": "deny",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "kubectl\\s+delete\\s+(namespaces?|ns)\\b",
           "reason": "argument deletes a Kubernetes namespace and everything in it"
         },
@@ -63,7 +70,7 @@
           "id": "destructive.recursive-force-remove",
           "effect": "deny",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\brm\\s+(-[a-zA-Z]*r[a-zA-Z]*|--recursive)\\b|\\brm\\s+(-[a-zA-Z]+\\s+)*--recursive\\b|\\bfind\\s[^\\n]*\\s-delete\\b",
           "predicate": "delete.catastrophic",
           "reason": "argument recursively deletes something outside the project that cannot be regenerated"
@@ -72,7 +79,7 @@
           "id": "destructive.force-remove",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\brm\\s+(-[a-zA-Z]+|--force|--recursive)|\\bfind\\s[^\\n]*\\s-delete\\b",
           "predicate": "delete.outside_workspace",
           "reason": "this delete targets a path outside the project, so it needs a recorded human decision"
@@ -81,7 +88,7 @@
           "id": "destructive.sql-drop-or-truncate",
           "effect": "deny",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\b(DROP\\s+(TABLE|DATABASE|SCHEMA|INDEX|VIEW|MATERIALIZED\\s+VIEW|FUNCTION|PROCEDURE|TRIGGER|SEQUENCE|TYPE|ROLE|USER|EXTENSION|CONSTRAINT|COLUMN|POLICY|PUBLICATION|SUBSCRIPTION|TABLESPACE)\\b|TRUNCATE\\s+(TABLE\\s+)?[\\\"'`]?[A-Za-z_][\\w$.]*[\\\"'`]?\\s*(;|$|[\\\"']))",
           "predicate": "command.not_a_rehearsal",
           "reason": "argument contains a destructive SQL statement"
@@ -90,7 +97,7 @@
           "id": "destructive.delete-without-where",
           "effect": "deny",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\bDELETE\\s+FROM\\s+[\\\"'`]?[^\\s;\\\"'`]+[\\\"'`]?\\s*(;|\\\"|'|$)",
           "predicate": "command.not_a_rehearsal",
           "reason": "argument contains a DELETE with no WHERE clause"
@@ -130,10 +137,18 @@
           "reason": "argument contains what looks like a JWT"
         },
         {
+          "id": "secrets.credential-file-read",
+          "effect": "require_oversight",
+          "event_type": "tool_call",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file",
+          "arg_contains": "\\.ssh/(id_[a-z0-9]+|identity)(?![a-z0-9]|\\.pub)|\\.aws/credentials\\b|\\.config/gcloud/[\\w./-]*credentials|\\.kube/config\\b|\\.docker/config\\.json\\b|\\.netrc\\b|\\.npmrc\\b|\\.pypirc\\b|\\.gnupg/[\\w.-]*\\.(key|gpg)\\b|Library/Keychains/|/etc/shadow\\b",
+          "reason": "action reads a credential file belonging to this machine"
+        },
+        {
           "id": "secrets.env-file-read",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file",
           "arg_contains": "(^|[\\s'\\\"/])\\.env(?!\\.(example|sample|template|dist|schema|md)\\b)(\\.[a-z]+)?\\b",
           "reason": "action touches a .env file"
         }
@@ -147,7 +162,7 @@
           "id": "git-worktree.reset-hard",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\bgit\\s+(-[cC]\\s+\\S+\\s+)*reset\\s[^\\n]*(--hard|--merge)\\b",
           "predicate": "git.would_lose_work",
           "reason": "this resets the working tree and there are changes or commits here that exist nowhere else"
@@ -156,7 +171,7 @@
           "id": "git-worktree.discard-changes",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\bgit\\s+checkout\\s+(--\\s|\\.(\\s|$)|[^\\n]*\\s--\\s)|\\bgit\\s+restore\\s+(?!--staged(?![^\\n]*--worktree))",
           "predicate": "git.would_lose_work",
           "reason": "this discards edits in the working tree that are not committed anywhere"
@@ -165,7 +180,7 @@
           "id": "git-worktree.clean-force",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\bgit\\s+clean\\s+(-[a-zA-Z]*f|--force)",
           "predicate": "git.would_lose_work",
           "reason": "this deletes untracked files, which by definition no commit holds"
@@ -174,7 +189,7 @@
           "id": "git-worktree.stash-drop",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\bgit\\s+stash\\s+(drop|clear)\\b",
           "reason": "a dropped stash is not recoverable through any git command"
         },
@@ -182,7 +197,7 @@
           "id": "git-worktree.branch-delete-force",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\bgit\\s+branch\\s+(-[a-zA-Z]*D|--delete\\s+--force|--force\\s+--delete)\\b",
           "predicate": "git.force_delete_branch",
           "reason": "-D deletes a branch whether or not it is merged"
@@ -191,7 +206,7 @@
           "id": "git-worktree.worktree-remove-force",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\bgit\\s+worktree\\s+remove\\s[^\\n]*(--force|\\s-f)\\b",
           "reason": "--force removes a worktree that still has modifications in it"
         },
@@ -199,7 +214,7 @@
           "id": "git-worktree.history-rewrite",
           "effect": "deny",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\bgit\\s+(filter-branch|filter-repo)\\b|\\bgit\\s+reflog\\s+expire\\b",
           "reason": "this rewrites or expires history, which removes the last way back"
         },
@@ -207,7 +222,7 @@
           "id": "git-worktree.delete-remote-branch",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\bgit\\s+push\\s[^\\n]*--delete\\b|\\bgit\\s+push\\s+\\S+\\s+:\\S",
           "reason": "this deletes a branch on the remote, which may be the only copy left"
         },
@@ -215,7 +230,7 @@
           "id": "git-worktree.recursive-delete-windows",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "Remove-Item\\s[^\\n]*(-Recurse|-r\\b)|\\brmdir\\s+/[sS]\\b|\\bdel\\s+/[sS]\\b",
           "reason": "a recursive delete on Windows, where the target cannot be resolved here"
         },
@@ -223,7 +238,7 @@
           "id": "git-worktree.rsync-delete",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\brsync\\s[^\\n]*--delete(-\\w+)?\\b",
           "reason": "--delete removes files at the destination that are absent from the source"
         }
@@ -237,7 +252,7 @@
           "id": "database.framework-reset",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "predicate": "command.not_a_rehearsal",
           "arg_contains": "\\bprisma\\s+migrate\\s+reset\\b|\\bprisma\\s+db\\s+push\\b[^\\n]*--force-reset|\\bsupabase\\s+db\\s+reset\\b|\\brails\\s+db:(drop|reset|purge)\\b|\\brake\\s+db:(drop|reset|purge)\\b|\\bmanage\\.py\\s+flush\\b|\\bartisan\\s+migrate:(fresh|refresh)\\b|\\bdrizzle-kit\\s+push\\b[^\\n]*--force|\\balembic\\s+downgrade\\s+base\\b|\\bsequelize\\s+db:drop\\b",
           "reason": "this drops the database and recreates it empty"
@@ -246,7 +261,7 @@
           "id": "database.drop-server-side",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "predicate": "command.not_a_rehearsal",
           "arg_contains": "\\bdropdb\\b|\\bmongo\\w*\\s[^\\n]*dropDatabase\\(|\\bdb\\.dropDatabase\\(|\\bFLUSHALL\\b|\\bFLUSHDB\\b",
           "reason": "this drops or empties an entire database"
@@ -261,7 +276,7 @@
           "id": "cloud.delete-managed-data",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "predicate": "command.not_a_rehearsal",
           "arg_contains": "\\baws\\s+rds\\s+delete-db-(instance|cluster)\\b|\\baws\\s+s3\\s+rb\\b[^\\n]*--force|\\baws\\s+s3\\s+rm\\b[^\\n]*--recursive|\\baws\\s+ec2\\s+terminate-instances\\b|\\baws\\s+dynamodb\\s+delete-table\\b|\\bgcloud\\s+sql\\s+instances\\s+delete\\b|\\bgcloud\\s+projects\\s+delete\\b|\\bgsutil\\s+rm\\s+-r\\b|\\baz\\s+group\\s+delete\\b|\\bfly\\s+(apps|volumes|postgres)\\s+destroy\\b|\\bheroku\\s+pg:reset\\b|\\bwrangler\\s+(d1\\s+delete|r2\\s+bucket\\s+delete|kv:namespace\\s+delete|kv\\s+namespace\\s+delete)\\b|\\brailway\\s+(volume|service)\\s+delete\\b|\\bvolumeDelete\\b|\\bsupabase\\s+projects\\s+delete\\b",
           "reason": "this deletes managed storage, a database or a project on a provider"
@@ -270,7 +285,7 @@
           "id": "cloud.destroy-stack",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "predicate": "command.not_a_rehearsal",
           "arg_contains": "\\bpulumi\\s+destroy\\b|\\bcdk\\s+destroy\\b|\\bterraform\\s+state\\s+(rm|push)\\b|\\bserverless\\s+remove\\b|\\bsls\\s+remove\\b|\\bhelm\\s+uninstall\\b|\\bkubectl\\s+delete\\s+(pvc|persistentvolumeclaim|-f)\\b",
           "reason": "this tears down infrastructure or the state file that describes it"
@@ -279,7 +294,7 @@
           "id": "cloud.docker-prune-volumes",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\bdocker\\s+system\\s+prune\\b[^\\n]*--volumes|\\bdocker\\s+volume\\s+prune\\b|\\bdocker\\s+compose\\s+down\\b[^\\n]*(-v\\b|--volumes)",
           "reason": "this deletes docker volumes, which is where local database data lives"
         }
@@ -348,7 +363,7 @@
           "id": "production.connection-string",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "(postgres(ql)?|mysql|mongodb(\\+srv)?|redis|amqp)://[^\\s\\\"']*(prod|production)",
           "reason": "argument points a database connection at production"
         },
@@ -356,7 +371,7 @@
           "id": "production.deploy-command",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\b((kubectl\\s+(apply|delete|create|replace|patch|scale|rollout|drain|cordon|taint|edit|set|annotate|label)|helm\\s+(install|upgrade|uninstall|rollback|delete))\\s[^\\n]*(--context|--namespace)[= ]\\s*[\\\"']?(prod|production)|(vercel|netlify|fly|wrangler|serverless|sls)\\s+deploy\\b|npx\\s+wrangler\\s+(pages\\s+)?deploy\\b|git\\s+push\\s+[^\\n]*\\b(production|prod)\\b)",
           "predicate": "command.not_a_rehearsal",
           "reason": "argument runs a deployment"
@@ -365,7 +380,7 @@
           "id": "production.force-push",
           "effect": "deny",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "git\\s+push\\b[^\\n]*(--force\\b|(?<![\\w-])-f(?![\\w-]))",
           "reason": "argument contains a force push"
         },
@@ -373,7 +388,7 @@
           "id": "production.terraform-destroy",
           "effect": "deny",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "terraform\\s+(destroy\\b|(apply|plan)\\s[^\\n]*-destroy\\b)",
           "predicate": "command.not_a_rehearsal",
           "reason": "argument contains terraform destroy"
@@ -402,15 +417,23 @@
           "id": "access.world-writable-chmod",
           "effect": "deny",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\bchmod\\s+(-[a-zA-Z-]+\\s+)*(0?[0-7]{2}[2367](\\s|$)|[a-zA-Z,+=-]*[ao][augo]*[+=][rwxXst]*w)",
           "reason": "argument makes a path world-writable"
+        },
+        {
+          "id": "access.disarm-the-guard",
+          "effect": "require_oversight",
+          "event_type": "tool_call",
+          "tool": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+          "arg_contains": "\\.provenrail\\.json\\b|\\.claude/settings(\\.local)?\\.json\\b|\\.claude/hooks\\b",
+          "reason": "this edits the guardrail's own configuration"
         },
         {
           "id": "access.disable-mfa",
           "effect": "deny",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "(disable|remove|deactivate)[\\s_-]*(mfa|2fa|two[\\s_-]?factor)",
           "reason": "argument attempts to disable multi-factor authentication"
         }
@@ -424,7 +447,7 @@
           "id": "exfiltration.select-star-no-limit",
           "effect": "require_oversight",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\bSELECT\\s+\\*\\s+FROM\\s+[\\\"'`]?[^\\s;\\\"'`]+[\\\"'`]?\\s*(;|\\\"|'|$)",
           "reason": "unbounded SELECT * with no WHERE or LIMIT"
         },
@@ -439,7 +462,7 @@
           "id": "exfiltration.paste-sites",
           "effect": "deny",
           "event_type": "tool_call",
-          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|WebFetch|str_replace*|create_file|*write_file",
+          "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\b(pastebin\\.com|gist\\.github\\.com|transfer\\.sh|file\\.io|0x0\\.st|ix\\.io|dpaste\\.(com|org)|hastebin\\.com|sprunge\\.us|termbin\\.com|paste\\.rs|bashupload\\.com|oshi\\.at|catbox\\.moe|litterbox\\.catbox\\.moe|anonfiles\\.com|gofile\\.io|tmpfiles\\.org|ttm\\.sh|clbin\\.com|envs\\.sh|paste\\.ee|controlc\\.com)\\b",
           "reason": "argument references a public paste or file-drop site"
         }

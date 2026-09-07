@@ -313,8 +313,9 @@ def test_the_advertised_rule_counts_match_the_catalogue():
 
     armed = len(rulesets.resolve(DEFAULT_PACKS))
     total = len(rulesets.all_rules())
-    for name in ("web/claude-code-guardrails.html", "web/index.html",
-                 "plugins/provenrail-guard/README.md", "README.md"):
+    for name in ("web/claude-code-guardrails.html", "web/index.html", "web/docs.html",
+                 "plugins/provenrail-guard/README.md", "README.md",
+                 "Marketing/launch-reddit-claudeai.txt", "Marketing/launch-show-hn.txt"):
         path = ROOT / name
         text = path.read_text(encoding="utf-8")
         if "rules are armed" not in text and "rules armed" not in text:

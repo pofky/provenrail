@@ -28,7 +28,7 @@ The install is two lines inside Claude Code and there is nothing else to set up:
   /plugin marketplace add pofky/provenrail
   /plugin install provenrail-guard@provenrail
 
-No package, no account, no server, no config file. The plugin carries a stdlib-only copy of the engine so 41 rules are armed on the next tool call, and the decision is computed locally so it never waits on a network. Installing the CLI on top signs the same local history into an Ed25519-chained record that a second, independently written verifier checks in your browser, which is the part I built first and now think of as the second reason to install it rather than the first.
+No package, no account, no server, no config file. The plugin carries a stdlib-only copy of the engine so 44 rules are armed on the next tool call, and the decision is computed locally so it never waits on a network. Installing the CLI on top signs the same local history into an Ed25519-chained record that a second, independently written verifier checks in your browser, which is the part I built first and now think of as the second reason to install it rather than the first.
 
 What I would like picked apart:
 

@@ -14,7 +14,7 @@ Inside Claude Code:
 ```
 
 That is the whole setup. No `pip install`, no account, no server, nothing leaves your
-machine, and the next tool call your agent makes is already being checked. 41 rules are
+machine, and the next tool call your agent makes is already being checked. 44 rules are
 armed with no config file, because installing a plugin called "guard" is the opt-in and a
 guard that waits for configuration protects nobody.
 
