@@ -186,3 +186,42 @@ def test_a_limit_rule_actually_caps_across_processes(tmp_path):
     verdicts = [_standalone_verdict(tmp_path, [], "Bash", {"command": "echo hi"},
                                     write_config=False) for _ in range(4)]
     assert verdicts == ["allow", "allow", "deny", "deny"]
+
+
+# ---------------------------------------------------------------- adversarial review, 0.3.1
+#
+# The bypasses found against the installed engine exist in this one too, and a fix that lands
+# in only one of them is the divergence this whole file exists to prevent.
+
+ADVERSARIAL_CASES = [
+    ("Bash", {"command": "#" * 20_001 + "\nrm -rf /tmp/anything"}),
+    ("Bash", {"command": "#" * 50_000 + "\ngit push --force origin main"}),
+    ("Bash", {"command": "x" * 30_000 + "; terraform destroy -auto-approve"}),
+]
+
+
+@pytest.mark.parametrize("tool,tool_input", ADVERSARIAL_CASES,
+                         ids=["pad-rm", "pad-force-push", "pad-terraform"])
+def test_padding_hides_nothing_from_either_engine(tmp_path, tool, tool_input):
+    packs = guard.DEFAULT_PACKS
+    standalone = _standalone_verdict(tmp_path, packs, tool, tool_input)
+    assert standalone == _installed_verdict(packs, tool, tool_input)
+    assert standalone == "deny"
+
+
+def test_both_engines_ask_rather_than_pass_an_unscreenable_argument(tmp_path):
+    from provenrail.policy import MAX_MATCH_TEXT
+
+    payload = {"command": "#" * (MAX_MATCH_TEXT + 5) + "\nrm -rf /"}
+    assert _standalone_verdict(tmp_path, guard.DEFAULT_PACKS, "Bash", payload) == "ask"
+    assert _installed_verdict(guard.DEFAULT_PACKS, "Bash", payload) == "ask"
+
+
+def test_both_engines_keep_the_deny_rules_behind_a_blast_radius_cap(tmp_path):
+    """A `limit` rule matching tool "*" used to short-circuit the whole ruleset in the installed
+    engine while the standalone kept scanning, so the two disagreed AND the signed one was the
+    permissive half: installing Provenrail made a blocked call succeed."""
+    packs = ["blast-radius", "destructive"]
+    payload = {"command": "rm -rf /"}
+    assert _standalone_verdict(tmp_path, packs, "Bash", payload) == "deny"
+    assert _installed_verdict(packs, "Bash", payload) == "deny"

@@ -482,3 +482,62 @@ def test_the_parse_refuses_rather_than_covering_fewer_commits_than_it_names(repo
     with pytest.raises(attest.GitError) as exc:
         attest.build(repo)
     assert "git counts" in str(exc.value)
+
+
+# ---------------------------------------------------------------- adversarial review, 0.3.1
+
+
+def test_verify_rejects_a_head_that_the_range_does_not_reach(repo, tmp_path, monkeypatch):
+    """`repository.head` was the one field nothing checked, and it is the field the printed
+    headline uses. A signer could attest to a range ending three commits back while the
+    document said it covered HEAD, which is how you would hide a batch of recent AI-heavy work
+    behind a document that verifies."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    earlier = git(repo, "rev-parse", "HEAD~1").strip()
+    doc = attest.sign(attest.build(repo, until=earlier), SigningKey.generate())
+    doc["repository"]["head"] = git(repo, "rev-parse", "HEAD").strip()
+    doc["document_hash"] = attest.document_hash(doc)
+    doc.pop("signature")
+    (repo / "forged.json").write_text(json.dumps(doc), encoding="utf-8")
+    code, out, err = run_cli(["attest-verify", "forged.json"], repo)
+    assert code == 1
+    assert "does not describe the commits it carries" in out
+
+
+def test_verify_rejects_a_document_built_from_another_repository(repo, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    other = tmp_path / "other"
+    other.mkdir()
+    git(other, "init", "-q")
+    git(other, "config", "user.name", "A Dev")
+    git(other, "config", "user.email", "dev@example.com")
+    commit(other, "b.py", "x\n", "unrelated", when="2026-03-01T09:00:00+00:00")
+    doc = attest.build(other)
+    doc["repository"]["head"] = git(repo, "rev-parse", "HEAD").strip()
+    doc["document_hash"] = attest.document_hash(doc)
+    (repo / "foreign.json").write_text(json.dumps(doc), encoding="utf-8")
+    code, out, err = run_cli(["attest-verify", "foreign.json"], repo)
+    assert code == 1
+
+
+def test_blame_survives_a_repository_with_a_binary_file(tmp_path, monkeypatch):
+    """`git blame --line-porcelain` echoes the file it is blaming, so a tracked image put bytes
+    that are not UTF-8 into the pipe. Strict decoding raised inside subprocess.communicate,
+    before the handler written to skip binary files could see it, and `pr attest --blame` died
+    on any repository containing a compiled asset with an error about a bundle it was never
+    given."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    root = tmp_path / "bin"
+    root.mkdir()
+    git(root, "init", "-q")
+    git(root, "config", "user.name", "A Dev")
+    git(root, "config", "user.email", "dev@example.com")
+    (root / "t.txt").write_text("one\ntwo\n", encoding="utf-8")
+    (root / "asset.bin").write_bytes(bytes(range(256)) * 4)
+    git(root, "add", "-A")
+    subprocess.run(["git", "-C", str(root), "commit", "-q", "-m", "with a binary asset"],
+                   check=True, capture_output=True, env=_env(None))
+    code, out, err = run_cli(["attest", "--blame", "--out", "att.json"], root)
+    assert code == 0, err
+    doc = json.loads((root / "att.json").read_text())
+    assert doc["working_tree"]["lines_total"] > 0

@@ -65,6 +65,20 @@ ALLOW = "allow"
 #: reported the same bundle as fully verified.
 MAX_GLOB_PATTERN = 512
 
+#: Longest argument text a content rule is matched against. It exists to bound the work a
+#: single tool call can ask of the regex engine, NOT to bound what gets screened, and that
+#: distinction was a total bypass of the product's headline claim: the view was silently
+#: truncated at 20,000 characters, so twenty thousand characters of comment followed by
+#: `rm -rf /` matched no rule and was allowed. Anything over this limit is now escalated to a
+#: human rather than passed, because an argument too large to screen is not an argument known
+#: to be safe. Sized so that no realistic tool call reaches it: a 4MB single argument is
+#: pathological, and matching over one takes well under a second.
+MAX_MATCH_TEXT = 4_000_000
+
+#: The rule id an unscreenable argument fires. Not in any pack: it is the engine saying it
+#: could not answer, which is a different thing from a rule saying no.
+UNSCREENABLE = "policy.unscreenable-argument"
+
 # Effects whose verdicts a standalone verifier can re-evaluate offline from recorded metadata
 # alone (tool name, provider, model, usage, oversight, counts). A rule that additionally gates on
 # argument content (arg_contains) cannot be re-checked once content is hashed, so it is reported
@@ -285,6 +299,22 @@ class Policy:
                     pct = (projected / budget.limit_usd * 100.0) if budget.limit_usd else 100.0
                     warning = (f"{budget.id}: estimated {budget.scope} spend ${projected:.4f} is "
                                f"{pct:.0f}% of the ${budget.limit_usd:.4f} cap")
+        text = ctx.get("match_text")
+        if isinstance(text, str) and len(text) > MAX_MATCH_TEXT and \
+                any(r.content_based for r in self.rules):
+            return Decision(DENY, UNSCREENABLE,
+                            f"this call's arguments are {len(text):,} characters, past the "
+                            f"{MAX_MATCH_TEXT:,} a content rule can be matched against, so it "
+                            f"cannot be screened. An argument too large to read is not an "
+                            f"argument known to be safe.")
+
+        # An allow found inside this loop is provisional. A `limit` rule under its cap, or an
+        # oversight rule whose oversight is present, used to return ALLOW immediately, which
+        # meant one broad rule preempted every deny rule after it: `use: ["blast-radius",
+        # "destructive"]` matched blast-radius.tool-call-cap on tool "*" and let `rm -rf /`
+        # through for the first 500 calls of every session. An allow is only final once no
+        # later rule denies.
+        provisional: Decision | None = None
         for rule in self.rules:
             if not rule.matches(event_type, ctx):
                 continue
@@ -298,12 +328,18 @@ class Policy:
                 if rule.max_per_session is not None and session.counts[rule.id] > rule.max_per_session:
                     return Decision(DENY, rule.id, rule.reason or
                                     f"exceeds the {rule.max_per_session}-per-session limit")
-                return Decision(ALLOW, rule.id, f"within the per-session limit "
-                                f"({session.counts[rule.id]}/{rule.max_per_session})", warning)
-            if rule.effect == REQUIRE_OVERSIGHT:
-                # oversight present: an explicit, recorded allow.
-                return Decision(ALLOW, rule.id, "allowed: required human oversight is present",
-                                warning)
+                if provisional is None:
+                    provisional = Decision(ALLOW, rule.id, f"within the per-session limit "
+                                           f"({session.counts[rule.id]}/{rule.max_per_session})",
+                                           warning)
+                continue
+            if rule.effect == REQUIRE_OVERSIGHT and provisional is None:
+                # oversight present: an explicit, recorded allow, still subject to any later
+                # rule that denies.
+                provisional = Decision(ALLOW, rule.id,
+                                       "allowed: required human oversight is present", warning)
+        if provisional is not None:
+            return provisional
         return Decision(ALLOW, None, "no rule matched", warning)
 
 

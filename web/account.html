@@ -199,6 +199,17 @@
         <p class="muted">Step 4 prints a public URL. Anyone you give it to can check the timestamp with no account here and no permission from you.</p>
       </div>
 
+      <div class="card" id="attest-card">
+        <label>Or attest a repository</label>
+        <p class="muted" style="margin-top:0">The same key answers the question a customer's contract asks: which of this code did an AI write. Nothing of yours reaches us here either, and the document itself never leaves your machine.</p>
+        <ol class="steps">
+          <li><span>In your repository</span><code>pr attest --blame</code></li>
+          <li><span>Timestamp it with an authority that is not you</span><code>pr attest-anchor ai-attestation.json</code></li>
+          <li><span>What your customer runs, against their own clone</span><code>pr attest-verify ai-attestation.json --receipt attest-receipt.json</code></li>
+        </ol>
+        <p class="muted">It does not prove the findings are true, and says so in its own output: a commit whose author stripped the trailer reads as human-authored. <a href="/ai-code-attribution">What it proves, and what it does not</a>.</p>
+      </div>
+
       <div class="card" id="trial-card">
         <label>Your first anchor is free</label>
         <p class="muted" style="margin-top:0">A record you timestamp yourself proves it has not changed. It cannot prove <em>when</em> it happened, because the same side wrote both the record and the time. One independent timestamp, on us, shows you the difference on your own run. One per account.</p>
@@ -386,6 +397,10 @@
           ? "Five commands, about a minute. Your records never leave your machine: what travels is a 32-byte fingerprint of them."
           : "Five commands, about a minute. This key anchors once. Your records never leave your machine: what travels is a 32-byte fingerprint of them.";
       } else { hide("next-steps-card"); }
+
+      // The attestation path needs the same key, so it appears on the same condition. A free
+      // key anchors one attestation and then says so, exactly as it does for a run.
+      if (profile?.license_key) { show("attest-card"); } else { hide("attest-card"); }
 
       // Offer the free anchor only to accounts that have neither a subscription nor a key. A
       // paid key lives in the same column, so showing this to a subscriber would invite them to

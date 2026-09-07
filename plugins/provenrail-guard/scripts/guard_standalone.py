@@ -50,7 +50,16 @@ PENDING_FILENAME = ".provenrail-guard-pending.json"
 
 # One notice a day, not one per tool call. Noise is why people uninstall guardrails.
 NOTICE_INTERVAL_S = 24 * 60 * 60
-MATCH_TEXT_LIMIT = 20000
+# Mirrors provenrail.policy.MAX_MATCH_TEXT, and the reason for the +1 in match_text is the
+# same: the decision layer has to be able to tell a whole argument from a prefix of one. The
+# old value here was 20,000 with a silent truncation, which meant twenty thousand characters of
+# padding in front of `rm -rf /` matched no rule and the call was allowed. Both engines.
+MAX_MATCH_TEXT = 4000000
+MATCH_TEXT_LIMIT = MAX_MATCH_TEXT + 1
+#: The rule id an unscreenable argument fires. Not in any pack: it is the engine saying it could
+#: not answer, which is a different thing from a rule saying no. It asks a human rather than
+#: denying, because hard-blocking here would refuse a legitimate multi-megabyte file write.
+UNSCREENABLE = "policy.unscreenable-argument"
 
 DENY = "deny"
 REQUIRE_OVERSIGHT = "require_oversight"
@@ -369,7 +378,17 @@ def decide(rules, tool, tool_input, counts):
 
     Returns (verdict, rule_id, reason) where verdict is "allow", "deny" or "ask".
     """
-    ctx = {"tool": tool, "match_text": match_text(tool_input)}
+    text = match_text(tool_input)
+    ctx = {"tool": tool, "match_text": text}
+    if len(text) > MAX_MATCH_TEXT and any(r.get("arg_contains") for r in rules):
+        return "ask", UNSCREENABLE, (
+            "this call's arguments are %d characters, past the %d a content rule can be "
+            "matched against, so it cannot be screened. An argument too large to read is not "
+            "an argument known to be safe." % (len(text), MAX_MATCH_TEXT))
+
+    # An allow found in this loop is provisional, exactly as in the installed engine: a `limit`
+    # rule under its cap must not preempt a `deny` rule that comes after it.
+    provisional = None
     for rule in rules:
         if not rule_matches(rule, "tool_call", ctx):
             continue
@@ -388,6 +407,11 @@ def decide(rules, tool, tool_input, counts):
             if isinstance(cap, int) and counts[rule["id"]] > cap:
                 return "deny", rule["id"], rule.get("reason") or (
                     "exceeds the %d-per-session limit" % cap)
+            if provisional is None:
+                provisional = ("allow", rule["id"], "within the per-session limit (%d/%s)"
+                               % (counts[rule["id"]], cap))
+    if provisional is not None:
+        return provisional
     return "allow", None, ""
 
 

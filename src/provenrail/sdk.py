@@ -47,22 +47,31 @@ class SinkIntegrityError(RuntimeError):
 
 
 def _match_text(value: Any) -> str:
-    """A bounded text view of a call's arguments for content-gate policy rules (arg_contains).
+    """The text view of a call's arguments for content-gate policy rules (arg_contains).
+
     Computed in-process only; never sent to the sink (the recorded payload still hashes content
-    by default), so a content gate stays local and private."""
+    by default), so a content gate stays local and private.
+
+    The cap is one character past `policy.MAX_MATCH_TEXT` on purpose: the decision layer needs
+    to be able to tell "this is the whole argument" from "this is a prefix of it". It used to
+    truncate silently at 20,000 characters, which meant twenty thousand characters of padding
+    in front of `rm -rf /` matched no rule at all and the call was allowed.
+    """
+    from .policy import MAX_MATCH_TEXT
+    limit = MAX_MATCH_TEXT + 1
     if isinstance(value, str):
-        return value[:20000]
+        return value[:limit]
     if isinstance(value, list) and all(isinstance(v, str) for v in value):
         # An argv array IS a command line, and every content rule is written against command
         # lines. Serialized as JSON it reads `["rm", "-rf", "/"]`, where the quotes and commas
         # between the program and its flags defeat `\brm\s+-rf` and every pattern like it. The
         # hook path already joined argv back into a command; a caller using the `decide()` API
         # directly got the JSON, and an allow.
-        return " ".join(value)[:20000]
+        return " ".join(value)[:limit]
     try:
-        text = json.dumps(value, default=str, ensure_ascii=False)[:20000]
+        text = json.dumps(value, default=str, ensure_ascii=False)[:limit]
     except Exception:
-        return str(value)[:20000]
+        return str(value)[:limit]
     # json.dumps turns a real tab into the two characters backslash-t, so `rm\t-rf /` stopped
     # matching `\brm\s+-rf`: a shell treats a tab as whitespace and the matcher no longer did.
     # Undo that one substitution, for whitespace only, so the text a rule sees is the text a

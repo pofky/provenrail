@@ -152,6 +152,13 @@ def match_text(tool_input: Any) -> str:
 def _rule_effect(policy: Any, rule_id: str | None) -> str:
     if not rule_id or policy is None:
         return ""
+    from .policy import REQUIRE_OVERSIGHT, UNSCREENABLE
+
+    if rule_id == UNSCREENABLE:
+        # The engine could not read the argument, which is not the same as a rule saying no.
+        # A human decides: hard-blocking here would refuse a legitimate multi-megabyte file
+        # write, and allowing would restore the padding bypass this exists to close.
+        return REQUIRE_OVERSIGHT
     for rule in getattr(policy, "rules", []):
         if rule.id == rule_id:
             return rule.effect

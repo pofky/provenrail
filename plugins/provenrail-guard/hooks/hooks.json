@@ -5,7 +5,7 @@
       "hooks": [
         {
           "type": "command",
-          "command": "${CLAUDE_PLUGIN_ROOT}/scripts/pr-guard-hook.sh pre",
+          "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/pr-guard-hook.sh\" pre",
           "timeout": 15
         }
       ]
@@ -17,7 +17,7 @@
       "hooks": [
         {
           "type": "command",
-          "command": "${CLAUDE_PLUGIN_ROOT}/scripts/pr-guard-hook.sh post",
+          "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/pr-guard-hook.sh\" post",
           "timeout": 15
         }
       ]

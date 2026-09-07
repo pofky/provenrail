@@ -118,7 +118,14 @@ class GitError(RuntimeError):
 def _git(repo: Path, *args: str, check: bool = True) -> str:
     try:
         proc = subprocess.run(["git", "-C", str(repo), *args],
-                              capture_output=True, text=True, check=False)
+                              capture_output=True, text=True, check=False,
+                              # `git blame --line-porcelain` echoes each line of the file it is
+                              # blaming, so a tracked binary asset puts bytes that are not UTF-8
+                              # into this stream. Strict decoding raised inside communicate(),
+                              # before any handler here could see it, and `pr attest --blame`
+                              # died on any repository containing an image with an error about
+                              # a bundle it had never been given.
+                              errors="replace")
     except FileNotFoundError as exc:
         raise GitError("git is not installed, so there is no history to attest to") from exc
     if check and proc.returncode != 0:

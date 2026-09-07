@@ -478,6 +478,31 @@ def _cmd_attest_verify(args) -> int:
               f"repository the document describes.", file=sys.stderr)
         return 2
 
+    # The head the document names has to be the head this range actually resolves to here.
+    # Nothing else checked it, and a signer could therefore set `repository.head` to a later
+    # commit than the range covers: the printed headline says "attestation for <sha>" while the
+    # commits array stops earlier, which is exactly how you would hide a batch of recent
+    # AI-heavy work behind a document that verifies.
+    claimed_head = (doc.get("repository") or {}).get("head") or ""
+    until = (doc.get("range") or {}).get("until") or "HEAD"
+    try:
+        actual_head = attest._git(repo, "rev-parse", until).strip()
+    except attest.GitError as e:
+        failures.append(f"this repository cannot resolve {until!r}, which the document names "
+                        f"as the end of its range: {e}")
+        actual_head = ""
+    if actual_head and claimed_head and claimed_head != actual_head:
+        failures.append(f"the document says it covers up to {claimed_head[:12]}, but {until} "
+                        f"resolves to {actual_head[:12]} here: the headline does not describe "
+                        f"the commits it carries")
+    claimed_first = (doc.get("repository") or {}).get("first_commit") or ""
+    if claimed_first:
+        roots = attest._git(repo, "rev-list", "--max-parents=0", actual_head or until,
+                            check=False).split()
+        if roots and claimed_first not in roots:
+            failures.append("the document names a different repository: its first commit is not "
+                            "a root of this history")
+
     attested = {c["sha"]: c for c in doc.get("commits") or []}
     try:
         rebuilt = {c.sha: c for c in attest.read_commits(

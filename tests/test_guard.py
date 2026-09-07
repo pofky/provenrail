@@ -496,3 +496,95 @@ def test_ordinary_commands_are_not_touched():
         got = guard.decide(policy, "Bash", {"command": command})
         assert got["verdict"] == "allow", (
             f"false positive on ordinary work ({got['rule']}): {command}")
+
+
+# ---------------------------------------------------------------- adversarial review, 0.3.1
+#
+# Three findings from an adversarial pass over the shipped guard. Each was reproduced against
+# the real engine before it was fixed, and each is a total bypass of the product's headline
+# claim rather than an edge case, so each gets a test that fails if the fix is ever undone.
+
+
+def _default_policy():
+    from provenrail.easy import load_policy
+    return load_policy({"use": guard.DEFAULT_PACKS})
+
+
+def test_padding_cannot_hide_a_destructive_command_from_a_content_rule():
+    """The argument text was silently truncated at 20,000 characters before any content rule
+    ran, so twenty thousand characters of comment in front of `rm -rf /` matched nothing and
+    the call was allowed. A valid bash script, and a complete defeat of every advertised rule.
+    """
+    policy = _default_policy()
+    for pad in (20_001, 50_000, 500_000):
+        command = "#" * pad + "\nrm -rf /tmp/anything"
+        verdict = guard.decide(policy, "Bash", guard._coerce_tool_input({"command": command}))
+        assert verdict["verdict"] == "deny", f"{pad} characters of padding hid the command"
+        assert verdict["rule"] == "destructive.recursive-force-remove"
+
+
+def test_an_argument_too_large_to_screen_asks_rather_than_passing():
+    """Past the cap the engine cannot answer, and an argument it could not read is not an
+    argument known to be safe. It must not deny either: a legitimate multi-megabyte file write
+    would then be blocked outright."""
+    from provenrail.policy import MAX_MATCH_TEXT, UNSCREENABLE
+
+    policy = _default_policy()
+    command = "#" * (MAX_MATCH_TEXT + 5) + "\nrm -rf /"
+    verdict = guard.decide(policy, "Bash", guard._coerce_tool_input({"command": command}))
+    assert verdict["verdict"] == "ask"
+    assert verdict["rule"] == UNSCREENABLE
+    assert "cannot be screened" in verdict["reason"]
+
+
+def test_a_blast_radius_cap_does_not_disarm_the_deny_rules_after_it():
+    """`blast-radius.tool-call-cap` matches tool "*", and a `limit` rule under its cap used to
+    return ALLOW immediately. So `use: ["blast-radius", "destructive"]`, which is the obvious
+    thing to write when you want both, let `rm -rf /` through for the first 500 calls of every
+    session while reporting itself armed."""
+    from provenrail.easy import load_policy
+
+    policy = load_policy({"use": ["blast-radius", "destructive"]})
+    verdict = guard.decide(policy, "Bash", guard._coerce_tool_input({"command": "rm -rf /"}))
+    assert verdict["verdict"] == "deny"
+    assert verdict["rule"] == "destructive.recursive-force-remove"
+    # And the cap still caps when nothing denies.
+    allowed = guard.decide(policy, "Bash", guard._coerce_tool_input({"command": "ls -la"}))
+    assert allowed["verdict"] == "allow"
+
+
+def test_a_satisfied_oversight_rule_does_not_disarm_a_later_deny():
+    """Same class as the cap: an allow found in the loop is provisional until nothing later
+    denies. Ordering a permissive rule before a strict one must not silence the strict one."""
+    from provenrail.easy import load_policy
+    from provenrail.policy import SessionState
+
+    policy = load_policy({"rules": [
+        {"id": "soft.env", "effect": "require_oversight", "event_type": "tool_call",
+         "arg_contains": r"\.env", "reason": "touches .env"},
+        {"id": "hard.rm", "effect": "deny", "event_type": "tool_call",
+         "arg_contains": r"rm\s+-rf", "reason": "recursive delete"},
+    ]})
+    state = SessionState()
+    state.had_oversight = True
+    decision = policy.decide("tool_call", {"tool": "Bash", "match_text": "rm -rf .env"}, state)
+    assert decision.effect == "deny"
+    assert decision.rule_id == "hard.rm"
+
+
+def test_the_hook_command_is_quoted_so_an_install_path_with_a_space_still_works():
+    """Unquoted, `${CLAUDE_PLUGIN_ROOT}/scripts/pr-guard-hook.sh` word-splits: the shell reports
+    "no such file", exits 127 with no stdout, and Claude Code reads no stdout as "no opinion".
+    Every tool call then proceeds unguarded, with nothing said to the user. Plugin paths with
+    spaces are ordinary on macOS and Windows."""
+    import json as _json
+    import pathlib
+
+    hooks = _json.loads((pathlib.Path(__file__).resolve().parent.parent / "plugins" /
+                         "provenrail-guard" / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+    commands = [h["command"] for event in hooks.values() for entry in event
+                for h in entry["hooks"]]
+    assert commands
+    for command in commands:
+        assert '"${CLAUDE_PLUGIN_ROOT}' in command, f"unquoted plugin root in {command!r}"
+        assert command.count('"') >= 2
