@@ -91,6 +91,16 @@
     <p class="updated">Last updated <time datetime="2026-08-19">19 August 2026</time></p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.3.1</span><span class="date">September 7, 2026</span><span class="tag">Found by driving it</span></div>
+      <ul>
+        <li><b>A commit could hide its own AI trailer with one control character.</b> The git log format ended a record with a byte a commit author writes, so a subject containing it truncated its own commit's body, took the <code>Co-authored-by</code> trailer with it, and the commit was reported as human-authored with nothing anywhere saying so. Records are NUL-separated now, which git forbids inside commit content, and the field split is bounded so nothing can be discarded. The parse also cross-checks its own commit count against git and refuses rather than signing a document covering fewer commits than the range it names.</li>
+        <li><b>The higher evidence grade was unreachable in the setup we recommend.</b> A hook fires in its own process and a hash chain cannot span processes, so guard mode writes one session per tool call and a real agent run appeared as dozens of windows a few milliseconds wide, all narrower than git's one-second timestamps. Runs are grouped by the host session now. Driven end to end against a bundle the guard hook produced: four chains, one run, a commit authored mid-run at grade <code>recorded</code>.</li>
+        <li><b>A GitHub Action.</b> <code>pofky/provenrail@v0.3.1</code> writes the attestation on every push, so it is signed at the moment the commits landed rather than months later by someone with a reason to shade it. It refuses a shallow checkout instead of attesting to a stump, and removes the signing key from the workspace before the job ends.</li>
+        <li><b>The plugin hook stopped re-parsing its rule file on every allowed tool call</b> to build a notice it prints once a day. 35 milliseconds per invocation including interpreter startup.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.3.0</span><span class="date">September 7, 2026</span><span class="tag">Nothing to install</span></div>
       <ul>
         <li><b>The guard works with nothing installed.</b> <code>/plugin install provenrail-guard@provenrail</code> used to print homework: install the package, run quickstart, then arm the rules. Anyone who stopped after the first line had a plugin called "guard" that blocked nothing. The plugin now carries its own dependency-free engine, so 26 rules are armed on the next tool call with no package, no account and no config file. Installing the CLI later signs the same history in place rather than starting an empty one.</li>
