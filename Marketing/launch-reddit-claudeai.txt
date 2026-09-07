@@ -5,41 +5,51 @@ POST TYPE: text post, not link post
 
 TITLE
 
-I made a Claude Code hook that blocks rm -rf before it runs, and records every decision
+A plugin that blocks rm -rf before Claude Code runs it. One command, nothing else to install.
 
 
 BODY
 
-Claude Code's permission prompt has never worked for me. After the twentieth one in an hour I stopped reading them, which is exactly the state in which you approve the one that matters. And once you have clicked through it, nothing about that decision is written down anywhere.
+Claude Code's permission prompt stopped working for me somewhere around the twentieth one in an hour. I was not reading them any more, I was pressing the key, which is exactly the state you are in when the one that matters arrives. And once you have clicked through it there is nothing written down anywhere about what you approved.
 
-So I built a PreToolUse hook that makes the decision at the tool boundary instead of asking me. It ships as a plugin:
+So I built a PreToolUse hook that decides at the tool boundary instead of asking me every time. It is a plugin, and it is genuinely one command:
 
 /plugin marketplace add pofky/provenrail
+/plugin install provenrail-guard@provenrail
 
-Then in your project:
+That is the whole setup. No pip install, no account, no server, nothing leaves your machine. The next tool call your agent makes is already being checked.
 
-uv tool install provenrail
-pr guard install --use destructive
+26 rules are armed out of the box. rm -rf, dd of=/dev/something, terraform destroy, git push --force, DROP TABLE, DELETE with no WHERE, kubectl delete namespace, chmod 777 and committed API keys are denied before execution, and Claude sees a normal denial naming the rule, so it adapts instead of hanging. Reading a .env, a deploy, a migration, a DNS or IAM change turn into a permission prompt rather than a hard block, because a guardrail that blocks legitimate work gets uninstalled by lunchtime and takes the useful rules with it.
 
-That arms ten rules. rm -rf, terraform destroy, force push to a protected branch, DROP TABLE, chmod 777 and friends get denied before execution, and Claude sees a normal denial with the reason, so it adapts instead of hanging. There are six other packs if you want them: secrets, money, production, access, exfiltration and blast radius, 36 rules in total. You can also write your own in a JSON policy file.
+/guard-status shows what is armed and, more usefully, what it has actually stopped. A guardrail that has never fired and a guardrail that is silently broken look identical from the outside, so that report leads with the count rather than the config.
 
-The part I actually care about is the second half. Every decision, allowed or denied, is signed and written into a hash-chained record that leaves your machine. Not a log file the same process could rewrite. Each entry carries the hash of the one before it, the server independently chains what it receives, and the two chains have to agree, so a record cannot be edited, reordered or truncated afterwards without it showing.
+Turning it down is a file:
 
-You can see what that looks like without installing anything or making an account. This is a real record verifying in your browser:
+echo '{"policy": {"use": []}}' > .provenrail.json
+
+An empty list arms nothing and tells you so once a day, so a disarmed guard can never quietly look like a working one. Name the packs you want instead: destructive, secrets, production, access, money, exfiltration, blast-radius. 36 rules total, and you can add your own with a regex.
+
+Being straight about the limits, because this subreddit will find them anyway.
+
+It only sees what Claude Code routes through its hook system. It cannot constrain a process that never calls the hook, and I never claim otherwise anywhere in the tool. The rules match tool names and argument text, so a command obfuscated past a regex is a command that gets through. This raises the floor a long way, it is not a sandbox.
+
+If anything at all goes wrong inside the hook it exits with no opinion and your tool call proceeds. A guardrail that bricks your agent is worse than no guardrail. The cost of that choice is that a broken guard is quiet, which is the reason /guard-status reports what it stopped rather than what it claims to watch.
+
+There is a paid part and I would rather say so than have you find it. The local history is a plain text file in your project, which is enough for you to see what happened and not enough to show anybody else, because you could have written it yourself. Installing the CLI on top signs every decision into a hash-chained record, and a paid plan adds an RFC 3161 timestamp from an independent authority. The plugin, the rules and the verifier are MIT and free either way, and I use the free path myself on projects where nobody is asking me for evidence.
+
+You can see what the signed version looks like without installing anything. This is a real record verifying in your browser:
 
 https://provenrail.com/verify?demo
 
-And this is the same code running over the same record with a single byte changed:
+And this is the same code over the same record with one byte changed:
 
 https://provenrail.com/verify?tamper
 
-Being straight about the limits, because this subreddit will find them anyway. The hook only sees what Claude Code routes through its hook system. It cannot constrain a process that never calls it, and it cannot make your capture complete, so it never claims a run was complete. It catches the accident, which is the thing that actually happens, not a determined adversary sitting at your keyboard.
+Source is github.com/pofky/provenrail. The hook is one bash file and one Python file with no dependencies, so reading it before you run it is about ten minutes, and you should.
 
-Free, MIT licensed, works with a local sink so nothing has to go to my servers at all. Source is at github.com/pofky/provenrail if you want to read the hook before you run it, which you should.
-
-Happy to answer anything about the rules or the record format. If you think a rule is wrong or missing, tell me, that is the most useful thing I can get out of posting this.
+If you think a rule is wrong or missing, tell me. That is the most useful thing I can get out of posting this.
 
 
 NOTES FOR POSTING (do not paste this section)
 
-Post on a weekday morning US time. Reply to every comment in the first two hours, that window decides whether it spreads. Do not cross-post the identical text to several subreddits on the same day, rewrite the opening for each. If someone asks whether you are selling something, say yes, there is a paid hosted tier, and that the guardrails and the verifier are free and MIT either way. Never argue with a sceptical comment, agree with the accurate part first.
+Post on a weekday morning US time. Reply to every comment in the first two hours, that window decides whether it spreads. Do not cross-post the identical text to several subreddits on the same day, rewrite the opening for each. If someone asks whether you are selling something, the answer is in the post already, point at it rather than restating it. Never argue with a sceptical comment, agree with the accurate part first. If someone posts a command the rules do not catch, add it and say you did.

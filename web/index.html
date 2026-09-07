@@ -153,33 +153,34 @@
     <section class="hero" aria-labelledby="hero-h1">
       <div class="hero-glow" aria-hidden="true"></div>
       <div class="container">
-        <p class="hero-eyebrow">Evidence for what your agents do</p>
+        <p class="hero-eyebrow">Guardrails for coding agents</p>
 
         <h1 class="hero-title" id="hero-h1">
-          Know what your AI agent did. <br class="wide-only"><em>Prove it to anyone.</em>
+          Your coding agent is one command away from deleting prod. <br class="wide-only"><em>Stop it, and prove you did.</em>
         </h1>
 
         <p class="hero-claim">
-          Provenrail records every model call, tool call and decision your agent makes, signed and
-          chained as it happens, on a server you run. Your client, your auditor or the other side
-          of a dispute checks it with an open-source verifier that trusts neither the agent nor
-          us. The same boundary blocks the destructive calls, so <code>rm -rf</code>,
-          <code>terraform destroy</code>, force pushes and leaked keys never run in the first
-          place.
+          Provenrail blocks <code>rm -rf</code>, <code>terraform destroy</code>, force pushes,
+          <code>DROP TABLE</code> and committed keys at the agent's own tool boundary, before
+          they run. For Claude Code it is one plugin install and nothing else: no package, no
+          account, no server, and the next tool call is already being checked. Install the CLI
+          on top and every decision is signed into a hash-chained record your client, your
+          auditor or the other side of a dispute can verify without trusting the agent, the
+          server, or us.
         </p>
 
         <div class="hero-ctas">
-          <a href="/#try-it" class="btn-primary">
+          <a href="/claude-code-guardrails" class="btn-primary">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M8 1v14M1 8l7 7 7-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            See it catch a tampered record
+            Install the free plugin
           </a>
-          <a href="/#live-proof" class="btn-secondary">
+          <a href="/#try-it" class="btn-secondary">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M2 8a6 6 0 1 0 12 0A6 6 0 0 0 2 8Zm4-1.5 4 1.5-4 1.5V6.5Z" fill="currentColor"/>
             </svg>
-            Install in 30 seconds
+            See it catch a tampered record
           </a>
         </div>
 
@@ -187,7 +188,7 @@
           <span><strong>In April 2026 an AI coding agent deleted a production database and every backup in nine seconds.</strong> There was no forensic record of what it was asked to do. <a href="/ai-agent-incidents">The incidents, and what would have stopped them &rarr;</a></span>
         </p>
 
-        <p class="hero-risk">Free tier. No credit card. Installs in seconds. <a href="/compare" style="color:var(--accent)">See how it compares</a>.</p>
+        <p class="hero-risk">Free and MIT. No credit card, no account, nothing to configure. <a href="/compare" style="color:var(--accent)">See how it compares</a>.</p>
 
         <p class="hero-honest" role="note">
           Honest scope: guardrails cover the tool calls your agent routes through its hooks, and a
@@ -242,17 +243,22 @@
       <div class="container">
         <div class="split">
           <div>
-            <div class="section-eyebrow">30-second install</div>
-            <h2 class="section-title" id="install-heading">Two commands.<br>Nothing to rewrite.</h2>
+            <div class="section-eyebrow">One command</div>
+            <h2 class="section-title" id="install-heading">Nothing to install.<br>Nothing to rewrite.</h2>
             <p class="lead">
-              If you use Claude Code, <code>pr guard install</code> arms the destructive, secrets and
-              production rule packs and wires them into its own tool hooks. No SDK, no code change.
-              There is also an <a href="/claude-code-guardrails">installable Claude Code plugin</a>
-              if you would rather not touch a settings file.
+              The <a href="/claude-code-guardrails">Claude Code plugin</a> carries its own
+              dependency-free engine, so 26 rules are armed on the next tool call with no
+              package, no account and no config file. <code>/guard-status</code> shows what it
+              has actually stopped. Installing the CLI later signs the same local history in
+              place rather than starting a new one.
               For your own agents there is a Python <em>and</em> TypeScript SDK, with drop-in capture
               for the OpenAI and Anthropic clients, LangChain and MCP. A run recorded in either
               language produces the same bytes and verifies with the same open-source tools, and a
               cross-language test in CI fails the build if that ever stops being true.
+            </p>
+            <p class="lead" style="font-family:var(--font-mono);font-size:.95rem;color:var(--text-lo)">
+              <span style="color:var(--accent)">/plugin marketplace add pofky/provenrail</span><br>
+              <span style="color:var(--accent)">/plugin install provenrail-guard@provenrail</span>
             </p>
             <p class="lead" style="font-family:var(--font-mono);font-size:1rem;color:var(--text-lo)">
               <span style="color:var(--accent)">uv tool install provenrail</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span style="color:var(--accent)">npm install provenrail</span>
@@ -414,6 +420,53 @@
               <span class="tour-desc">Invite teammates with roles, connect your OIDC identity provider, and sign in with your IdP.</span>
             </figcaption>
           </figure>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- AI CODE ATTRIBUTION -->
+    <section class="audience-section" aria-labelledby="attest-heading" id="attribution">
+      <div class="container">
+        <div class="audience-grid">
+          <div class="reveal">
+            <p class="audience-eyebrow">For anyone shipping software to an enterprise customer</p>
+            <h2 class="audience-title" id="attest-heading">"Which of this code<br>did an AI write?"</h2>
+            <p class="audience-body">
+              That question is arriving in supplier contracts. The standard answer today is a
+              <code>Co-authored-by:</code> trailer or a git note, written by the party being
+              asked and editable with a rebase. It is a claim, not evidence, and the
+              counterparty's lawyer knows the difference.
+            </p>
+            <div class="audience-benefit"><code>pr attest</code> names the source of every finding and signs the result, binding it to commit ids that are themselves content hashes.</div>
+            <div class="audience-benefit"><code>pr attest-anchor</code> adds an RFC 3161 timestamp from an independent authority. A 32-byte root travels; no line of your code ever does.</div>
+            <div class="audience-benefit"><code>pr attest-verify</code> is what your customer runs, against their own clone. It re-derives the findings instead of reading your summary back to them.</div>
+            <div class="audience-benefit">It does not prove the findings are true, and says so in its own output. A commit whose trailer was stripped reads as human-authored.</div>
+            <div style="margin-top:1.5rem"><a href="/ai-code-attribution" class="btn-primary">What it proves, and what it does not</a></div>
+          </div>
+          <div class="audience-visual reveal" style="transition-delay:.15s">
+            <div class="terminal-card">
+              <div class="terminal-bar">
+                <div class="code-dots" aria-hidden="true"><span class="code-dot code-dot-r"></span><span class="code-dot code-dot-y"></span><span class="code-dot code-dot-g"></span></div>
+                <span class="terminal-title">pr attest-verify</span>
+              </div>
+              <div class="terminal-body">
+                <div class="t-line"><span class="t-key">result</span><span class="t-val t-ok">ATTESTATION VERIFIED</span></div>
+                <div class="t-line"><span class="t-key">commits</span><span class="t-val">412 attested</span></div>
+                <div class="t-line"><span class="t-key">ai-assisted</span><span class="t-val t-hi">268 (65.05%)</span></div>
+                <div class="t-sep"></div>
+                <div class="t-line"><span class="t-key">re-derived</span><span class="t-val t-ok">from this repository</span></div>
+                <div class="t-line"><span class="t-key">signature</span><span class="t-val t-ok">unchanged since signing</span></div>
+                <div class="t-line"><span class="t-key">timestamp</span><span class="t-val t-ok">RFC 3161, independent</span></div>
+                <div class="t-sep"></div>
+                <div class="t-line"><span class="t-key">tools</span><span class="t-val">Claude Code, Copilot</span></div>
+                <div class="t-line"><span class="t-key">grade</span><span class="t-val">41 recorded, 227 asserted</span></div>
+                <div class="t-sep"></div>
+                <div class="t-line"><span class="t-key">not proven</span><span class="t-val t-dim">that the findings are true</span></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -784,6 +837,7 @@
             <a href="/vs-microsoft-agt">vs Microsoft AGT</a>
             <a href="/for-agencies">For freelancers and agencies</a>
             <a href="/claude-code-guardrails">Claude Code guardrails</a>
+            <a href="/ai-code-attribution">AI code attribution</a>
             <a href="/eu-ai-act">EU AI Act Article 12</a>
             <a href="/ai-agent-incidents">Agent incidents</a>
             <a href="/security">Security</a>

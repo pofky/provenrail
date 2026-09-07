@@ -1,0 +1,27 @@
+FIRST MESSAGE (send on LinkedIn or their own contact form. Four sentences, one question, no link. The question is the point of the message: this is a discovery pass and the answer decides whether the product is real.)
+
+You ship software to enterprise customers, so I am hoping you can settle something for me. Has an AI disclosure clause turned up in one of your customer contracts yet, the kind that asks which parts of the code an AI tool wrote? I ask because I built a tool that answers that question in a way the customer can check, and I would rather find out now that the clause is not real yet than keep building for it. A one word answer is genuinely useful.
+
+
+SECOND MESSAGE (only if they say the clause is real, or that they expect it. Match their words first, then show the thing rather than describing it.)
+
+That is the answer I was hoping to hear and also the one I could not get from reading. Here is the short version of what I built. Everyone answering that question today does it with a Co-authored-by trailer or a git note, which is written by the party being asked and can be edited afterwards, so it is a claim rather than evidence and your customer's lawyer knows it. Mine reads your history, names the source of every finding, signs the result and can put an independent RFC 3161 timestamp on it, which binds the answer to a set of commit ids that are themselves content hashes, so it cannot be pointed at a different tree or quietly rewritten once a dispute starts. Your customer runs one command against their own clone and it re-derives the findings rather than reading my summary back to them. Nothing of yours reaches me: what travels to the timestamp is a 32 byte hash and a count, never the document and never a line of your code.
+
+
+THIRD MESSAGE (only if they asked what it does not cover. Send this unprompted rather than waiting to be caught by it.)
+
+The limit is the part I want you to hear from me first. It does not prove the findings are true. If a developer strips the trailer off a commit, that commit reads as human authored and no signature changes it, so the number understates AI involvement rather than overstating it. What the signature buys is narrower and still worth having: nobody can check whether a disclosure was honest at the moment they read it, but they can check that it is the same disclosure that was made before the dispute began, and right now they cannot even do that. If you record the agent session itself, a commit made inside that window carries a stronger grade, because a signed record is not something the committer typed.
+
+
+FOURTH MESSAGE (only if they tried it and went quiet. One line, no pitch, and this is the last one.)
+
+Did the output read like something you could hand a customer, or did it miss what they actually ask for? Either answer helps.
+
+
+NOTES, NOT FOR SENDING
+
+Send at most 15 a week, one per person, and only where a direct message is within the platform's terms. No scraped email.
+
+Who to look for: a company of 5 to 200 people selling software or software development to enterprises or to regulated buyers, with a public engineering presence. The trigger on a profile or a job page is any mention of vendor security reviews, SOC 2, supplier questionnaires, or an existing customer in finance, health or public sector. A company with no enterprise counterparty has no clause and no reason to care.
+
+Record, per person: where you found them, the date, whether they replied, and above all the exact wording they use for the clause. That wording is the thing this pass exists to collect. If ten people in a row say no clause has appeared, that is the answer, and the attribution product should go back in the drawer rather than be pushed harder.

@@ -124,7 +124,7 @@
   <div class="wrap">
     <p class="eyebrow">Claude Code guardrails</p>
     <h1>Stop Claude Code from running <code>rm -rf</code></h1>
-    <p class="lede">Claude Code asks before most dangerous commands. It does not ask for all of them, the prompt is easy to click through at speed, and nothing keeps a record of what you approved. This page shows the hook that blocks the command outright, and the receipt it leaves behind.</p>
+    <p class="lede">Claude Code asks before most dangerous commands. It does not ask for all of them, the prompt is easy to click through at speed, and nothing keeps a record of what you approved. This page shows the plugin that blocks the command outright with nothing else installed, and the receipt it can leave behind.</p>
     <p class="updated">Last updated <time datetime="2026-08-05">5 August 2026</time></p>
 
     <div class="cta">
@@ -153,18 +153,29 @@
     <p>A guardrail that works has to decide before the tool runs, be independent of the model's cooperation, and leave evidence that survives the person who caused the incident.</p>
 
     <h2 id="install">Install</h2>
-    <p>Two commands inside Claude Code:</p>
+    <p>Two commands inside Claude Code, and that is the whole setup:</p>
     <pre><code>/plugin marketplace add pofky/provenrail
 /plugin install provenrail-guard@provenrail</code></pre>
-    <p>Then once per project you want guarded:</p>
-    <pre><code>uv tool install provenrail     # or: pip install provenrail
-pr quickstart                  # local sink, no account, nothing leaves your machine
-pr guard install               # arms destructive + secrets + production + access</code></pre>
+    <p>No package to install, no account, no server, nothing to configure. The plugin carries its own dependency-free engine, so <strong>26 rules are armed on the next tool call your agent makes</strong>. Installing a plugin called "guard" is the opt-in; a guard that waits for a config file protects nobody.</p>
     <p>No signup, no API key, no network call in the decision path. The verdict is computed locally before anything is sent anywhere, so a guardrail never waits on a server and never fails because one is down.</p>
-    <p>Prefer not to install a plugin? <code>pr guard install</code> writes the same hooks into the project's <code>.claude/settings.json</code> directly, preserving any hooks already there.</p>
+    <pre><code>/guard-status   what is armed, and what it has actually stopped
+/guard-rules    every rule, including the packs that are off by default</code></pre>
+    <p><code>/guard-status</code> leads with what the guard has stopped rather than with what it is configured to watch, because a guardrail that has never fired and one that is silently broken look identical from the outside.</p>
+
+    <h3>Turning it up, or off</h3>
+    <p>Write a <code>.provenrail.json</code> at your repo root. It wins over the defaults completely:</p>
+    <pre><code>{"policy": {"use": ["destructive", "secrets", "production", "access", "money"]}}</code></pre>
+    <p>An empty list arms nothing and says so once a day, so a disarmed guard can never quietly look like a working one. You can name a single rule id instead of a whole pack, and add your own rules with a regex.</p>
+
+    <h3>Making the record into evidence</h3>
+    <p>The plugin keeps a local history of every block and every prompt. That is enough for you to see what happened and not enough to show anybody else, because you could have written it yourself. Installing the CLI upgrades the same file, in the same directory, with no migration:</p>
+    <pre><code>uv tool install provenrail   # or: pip install provenrail
+pr guard receipt             # a signed, hash-chained export of what was blocked
+pr verify guard-receipt.json</code></pre>
+    <p>Prefer not to install a plugin at all? <code>pr guard install</code> writes the same hooks into the project's <code>.claude/settings.json</code> directly, preserving any hooks already there.</p>
 
     <h2 id="what-is-blocked">What is blocked</h2>
-    <p>Four rule packs are armed by default (destructive, secrets, production, access), 35 rules across seven packs are available. Every row below is asserted in the test suite against the default install, so this table cannot drift away from what the code does:</p>
+    <p>Four rule packs are armed by default with no configuration (destructive, secrets, production, access), which is 26 rules. 36 rules across seven packs are available. Every row below is asserted in the test suite against the default install, so this table cannot drift away from what the code does:</p>
     <table>
       <thead><tr><th>Pack</th><th>Blocks</th><th>Example</th></tr></thead>
       <tbody>
@@ -248,6 +259,7 @@ pr verify guard-receipt.json</code></pre>
             <a href="/vs-microsoft-agt">vs Microsoft AGT</a>
             <a href="/for-agencies">For freelancers and agencies</a>
             <a href="/claude-code-guardrails">Claude Code guardrails</a>
+            <a href="/ai-code-attribution">AI code attribution</a>
             <a href="/eu-ai-act">EU AI Act</a>
             <a href="/#how-it-works">How it works</a>
             <a href="/pricing">Pricing</a>

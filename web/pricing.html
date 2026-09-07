@@ -144,6 +144,7 @@
               <li class="plan-feature">Independent proof of when, unlimited. You send a 32-byte fingerprint of your records; your prompts, payloads and records never leave your machine (<code>pr anchor-push bundle.json</code>, 0.2.33 or later). Your licence key is the only credential, so buying the plan is the whole setup</li>
               <li class="plan-feature">A public authority signs the time under RFC 3161, so the date is not ours to assert and not yours either. That is the part you cannot issue to yourself</li>
               <li class="plan-feature">A public receipt page your client or auditor opens with no account, and checks offline with the open-source verifier</li>
+              <li class="plan-feature">Timestamped <a href="/ai-code-attribution">AI code attribution</a>. <code>pr attest</code> signs a statement of which commits an AI agent had a hand in, and <code>pr attest-anchor</code> puts an independent authority's time on it, which is what makes it something your customer can check rather than something you typed. A 32-byte root travels; no line of your code ever does</li>
               <li class="plan-feature">Shareable client proof links + live badge</li>
               <li class="plan-feature">Single project, single user</li>
               <li class="plan-feature">Email support</li>
@@ -216,6 +217,8 @@
                 <tr><td>Anchoring of your chain (root only)<span class="sub">to our service, or to a server you run</span></td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Public anchor receipt for an auditor</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>RFC 3161 trusted timestamps</td><td>One, free</td><td class="yes">Unlimited</td><td class="yes">Unlimited</td><td class="yes">Unlimited</td></tr>
+                <tr><td>AI code attribution (<code>pr attest</code>)<span class="sub">signed, local, on every tier</span></td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Independently timestamped attribution<span class="sub"><code>pr attest-anchor</code></span></td><td>One, free</td><td class="yes">Unlimited</td><td class="yes">Unlimited</td><td class="yes">Unlimited</td></tr>
                 <tr><td>Shareable proof links + live badge</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
                 <tr><td>Team members</td><td>1</td><td>1</td><td>Up to 10</td><td>Unlimited</td></tr>
                 <tr><td>Roles + SSO</td><td>No</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
@@ -308,6 +311,7 @@
             <a href="/compare">Compare</a>
             <a href="/vs-microsoft-agt">vs Microsoft AGT</a>
             <a href="/for-agencies">For freelancers and agencies</a>
+            <a href="/ai-code-attribution">AI code attribution</a>
             <a href="/#how-it-works">How it works</a>
             <a href="/#differentiators">Why Provenrail</a>
             <a href="/pricing">Pricing</a>

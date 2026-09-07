@@ -4,7 +4,7 @@
 they run, and every decision is signed into an off-box, hash-chained record that anyone
 can verify, trusting neither the agent nor the sink.
 
-### 30 seconds, no code: guard Claude Code
+### One command, nothing installed: guard Claude Code
 
 Inside Claude Code:
 
@@ -13,20 +13,53 @@ Inside Claude Code:
 /plugin install provenrail-guard@provenrail
 ```
 
-Then once per project:
+That is the whole setup. No `pip install`, no account, no server, nothing leaves your
+machine, and the next tool call your agent makes is already being checked. 26 rules are
+armed with no config file, because installing a plugin called "guard" is the opt-in and a
+guard that waits for configuration protects nobody.
+
+`rm -rf`, `dd of=/dev/...`, `terraform destroy`, `git push --force`, `DROP TABLE`, `DELETE`
+with no `WHERE`, `kubectl delete namespace`, `chmod 777` and committed API keys are denied
+at the tool boundary, and the agent is told which rule fired. Actions that need a human
+(reading `.env`, deploying, migrating, DNS and IAM changes) become a permission prompt
+instead of a hard block, and the approval is recorded as human oversight.
+
+`/guard-status` shows what is armed and what it has actually stopped. `/guard-rules` lists
+every rule, including the packs that are off by default. To change or disable it, write a
+`.provenrail.json` at your repo root; it wins over the defaults completely, including an
+explicit `{"policy": {"use": []}}`, which arms nothing and says so once a day.
+
+Installing the CLI upgrades the same local history in place, in the same directory, and
+signs it:
 
 ```bash
 uv tool install provenrail   # or: pip install provenrail
-pr quickstart                # local sink, no account, nothing leaves your machine
-pr guard install             # arms destructive + secrets + production + access
+pr guard receipt             # a signed, hash-chained export of what was blocked
+pr verify guard-receipt.json
 ```
 
-`rm -rf`, `terraform destroy`, `git push --force`, `DROP TABLE`, `chmod 777` and leaked
-API keys are now denied at the tool boundary, and the agent is told which rule fired.
-Actions that need a human (touching `.env`, deploying, migrating) become a permission
-prompt instead of a hard block, and the approval is recorded as human oversight. Run
-`pr guard receipt` and `pr verify guard-receipt.json` to check the record yourself.
 Full guide: <https://provenrail.com/claude-code-guardrails>
+
+### Which of this code did an AI write, in a form your customer can check
+
+```bash
+pr attest --blame                      # signed AI authorship attestation over the history
+pr attest-anchor ai-attestation.json   # RFC 3161 timestamp from an independent authority
+pr attest-verify ai-attestation.json --receipt attest-receipt.json
+```
+
+Software contracts have started asking suppliers to disclose AI authorship. Every other way
+of answering, a `Co-authored-by:` trailer or a git note, is written by the party being asked
+and can be edited afterwards. Signing binds the answer to a set of commit ids, which are
+themselves content hashes, so the document cannot be pointed at a different tree or quietly
+rewritten once a dispute begins, and `pr attest-verify` re-derives the findings from the
+reader's own clone rather than reading the summary back to them.
+
+It does not prove the findings are true, and says so in its own `limits` field: a commit
+whose author stripped the trailer reads as human-authored, and unlisted tools understate AI
+involvement rather than overstate it. A commit authored inside a recorded Provenrail session
+carries a higher evidence grade, because a signed record is not something the committer
+typed. Full detail: <https://provenrail.com/ai-code-attribution>
 
 `pr guard hook --use destructive,secrets` arms exactly those packs for a single hook
 invocation, without a `.provenrail.json`, which is what you want when the hook command is
@@ -135,9 +168,14 @@ bytes. Anchoring binds the whole thing to a trusted external time.
 
 ## Quick start: guard your coding agent (30 seconds, no code)
 
-Repeated from the top for readers who arrived here from the table of contents. Either install
-the [Claude Code plugin](plugins/provenrail-guard/) (`/plugin marketplace add pofky/provenrail`,
-then `/plugin install provenrail-guard@provenrail`), or wire the hooks directly:
+Repeated from the top for readers who arrived here from the table of contents. The
+[Claude Code plugin](plugins/provenrail-guard/) needs nothing else installed:
+`/plugin marketplace add pofky/provenrail`, then
+`/plugin install provenrail-guard@provenrail`. It blocks, asks and keeps a local history on
+its own, and installing the CLI later signs that history in place rather than starting a new
+one.
+
+To wire the hooks directly instead, or to record as well as block:
 
 ```bash
 uv tool install provenrail

@@ -91,6 +91,17 @@
     <p class="updated">Last updated <time datetime="2026-08-19">19 August 2026</time></p>
 
     <div class="rel">
+      <div class="rel-head"><span class="ver">0.3.0</span><span class="date">September 7, 2026</span><span class="tag">Nothing to install</span></div>
+      <ul>
+        <li><b>The guard works with nothing installed.</b> <code>/plugin install provenrail-guard@provenrail</code> used to print homework: install the package, run quickstart, then arm the rules. Anyone who stopped after the first line had a plugin called "guard" that blocked nothing. The plugin now carries its own dependency-free engine, so 26 rules are armed on the next tool call with no package, no account and no config file. Installing the CLI later signs the same history in place rather than starting an empty one.</li>
+        <li><b>Two engines, one set of rules, held together by tests.</b> The bundled engine is a second implementation of the enforcement path, and this project has already paid once for two implementations that quietly disagreed. Its rules are generated from the same catalogue with a staleness check, and 39 cases are driven through both engines pack by pack, including the three payload shapes that have previously disarmed the guard.</li>
+        <li><b><code>/guard-status</code> and <code>/guard-rules</code>.</b> The status report leads with what has actually been stopped, not with what is configured, because a guardrail that has never fired and one that is silently broken look identical from the outside.</li>
+        <li><b><code>pr attest</code>: which of this code an AI wrote, in a form your customer can check.</b> Software contracts have started asking. Every other way of answering, a <code>Co-authored-by:</code> trailer or a git note, is written by the party being asked and can be edited afterwards. <code>pr attest</code> names the source of every finding and signs the result, which binds it to commit ids that are themselves content hashes, so the document cannot be pointed at a different tree or rewritten once a dispute begins. <code>pr attest-anchor</code> adds an independent RFC 3161 timestamp over a 32-byte root; no line of your code is ever sent. <a href="/ai-code-attribution">What it proves, and what it does not</a>.</li>
+        <li><b><code>pr attest-verify</code> re-derives rather than re-reads.</b> The receiving side runs it against their own clone, and it checks three things: that the document is unchanged since signing, that every attested commit exists there with the same author and dates, and that running the detectors again reaches the same verdict. A document that passes the first two and fails the third was edited before signing, which a signature alone cannot catch.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
       <div class="rel-head"><span class="ver">0.2.33</span><span class="date">August 21, 2026</span><span class="tag">First anchor free</span></div>
       <ul>
         <li><b>Every account gets one independent anchor, free.</b> Until now the only feature worth paying for was the only one nobody could try, so the case for it had to be made in prose next to a price. Claim a key at <a href="/account">/account</a>, run <code>pr anchor-push bundle.json</code>, and hold a receipt with a public authority's timestamp on it, over your own run. One per account, and the tooling stays free whether or not you ever buy a plan.</li>

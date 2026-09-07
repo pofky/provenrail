@@ -206,3 +206,118 @@ def test_no_page_says_we_hold_records_we_are_not_sent():
             if bad.search(line):
                 offences.append(f"{path.name}:{n}: {line.strip()[:120]}")
     assert not offences, "copy claims we hold records we never receive:\n  " + "\n  ".join(offences)
+
+
+# ---------------------------------------------------------------- AI authorship attestation
+#
+# `pr attest` reintroduces the word "attestation" on purpose, in the software-supply-chain
+# sense the industry already uses for a signed statement about an artefact (in-toto, SLSA,
+# sigstore), and NOT in the assurance sense the test above forbids. The line between them is
+# thin enough to be worth pinning: the moment the copy says "compliance attestation" or
+# "attestation report" it is claiming a licensed practitioner's opinion, and the rule above
+# already fails the build for that. What these tests add is the other half, the claims this
+# particular feature must never make and the list it must never quietly diverge from.
+
+
+def _attestation_pages():
+    for name in ("ai-code-attribution.html", "index.html", "pricing.html", "docs.html"):
+        path = ROOT / "web" / name
+        if path.is_file():
+            yield path
+
+
+def test_no_page_says_the_attestation_proves_the_findings_are_true():
+    """The whole feature rests on being straight about this. A page that implies a signature
+    makes a finding TRUE has sold the reader something no signature can buy, and it is the one
+    misreading a lawyer would be entitled to rely on."""
+    banned = re.compile(
+        r"prov(es|e|ing) (that )?(the )?(findings|attribution|disclosure)"
+        r"[^.]{0,40}\b(true|correct|accurate|complete)\b"
+        r"|guarantee[sd]? (the )?(findings|attribution)"
+        r"|certif(y|ies|ied) (that )?(the )?(code|findings)",
+        re.IGNORECASE)
+    # The denials say the same words in the opposite direction, and the page is full of them
+    # on purpose, so a match only counts when nothing negates it and it is not a question.
+    negation = re.compile(r"\b(not|never|no|cannot|neither|nothing|does not|is not)\b",
+                          re.IGNORECASE)
+    offences = []
+    for path in _attestation_pages():
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            match = banned.search(line)
+            if not match:
+                continue
+            lead = line[max(0, match.start() - 60):match.start()]
+            if negation.search(lead) or negation.search(match.group(0)) or "?" in line:
+                continue
+            offences.append(f"{path.relative_to(ROOT)}:{n}: {line.strip()[:120]}")
+    assert not offences, ("copy claims an attestation proves its findings:\n  " +
+                          "\n  ".join(offences))
+
+
+def test_the_attribution_page_states_the_limit_it_would_be_relied_on_for():
+    """Every claim on that page is defensible only next to this sentence. If a redesign drops
+    it, the page becomes the kind of evidence-shaped document this product exists to replace."""
+    path = ROOT / "web" / "ai-code-attribution.html"
+    if not path.is_file():
+        return
+    text = path.read_text(encoding="utf-8").lower()
+    assert "does not prove the findings are true" in text
+    assert "strips the trailer" in text or "removed that metadata" in text
+    assert "understated rather than overstated" in text
+
+
+def test_the_advertised_detector_list_matches_the_code():
+    """A page naming a tool the detector does not know is a promise the software breaks in
+    silence: the customer reads "Cursor is detected", ships a Cursor-written commit, and the
+    document reports it as human-authored."""
+    path = ROOT / "web" / "ai-code-attribution.html"
+    if not path.is_file():
+        return
+    from provenrail.attest import AGENT_SIGNATURES
+
+    text = path.read_text(encoding="utf-8")
+    for signature in AGENT_SIGNATURES:
+        assert signature.tool in text, (
+            f"{signature.tool} is detected by the code but not named on the page")
+    # And the reverse: nothing is advertised that the code does not detect. Checked against the
+    # sentence that lists them, so an incidental mention elsewhere does not count as a promise.
+    known = {s.tool.lower() for s in AGENT_SIGNATURES}
+    for candidate in ("continue.dev", "roo code", "augment", "amazon q", "tabnine", "sourcegraph"):
+        if candidate not in known:
+            assert candidate not in text.lower(), (
+                f"the page names {candidate}, which the detector does not know about")
+
+
+def test_no_page_offers_to_receive_the_customers_code():
+    """The anchor service has no field a record or a file could arrive in, and that absence is
+    the entire reason a sole proprietor can operate it. Copy that offers to take a repository
+    would be selling a liability that does not exist in the code."""
+    banned = re.compile(r"(upload|send|share) (us |your )?(the )?(repo|repository|codebase|source code)"
+                        r"|we (store|keep|hold) your (code|repository)", re.IGNORECASE)
+    offences = []
+    for path in _attestation_pages():
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if banned.search(line) and " never " not in line.lower() and " no " not in line.lower():
+                offences.append(f"{path.relative_to(ROOT)}:{n}: {line.strip()[:120]}")
+    assert not offences, ("copy offers to receive customer code:\n  " + "\n  ".join(offences))
+
+
+def test_the_advertised_rule_counts_match_the_catalogue():
+    """Two numbers appear on the guardrails page and in the plugin README, and both are the
+    kind of number that goes stale the first time a rule is added. A page that says 26 rules
+    are armed while 24 are is a small lie in the one place this product cannot afford one."""
+    from provenrail import rulesets
+    from provenrail.guard import DEFAULT_PACKS
+
+    armed = len(rulesets.resolve(DEFAULT_PACKS))
+    total = len(rulesets.all_rules())
+    for name in ("web/claude-code-guardrails.html", "web/index.html",
+                 "plugins/provenrail-guard/README.md", "README.md"):
+        path = ROOT / name
+        text = path.read_text(encoding="utf-8")
+        if "rules are armed" not in text and "rules armed" not in text:
+            continue
+        assert f"{armed} rules are armed" in text or f"{armed} rules armed" in text, (
+            f"{name} does not say {armed} rules are armed by default")
+    guardrails = (ROOT / "web" / "claude-code-guardrails.html").read_text(encoding="utf-8")
+    assert f"{total} rules across seven packs" in guardrails

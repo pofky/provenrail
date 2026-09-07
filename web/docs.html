@@ -126,6 +126,7 @@
       <a href="#cli">CLI</a>
       <a href="#selfhost">Self-host the recording server</a>
       <a href="#anchor">Anchor your chain</a>
+      <a href="#attest">AI code attribution</a>
       <a href="#team">Team &amp; SSO</a>
       <a href="#licensing">Licensing</a>
       <a href="#source">Source</a>
@@ -149,13 +150,16 @@
     <pre><code><span class="g">npm install provenrail</span></code></pre>
 
     <h2 id="guard">Guard a coding agent (no code)</h2>
-    <p>If you run Claude Code, this is the shortest path to something useful. Two commands arm the
-      prebuilt guardrail packs and wire them into Claude Code's own tool hooks:</p>
-    <p>Prefer to install it as a plugin? Inside Claude Code run
-      <code>/plugin marketplace add pofky/provenrail</code> then
-      <code>/plugin install provenrail-guard@provenrail</code>. The
-      <a href="/claude-code-guardrails">full guide</a> covers what each rule pack blocks and why some
-      rules ask instead of deny.</p>
+    <p>If you run Claude Code, this is the shortest path to something useful, and it needs nothing
+      installed. Inside Claude Code:</p>
+    <pre><code>/plugin marketplace add pofky/provenrail
+/plugin install provenrail-guard@provenrail</code></pre>
+    <p>That is the whole setup. The plugin carries its own dependency-free engine, so 26 rules are
+      armed on the next tool call with no package, no account and no config file.
+      <code>/guard-status</code> shows what it has actually stopped and <code>/guard-rules</code>
+      lists every rule. The <a href="/claude-code-guardrails">full guide</a> covers what each pack
+      blocks and why some rules ask instead of deny.</p>
+    <p>To wire the hooks yourself instead, or to record as well as block:</p>
     <pre><code><span class="g">pr quickstart</span>       <span class="c"># local recording server, no account, nothing leaves your machine</span>
 <span class="g">pr guard install</span>    <span class="c"># arms destructive + secrets + production + access, installs the hooks</span></code></pre>
     <p>From your next Claude Code session in that folder:</p>
@@ -464,6 +468,9 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
 <span class="g">pr activate</span> &lt;key&gt;     <span class="c"># store your licence key once; other commands find it</span>
 <span class="g">pr anchor-push</span> bundle.json    <span class="c"># independent timestamp; sends a fingerprint, no records</span>
 <span class="g">pr anchor-verify</span> bundle.json anchor-receipt.json  <span class="c"># check a receipt offline</span>
+<span class="g">pr attest</span> --blame      <span class="c"># signed statement of which commits an AI agent had a hand in</span>
+<span class="g">pr attest-anchor</span> ai-attestation.json   <span class="c"># independent RFC 3161 time on that statement</span>
+<span class="g">pr attest-verify</span> ai-attestation.json   <span class="c"># what your customer runs, against their own clone</span>
 <span class="g">pr rules</span>             <span class="c"># list prebuilt guardrail packs; --check bundle.json for coverage</span>
 <span class="g">pr risk</span> bundle.json    <span class="c"># every action a policy blocked (exit 1 if any)</span>
 <span class="g">pr report</span> --regime eu-ai-act bundle.json --md   <span class="c"># map the record to a regime</span>
@@ -538,6 +545,32 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
       a machine you control accepts the same command with a different <code>--url</code>. You get the
       append-only history and the receipt and a real trusted timestamp; what you do not get is
       independence from yourself, which is the half worth paying for.</div>
+
+    <h2 id="attest">AI code attribution</h2>
+    <p>Supplier contracts have started asking which parts of a codebase an AI agent wrote. The
+      standard answer, a <code>Co-authored-by:</code> trailer or a git note, is written by the
+      party being asked and can be rewritten afterwards, so it is a claim rather than evidence.</p>
+    <pre><code><span class="g">pr attest</span> --blame                      <span class="c"># writes ai-attestation.json, signed with your device key</span>
+<span class="g">pr attest-anchor</span> ai-attestation.json   <span class="c"># RFC 3161 timestamp from an independent authority</span>
+<span class="g">pr attest-verify</span> ai-attestation.json --receipt attest-receipt.json</code></pre>
+    <p><code>pr attest</code> reads the commits in a range, detects AI-assisted ones from commit
+      trailers and author or committer identity, and names the source of every finding so a reader
+      can weigh it rather than trust it. <code>--blame</code> adds what share of the lines currently
+      in the tree came from AI-assisted commits; lines from commits outside the range are reported
+      as unattributed, never as human. <code>--records bundle.json</code> raises the evidence grade
+      of any commit authored inside a recorded agent session, because a signed record is not
+      something the committer typed.</p>
+    <p>What signing buys is specific: git commit ids are content hashes, so the document cannot
+      later be pointed at a different tree, and cannot be quietly rewritten once a dispute begins.
+      What it does not buy is the truth of the findings, and the document says so in its own
+      <code>limits</code> field. A commit whose author stripped the trailer reads as human-authored.
+      Detection covers nine named tools plus generic trailers, so AI involvement is understated
+      rather than overstated.</p>
+    <p><code>pr attest-verify</code> is what the receiving side runs. It checks the signature, that
+      every attested commit exists in their clone with the same author and dates, and that re-running
+      the detectors reaches the same verdict. A document that passes the first two and fails the
+      third was edited before signing, which a signature alone cannot catch. Full detail:
+      <a href="/ai-code-attribution">what it proves and what it does not</a>.</p>
 
     <h2 id="team">Team and SSO</h2>
     <p>On the <a href="/pricing">Team plan</a> you can invite up to 10 teammates with role-based
@@ -637,6 +670,7 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
             <a href="/docs">Quickstart</a>
             <a href="/vs-microsoft-agt">vs Microsoft AGT</a>
             <a href="/for-agencies">For freelancers and agencies</a>
+            <a href="/ai-code-attribution">AI code attribution</a>
 </div>
         </div>
         <div class="footer-nav-group">
