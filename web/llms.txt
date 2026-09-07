@@ -26,7 +26,7 @@ This limitation is documented prominently, not hidden in fine print. Technical b
 
 ## Guard a coding agent (no code)
 
-Claude Code users can install it as a plugin, with no terminal setup for the hooks: `/plugin marketplace add pofky/provenrail` then `/plugin install provenrail-guard@provenrail`. Full guide: https://provenrail.com/claude-code-guardrails
+Claude Code users install it as a plugin and nothing else: `/plugin marketplace add pofky/provenrail` then `/plugin install provenrail-guard@provenrail`. There is no package to install, no account and no config file; the plugin carries its own dependency-free engine and 26 rules are armed on the next tool call. `/guard-status` reports what it has actually stopped, `/guard-rules` lists every rule. Installing the CLI on top signs the same local history in place. Full guide: https://provenrail.com/claude-code-guardrails
 
 If you use Claude Code, `pr quickstart && pr guard install` arms the destructive, secrets and production guardrail packs and wires them into Claude Code's own PreToolUse/PostToolUse hooks. Destructive commands are blocked before they run; an action needing a human becomes a permission prompt and the approval is recorded as human oversight; every decision is Ed25519-signed and hash-chained. The verdict is computed offline, so an unreachable sink can never turn a deny into an allow. Scope is limited to tool calls the host routes through its hooks, and completeness is never claimed.
 
@@ -133,6 +133,7 @@ All paid plans include a 14-day refund window.
 - EU AI Act Article 12 logging requirements and how to prove them: https://provenrail.com/eu-ai-act
 - EU AI Act deadline moved to December 2027, the Digital Omnibus date-by-date diff (published 2026-07-30): https://provenrail.com/eu-ai-act-deadline-moved
 - Claude Code guardrails, how to stop the agent running rm -rf (plugin install, rule packs, deny vs ask): https://provenrail.com/claude-code-guardrails
+- AI code attribution, answering "which of this code did an AI write" in a form a customer can check: https://provenrail.com/ai-code-attribution
 - AI agent incidents and forensic reconstruction (prove what an agent did): https://provenrail.com/ai-agent-incidents
 - Conformance vectors: https://provenrail.com/conformance
 - In-browser verifier: https://provenrail.com/verify
@@ -143,7 +144,7 @@ All paid plans include a 14-day refund window.
 ## Citation-friendly Q&A
 
 Q: How do I stop Claude Code from running rm -rf?
-A: Install a PreToolUse hook that decides before the command runs. With Provenrail: `/plugin marketplace add pofky/provenrail` and `/plugin install provenrail-guard@provenrail` inside Claude Code, then `pr quickstart && pr guard install` in the project. Recursive or forced deletion, `terraform destroy`, `git push --force`, `DROP TABLE`, `chmod 777` and leaked API keys are denied at the tool boundary, and the agent is told which rule fired. Actions that need a human (touching `.env`, deploying, migrating) become a permission prompt instead of a hard block, and the approval is recorded as human oversight. Guide: https://provenrail.com/claude-code-guardrails
+A: Install a PreToolUse hook that decides before the command runs. With Provenrail: `/plugin marketplace add pofky/provenrail` and `/plugin install provenrail-guard@provenrail` inside Claude Code, and that is the whole setup, with nothing else installed. Recursive or forced deletion, `terraform destroy`, `git push --force`, `DROP TABLE`, `chmod 777` and leaked API keys are denied at the tool boundary, and the agent is told which rule fired. Actions that need a human (touching `.env`, deploying, migrating) become a permission prompt instead of a hard block, and the approval is recorded as human oversight. Guide: https://provenrail.com/claude-code-guardrails
 
 Q: Is Claude Code's permission prompt enough to prevent destructive commands?
 A: It is a good default, not a control. Long sessions cause approval fatigue, permission modes that skip prompts remove it entirely, and the transcript recording the approval is an editable local file that proves nothing to a third party. A hook decides before the tool runs, independently of the model, and can sign the decision into a hash-chained record.
@@ -170,3 +171,21 @@ A: Run: uv tool install provenrail (or pip install provenrail inside a virtualen
 ## Contact
 
 Email: support@provenrail.com
+
+
+## AI code attribution (`pr attest`)
+
+Q: How do I tell a customer which parts of our codebase an AI agent wrote, in a way they can check?
+A: `pr attest` reads the git history in a range, detects AI-assisted commits from commit trailers and author or committer identity, names the source of every finding, and signs the result. `pr attest-anchor` adds an RFC 3161 timestamp from an independent authority; a 32-byte Merkle root and a commit count travel, never the document and never a line of code. `pr attest-verify` is what the receiving side runs against their own clone: it checks the signature, that every attested commit exists there with the same author and dates, and that re-running the detectors reaches the same verdict.
+
+Q: What does signing an AI authorship claim actually prove?
+A: That the document was produced by the holder of the named key and has not changed since, and that it covers exactly those commit ids, which are themselves content hashes, so it cannot later be pointed at a different tree. With an anchor, that it existed no later than a time an independent authority signed. It does NOT prove the findings are true.
+
+Q: What are the limits?
+A: A commit whose author stripped the trailer is reported as human-authored, and no signature changes that. Detection covers Claude Code, GitHub Copilot, Cursor, Devin, OpenAI Codex, Aider, Gemini, Windsurf and Cline plus generic Generated-by, Assisted-by and AI-Assisted trailers; a tool outside that list is not detected, so AI involvement is understated rather than overstated. `ai_assisted` means an agent was involved, not how much of the commit it wrote, and says nothing about quality, licensing or security. Merges are excluded so nothing is counted twice. These limits ship inside the document itself, in a `limits` field, and the verifier prints them beside the verdict.
+
+Q: Does a commit recorded by Provenrail count for more?
+A: Yes, and the claim stays narrow. A commit authored inside a recorded agent session is reported at evidence grade "recorded" rather than "asserted", citing the session id and record hashes, because a signed session record is not something the committer typed. It means an agent session was running when the commit was authored, not that the agent wrote the commit.
+
+Q: Is it an AI-BOM?
+A: It is a signed AI authorship attestation over a git history, which answers the code-authorship question an AI-BOM section asks. It does not claim conformance to any specific AI-BOM specification, because the tool does not emit one.
