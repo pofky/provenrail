@@ -91,7 +91,7 @@
     <p class="updated">Last updated <time datetime="2026-09-07">7 September 2026</time></p>
 
     <div class="rel">
-      <div class="rel-head"><span class="ver">0.4.0</span><span class="date">September 7, 2026</span><span class="tag">Screen the target, not the verb</span></div>
+      <div class="rel-head"><span class="ver">0.4.1</span><span class="date">September 7, 2026</span><span class="tag">Screen the target, not the verb</span></div>
       <ul>
         <li><b>The guard now stops the commands that actually lose work.</b> Read the public data-loss reports filed against coding agents and the command is almost never <code>rm -rf</code>: it is <code>git reset --hard</code> (#34327, #7232, #17190), <code>git checkout -- .</code> (#81508), <code>git clean -fd</code> (#45974, #87360), <code>git stash</code> (#85879), <code>git worktree remove --force</code> (#46444), a framework database reset against a live database (#80868, #90808). The default install allowed all forty commands we took from those reports. Three new packs, armed by default, cover them, and every one is in the test suite as the claim it is.</li>
         <li><b>They stay quiet when there is nothing to lose.</b> <code>git reset --hard</code> on a tree with nothing uncommitted and nothing unpushed destroys nothing at all. The git rules run <code>git status --porcelain</code>, check for commits your remote has not seen, and ask only when there is work here that exists nowhere else. A prompt about nothing is how people learn to click through prompts.</li>
