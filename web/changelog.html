@@ -61,7 +61,7 @@
   {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://provenrail.com/"}, {"@type": "ListItem", "position": 2, "name": "Changelog", "item": "https://provenrail.com/changelog"}]}
   </script>
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"WebPage","name":"Changelog | Provenrail","url":"https://provenrail.com/changelog","description":"What changed in Provenrail and when. Releases of the SDK, the verifier, and the platform.","dateModified":"2026-09-07","isPartOf":{"@type":"WebSite","name":"Provenrail","url":"https://provenrail.com/"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
+  {"@context":"https://schema.org","@type":"WebPage","name":"Changelog | Provenrail","url":"https://provenrail.com/changelog","description":"What changed in Provenrail and when. Releases of the SDK, the verifier, and the platform.","dateModified":"2026-09-16","isPartOf":{"@type":"WebSite","name":"Provenrail","url":"https://provenrail.com/"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
   </script>
 </head>
 <body>
@@ -95,7 +95,29 @@
     <p class="eyebrow">Changelog</p>
     <h1>What changed, and when</h1>
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
-    <p class="updated">Last updated <time datetime="2026-09-07">7 September 2026</time></p>
+    <p class="updated">Last updated <time datetime="2026-09-16">16 September 2026</time></p>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.5.0</span><span class="date">September 16, 2026</span><span class="tag">Read your own bill</span></div>
+      <ul>
+        <li><b><code>pr report</code> reads the transcripts your agent already wrote.</b> Every Claude Code session on this machine is a JSONL file with token counts in it. The command prices them, per project and per day, and replays every tool call in them against the guard rules to say how many would have been stopped. On the laptop it was written on: 942 sessions across 23 projects over 31 days, 79,883 tool calls, an estimated $7,863.51, and 517 calls the armed rules would have refused. It runs offline, needs no install of anything into your project, and makes no network call. <code>--since</code>, <code>--project</code>, <code>--json</code> and <code>--share</code>, which reduces the output to something safe to paste.</li>
+        <li><b>A spend cap that binds where the money is spent.</b> <code>/guard-budget 25</code> reported itself armed and capped nothing in the recommended install: budgets only bound on an SDK <code>model_call</code>, and a coding agent does not emit one. The cap now prices the session's own transcript and refuses the next tool call once the day's estimate crosses the number. Estimated, and the word appears wherever the figure does, because a transcript does not carry a price.</li>
+        <li><b><code>pr guard budget</code> disarmed all 44 destructive rules while saying the cap was on.</b> Setting a budget wrote a policy whose <code>use</code> list contained the budget and nothing else, and a config file wins completely, which is the documented and correct behaviour. So the one command whose whole purpose is more protection produced less of it, silently. It now adds to the armed set instead of replacing it.</li>
+        <li><b><code>pr guard install</code> refused to install without a recording endpoint.</b> In a fresh project it wrote nothing at all and explained why, which left people unguarded while believing they were guarded. The local guard needs no endpoint and never did.</li>
+        <li><b>One policy, five hosts.</b> The same rules now answer Codex (<code>PreToolUse</code>), Gemini CLI (<code>BeforeTool</code>), Copilot (<code>preToolUse</code>) and Cursor (<code>beforeShellExecution</code>, <code>beforeMCPExecution</code>) as well as Claude Code, each in its own envelope, with each host's tool names mapped to one canonical set. Where a host has no "ask" verdict, the rule that would ask denies rather than quietly allowing.</li>
+        <li><b>Three wrong prices in the rate table.</b> Checked against the published page rather than against memory: Sonnet 5 was carrying a 50% increase that was announced and then cancelled, and two models were missing entirely. The table now records the date it was verified, and a test fails when that date goes stale.</li>
+        <li><b>The first-run notice derives what it says from what is armed.</b> It used to name packs from a list written beside it, so a notice could describe a policy the process was not running.</li>
+        <li><b>32 end-to-end flows are driven against the built wheel</b> by <code>tools/verify_flows.py</code>, in a clean virtual environment, on every release. Two of its assertions were wrong when first written and are now commented with why, which is the only honest way to keep a harness.</li>
+      </ul>
+    </div>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.4.3</span><span class="date">September 9, 2026</span><span class="tag">Cheap enough to keep</span></div>
+      <ul>
+        <li><b>The hook cost about 430 ms per tool call.</b> Widening it to every tool put a two-process version probe in front of everything, paid again after the call. One <code>--version</code> probe now answers both questions, the chosen engine is remembered for a day against the plugin version, and the bundled engine is skipped on post events where it has nothing to say. Measured after: 103 ms bundled, 77 ms with the CLI, for pre and post combined.</li>
+        <li><b>The guardrails page still claimed recursive deletion is denied.</b> That stopped being true when the guard started screening where a delete points instead of what it is called, and <code>rm -rf ./build</code> is allowed and must be. The claims suite now checks titles, social cards and JSON-LD too, not only the body copy.</li>
+      </ul>
+    </div>
 
     <div class="rel">
       <div class="rel-head"><span class="ver">0.4.2</span><span class="date">September 7, 2026</span><span class="tag">Screen the target, not the verb</span></div>

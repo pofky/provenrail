@@ -43,12 +43,12 @@ from pathlib import Path
 # it are vendored from `src/provenrail/` by `tools/vendor_guard_rules.py` rather than written a
 # second time here. Imported by path, because this file runs before Provenrail is installed.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import hosts                                      # noqa: E402
-import spend as spend_ledger                      # noqa: E402
-import transcript                                 # noqa: E402
-from predicates import evaluate as predicate_ok   # noqa: E402
-from shell import command_shape, segments         # noqa: E402
-from welcome import first_run_notice             # noqa: E402
+import hosts  # noqa: E402
+import spend as spend_ledger  # noqa: E402
+import transcript  # noqa: E402
+from predicates import evaluate as predicate_ok  # noqa: E402
+from shell import command_shape, segments  # noqa: E402
+from welcome import first_run_notice  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 RULES_FILE = HERE / "rules.json"
@@ -108,8 +108,7 @@ def resolve(catalog, names):
             chosen = [by_id[name]]
         else:
             raise ValueError(
-                '"%s" is not a known rule pack or rule id. Packs: %s'
-                % (name, sorted(packs)))
+                f'"{name}" is not a known rule pack or rule id. Packs: {sorted(packs)}')
         for rule in chosen:
             if rule["id"] in seen:
                 continue
@@ -151,14 +150,14 @@ def load_rules(catalog, config_path):
         with config_path.open(encoding="utf-8") as fh:
             cfg = json.load(fh)
     except (OSError, ValueError) as exc:
-        raise ValueError("%s is not readable JSON (%s)" % (config_path, exc))
+        raise ValueError(f"{config_path} is not readable JSON ({exc})") from exc
     policy = cfg.get("policy")
     if policy is None:
         # A config file that configures a stream but says nothing about guardrails is not a
         # decision to run unguarded, so the defaults still apply.
         return resolve(catalog, catalog["default_packs"]), "defaults"
     if not isinstance(policy, dict):
-        raise ValueError('"policy" in %s must be an object' % config_path)
+        raise ValueError(f'"policy" in {config_path} must be an object')
     if "use" not in policy and "rules" not in policy:
         # A policy block that says nothing about RULES is not a decision to run without any.
         # `/guard-budget 25` in a fresh project writes exactly such a block, and reading it as
@@ -168,10 +167,10 @@ def load_rules(catalog, config_path):
     rules = resolve(catalog, policy.get("use"))
     custom = policy.get("rules") or []
     if not isinstance(custom, list):
-        raise ValueError('"policy.rules" in %s must be a list' % config_path)
+        raise ValueError(f'"policy.rules" in {config_path} must be a list')
     for rule in custom:
         if not isinstance(rule, dict) or not rule.get("id") or not rule.get("effect"):
-            raise ValueError('every rule in %s needs "id" and "effect"' % config_path)
+            raise ValueError(f'every rule in {config_path} needs "id" and "effect"')
         if rule.get("arg_contains"):
             # Compiled here so a broken pattern is reported as a policy that will not load,
             # the same answer `pr` gives. Discovering it inside the matcher would mean one
@@ -179,8 +178,8 @@ def load_rules(catalog, config_path):
             try:
                 re.compile(rule["arg_contains"])
             except re.error as exc:
-                raise ValueError('rule "%s" has an invalid arg_contains regex: %s'
-                                 % (rule["id"], exc))
+                raise ValueError(
+                    f'rule "{rule["id"]}" has an invalid arg_contains regex: {exc}') from exc
         rules.append({k: v for k, v in rule.items() if k in ENGINE_FIELDS})
     return rules, str(config_path)
 
@@ -202,43 +201,44 @@ def load_budgets(config_path):
         with config_path.open(encoding="utf-8") as fh:
             cfg = json.load(fh)
     except (OSError, ValueError) as exc:
-        raise ValueError("%s is not readable JSON (%s)" % (config_path, exc))
+        raise ValueError(f"{config_path} is not readable JSON ({exc})") from exc
     policy = cfg.get("policy")
     if not isinstance(policy, dict):
         return [], "warn"
     raw = policy.get("budgets") or []
     if not isinstance(raw, list):
-        raise ValueError('"policy.budgets" in %s must be a list' % config_path)
+        raise ValueError(f'"policy.budgets" in {config_path} must be a list')
     on_unpriced = str(policy.get("on_unpriced") or "warn").lower()
     if on_unpriced not in ("warn", "deny"):
-        raise ValueError('"policy.on_unpriced" in %s must be "warn" or "deny"' % config_path)
+        raise ValueError(f'"policy.on_unpriced" in {config_path} must be "warn" or "deny"')
     out = []
     for i, budget in enumerate(raw):
         if not isinstance(budget, dict):
-            raise ValueError("policy budget %d in %s must be an object" % (i, config_path))
+            raise ValueError(f"policy budget {i} in {config_path} must be an object")
         unknown = sorted(set(budget) - set(transcript.BUDGET_FIELDS))
         if unknown:
-            raise ValueError("policy budget %d has unknown field(s) %s. A misspelled field "
-                             "would silently disable the cap, so it is rejected rather than "
-                             "ignored." % (i, unknown))
+            raise ValueError(f"policy budget {i} has unknown field(s) {unknown}. A misspelled "
+                             "field would silently disable the cap, so it is rejected rather "
+                             "than ignored.")
         scope = str(budget.get("scope", transcript.SESSION)).lower()
         if scope not in transcript.BUDGET_SCOPES:
-            raise ValueError("policy budget %d has scope %r; expected one of %s"
-                             % (i, scope, sorted(transcript.BUDGET_SCOPES)))
+            raise ValueError(f"policy budget {i} has scope {scope!r}; expected one of "
+                             f"{sorted(transcript.BUDGET_SCOPES)}")
         try:
             limit_usd = float(budget["limit_usd"])
-        except (KeyError, TypeError, ValueError):
-            raise ValueError('policy budget %d needs a numeric "limit_usd" (without one it '
-                             "would never cap anything)" % i)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f'policy budget {i} needs a numeric "limit_usd" (without one it '
+                             "would never cap anything)") from exc
         if limit_usd <= 0:
-            raise ValueError("policy budget %d has limit_usd %s; a cap must be greater than zero"
-                             % (i, limit_usd))
+            raise ValueError(f"policy budget {i} has limit_usd {limit_usd}; a cap must be "
+                             "greater than zero")
         try:
             warn_at = float(budget.get("warn_at", 0.8))
-        except (TypeError, ValueError):
-            raise ValueError("policy budget %d warn_at must be a number between 0 and 1" % i)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"policy budget {i} warn_at must be a number between 0 and 1") from exc
         if not 0.0 <= warn_at <= 1.0:
-            raise ValueError("policy budget %d warn_at must be between 0 and 1" % i)
+            raise ValueError(f"policy budget {i} warn_at must be between 0 and 1")
         out.append((str(budget.get("id") or "budget." + scope), scope, limit_usd, warn_at))
     return out, on_unpriced
 
@@ -420,7 +420,7 @@ def mark_ask(config_path, session_id, tool, rule):
                 data = {}
         except (OSError, ValueError):
             data = {}
-        data["%s|%s" % (session_id, tool)] = {"rule": rule, "at": int(time.time())}
+        data[f"{session_id}|{tool}"] = {"rule": rule, "at": int(time.time())}
         tmp = path.with_suffix(path.suffix + ".tmp")
         with tmp.open("w", encoding="utf-8") as fh:
             json.dump(data, fh)
@@ -509,9 +509,9 @@ def decide(rules, tool, tool_input, counts, cwd=""):
     ctx = {"tool": tool, "match_text": text, "cwd": cwd or ""}
     if len(text) > MAX_MATCH_TEXT and any(r.get("arg_contains") for r in rules):
         return "ask", UNSCREENABLE, (
-            "this call's arguments are %d characters, past the %d a content rule can be "
-            "matched against, so it cannot be screened. An argument too large to read is not "
-            "an argument known to be safe." % (len(text), MAX_MATCH_TEXT))
+            f"this call's arguments are {len(text)} characters, past the {MAX_MATCH_TEXT} a "
+            "content rule can be matched against, so it cannot be screened. An argument too "
+            "large to read is not an argument known to be safe.")
 
     # An allow found in this loop is provisional, exactly as in the installed engine: a `limit`
     # rule under its cap must not preempt a `deny` rule that comes after it.
@@ -533,10 +533,10 @@ def decide(rules, tool, tool_input, counts, cwd=""):
             counts[rule["id"]] = counts.get(rule["id"], 0) + 1
             if isinstance(cap, int) and counts[rule["id"]] > cap:
                 return "deny", rule["id"], rule.get("reason") or (
-                    "exceeds the %d-per-session limit" % cap)
+                    f"exceeds the {cap}-per-session limit")
             if provisional is None:
-                provisional = ("allow", rule["id"], "within the per-session limit (%d/%s)"
-                               % (counts[rule["id"]], cap))
+                provisional = ("allow", rule["id"],
+                               f"within the per-session limit ({counts[rule['id']]}/{cap})")
     if provisional is not None:
         return provisional
     return "allow", None, ""
@@ -618,7 +618,7 @@ def apply_spend(config_path, budgets, on_unpriced, hook):
     if not state.known or not resumed_known:
         notice = once_a_day(config_path, "spend-unreadable", CANNOT_BIND + (
             "transcript unreadable. Part of this session's model spend could not be priced, so "
-            "the figures are a floor, not a total (%s).\n" % transcript_path))
+            f"the figures are a floor, not a total ({transcript_path}).\n"))
     elif not ledger_known and any(scope != transcript.SESSION for _, scope, _, _ in budgets):
         notice = once_a_day(config_path, "spend-ledger", CANNOT_BIND + (
             "the local spend ledger could not be read, so spend from earlier sessions is not "
@@ -650,10 +650,10 @@ def run(raw, default_event="pre", host=hosts.DEFAULT_HOST):
     except hosts.PayloadShapeError as exc:
         # A shape we do not recognise on a host nobody has driven means this adapter is wrong,
         # and an adapter that is wrong must not wave the call through as though it had read it.
-        reason = ("Provenrail could not read this %s hook payload (%s), so it could not screen "
-                  "the call. Blocking rather than passing an unscreened tool call through."
-                  % (hosts.label(host), exc))
-        return hosts.render(host, "deny", reason), "provenrail-guard: %s\n" % reason
+        reason = (f"Provenrail could not read this {hosts.label(host)} hook payload ({exc}), so "
+                  "it could not screen the call. Blocking rather than passing an unscreened "
+                  "tool call through.")
+        return hosts.render(host, "deny", reason), f"provenrail-guard: {reason}\n"
     config_path = find_config_file()
     catalog = load_catalog()
     try:
@@ -662,7 +662,7 @@ def run(raw, default_event="pre", host=hosts.DEFAULT_HOST):
     except ValueError as exc:
         # A broken policy must be loud, not silently permissive.
         return (allow_out(host),
-                "provenrail-guard: could not load the policy (%s); NOT enforcing.\n" % exc)
+                f"provenrail-guard: could not load the policy ({exc}); NOT enforcing.\n")
 
     # A budget with no rules IS an armed policy. Counting only rules here sent a config whose
     # whole purpose was a spend cap into the "nothing is armed" path, where it was never
@@ -709,7 +709,7 @@ def run(raw, default_event="pre", host=hosts.DEFAULT_HOST):
                 "session_id": hook["session_id"], "verdict": "allow", "rule": None,
                 "reason": "", "warning": warning, "by": "standalone"})
             notice += once_a_day(config_path, "spend-warn",
-                                 "provenrail-guard: %s\n" % warning)
+                                 f"provenrail-guard: {warning}\n")
         return allow_out(host), notice
 
     entry = {
@@ -728,7 +728,7 @@ def run(raw, default_event="pre", host=hosts.DEFAULT_HOST):
         entry["shape"] = matched_shape(rules, rule_id, match_text(hook["input"]))
     append_journal(config_path, entry)
 
-    text = "Provenrail guardrail %s: %s" % (rule_id, reason)
+    text = f"Provenrail guardrail {rule_id}: {reason}"
     if verdict != "ask":
         text += (" [blocked locally and journalled. Install provenrail for a signed receipt "
                  "anyone can verify: uv tool install provenrail]")
@@ -794,17 +794,17 @@ def card():
 
     denies = sum(1 for e in entries if e["verdict"] == "deny")
     asks = len(entries) - denies
-    lines.append("Provenrail guard stopped %d command%s in this repo (%d refused, %d sent to me "
-                 "to approve)." % (len(entries), "" if len(entries) == 1 else "s", denies, asks))
+    plural = "" if len(entries) == 1 else "s"
+    lines.append(f"Provenrail guard stopped {len(entries)} command{plural} in this repo "
+                 f"({denies} refused, {asks} sent to me to approve).")
     lines.append("")
     for entry in entries[-10:]:
         stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(entry.get("at", 0)))
         shape = entry.get("shape") or entry.get("tool") or "?"
-        lines.append("  %s  %-8s %s" % (stamp, entry.get("verdict", "?"), shape))
-        lines.append("  %s  %s" % (" " * len(stamp), entry.get("rule") or ""))
+        lines.append(f"  {stamp}  {entry.get('verdict', '?'):<8} {shape}")
+        lines.append("  {}  {}".format(" " * len(stamp), entry.get("rule") or ""))
     lines.append("")
-    lines.append("  repo %s (hashed, not the name). Commands are shown as verb and flags only;"
-                 % digest)
+    lines.append(f"  repo {digest} (hashed, not the name). Commands are shown as verb and flags only;")
     lines.append("  every operand is dropped, so nothing here can be a path or a key.")
     lines.append("")
     lines.append("  This card is a local text file and anyone could have typed it. For a "
@@ -827,22 +827,22 @@ def status():
     try:
         rules, source = load_rules(catalog, config_path)
     except ValueError as exc:
-        return "provenrail-guard: the policy will not load, so NOTHING is enforced: %s\n" % exc
+        return f"provenrail-guard: the policy will not load, so NOTHING is enforced: {exc}\n"
     if source != "defaults":
         where = source
     elif config_path is None:
-        where = "built-in defaults (no %s in this project)" % CONFIG_FILENAME
+        where = f"built-in defaults (no {CONFIG_FILENAME} in this project)"
     else:
         # There IS a config file; it just says nothing about rules, which is what a file holding
         # only a spend cap looks like. Saying "no config file" there sends the user looking for
         # one that is sitting in front of them.
-        where = "built-in defaults (%s sets no rules)" % config_path
-    lines.append("provenrail-guard: %d rules armed, from %s" % (len(rules), where))
+        where = f"built-in defaults ({config_path} sets no rules)"
+    lines.append(f"provenrail-guard: {len(rules)} rules armed, from {where}")
     blocked = sum(1 for r in rules if r.get("effect") == DENY)
     asks = sum(1 for r in rules if r.get("effect") == REQUIRE_OVERSIGHT)
     caps = sum(1 for r in rules if r.get("effect") == LIMIT)
-    lines.append("  %d block outright, %d ask a human first, %d cap blast radius"
-                 % (blocked, asks, caps))
+    lines.append(f"  {blocked} block outright, {asks} ask a human first, "
+                 f"{caps} cap blast radius")
     if not rules:
         lines.append("  Nothing is being blocked. Remove \"policy\" from the config to restore "
                      "the defaults.")
@@ -852,34 +852,33 @@ def status():
     try:
         budgets, _on_unpriced = load_budgets(config_path)
     except ValueError as exc:
-        return "provenrail-guard: the policy will not load, so NOTHING is enforced: %s\n" % exc
+        return f"provenrail-guard: the policy will not load, so NOTHING is enforced: {exc}\n"
     if budgets:
         day, total, known = spend_ledger.prior_spend(spend_agent_id(config_path))
         lines.append("")
-        lines.append("  Spend caps (%s):" % transcript.ESTIMATE_CAVEAT)
+        lines.append(f"  Spend caps ({transcript.ESTIMATE_CAVEAT}):")
         for budget_id, scope, limit_usd, _warn_at in budgets:
             spent = {transcript.DAY: day, transcript.TOTAL: total}.get(scope)
             if spent is None or not known:
                 # A session figure lives in the per-session state, not the ledger, and an
                 # unreadable ledger is unknown rather than zero. Printing $0.00 of $25 here
                 # would be the reassuring lie this whole feature exists to avoid.
-                lines.append("    %-16s cap $%.2f, spent so far not known from here"
-                             % (budget_id, limit_usd))
+                lines.append(f"    {budget_id:<16} cap ${limit_usd:.2f}, spent so far not "
+                             "known from here")
             else:
-                lines.append("    %-16s $%.4f of $%.2f" % (budget_id, spent, limit_usd))
+                lines.append(f"    {budget_id:<16} ${spent:.4f} of ${limit_usd:.2f}")
 
     entries = read_journal(config_path)
     denies = [e for e in entries if e.get("verdict") == "deny"]
     prompts = [e for e in entries if e.get("verdict") == "ask"]
     lines.append("")
-    lines.append("  Stopped so far: %d blocked, %d sent to you for approval."
-                 % (len(denies), len(prompts)))
+    lines.append(f"  Stopped so far: {len(denies)} blocked, {len(prompts)} sent to you "
+                 "for approval.")
     for entry in entries[-8:]:
         stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(entry.get("at", 0)))
-        lines.append("    %s  %-5s %-22s %s"
-                     % (stamp, entry.get("verdict", "?"),
-                        entry.get("shape") or entry.get("tool", "?"),
-                        entry.get("rule") or ""))
+        verdict = entry.get("verdict", "?")
+        shape = entry.get("shape") or entry.get("tool", "?")
+        lines.append(f"    {stamp}  {verdict:<5} {shape:<22} {entry.get('rule') or ''}")
     if not entries:
         lines.append("    (nothing yet: either the agent has done nothing dangerous, or the "
                      "hooks are not wired. Ask Claude to run `echo test` and check again.)")
@@ -914,13 +913,13 @@ def main(argv):
         # contract for must not be answered with silence, because silence is "allow" on four of
         # the five and this file would then be a guard that had quietly stopped guarding.
         sys.stderr.write(
-            "provenrail-guard: unknown host %r; known hosts: %s. NOT enforcing: nothing here "
-            "has screened this tool call.\n" % (host, ", ".join(hosts.HOST_NAMES)))
+            "provenrail-guard: unknown host {!r}; known hosts: {}. NOT enforcing: nothing here "
+            "has screened this tool call.\n".format(host, ", ".join(hosts.HOST_NAMES)))
         return 2
     try:
         stdout, stderr = run(sys.stdin.read(), default_event=event, host=host)
     except Exception as exc:  # never break the session
-        sys.stderr.write("provenrail-guard: internal error (%s); allowing.\n" % exc)
+        sys.stderr.write(f"provenrail-guard: internal error ({exc}); allowing.\n")
         return 0
     if stderr:
         sys.stderr.write(stderr)
