@@ -43,6 +43,8 @@ from pathlib import Path
 # it are vendored from `src/provenrail/` by `tools/vendor_guard_rules.py` rather than written a
 # second time here. Imported by path, because this file runs before Provenrail is installed.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import spend as spend_ledger                      # noqa: E402
+import transcript                                 # noqa: E402
 from predicates import evaluate as predicate_ok   # noqa: E402
 from shell import command_shape, segments         # noqa: E402
 from welcome import first_run_notice             # noqa: E402
@@ -156,6 +158,12 @@ def load_rules(catalog, config_path):
         return resolve(catalog, catalog["default_packs"]), "defaults"
     if not isinstance(policy, dict):
         raise ValueError('"policy" in %s must be an object' % config_path)
+    if "use" not in policy and "rules" not in policy:
+        # A policy block that says nothing about RULES is not a decision to run without any.
+        # `/guard-budget 25` in a fresh project writes exactly such a block, and reading it as
+        # "the user chose no rules" meant arming a spend cap silently switched every destructive
+        # rule off. Turning one control on must never turn another one off without saying so.
+        return resolve(catalog, catalog["default_packs"]), "defaults"
     rules = resolve(catalog, policy.get("use"))
     custom = policy.get("rules") or []
     if not isinstance(custom, list):
@@ -174,6 +182,81 @@ def load_rules(catalog, config_path):
                                  % (rule["id"], exc))
         rules.append({k: v for k, v in rule.items() if k in ENGINE_FIELDS})
     return rules, str(config_path)
+
+
+def load_budgets(config_path):
+    """(budgets, on_unpriced) from the config, as the tuples `transcript.verdict_for` takes.
+
+    There is no default cap and there must never be one: a dollar figure nobody chose is a claim
+    about somebody else's money, and it would be wrong for almost everyone. A budget exists only
+    because a person wrote one, with `pr guard budget 25` or `/guard-budget 25`.
+
+    A budget that cannot bind is rejected rather than ignored, because a misspelled scope or a
+    missing limit produces a config that reads like a spend control and enforces nothing, which
+    is the single worst failure this feature has.
+    """
+    if config_path is None:
+        return [], "warn"
+    try:
+        with config_path.open(encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except (OSError, ValueError) as exc:
+        raise ValueError("%s is not readable JSON (%s)" % (config_path, exc))
+    policy = cfg.get("policy")
+    if not isinstance(policy, dict):
+        return [], "warn"
+    raw = policy.get("budgets") or []
+    if not isinstance(raw, list):
+        raise ValueError('"policy.budgets" in %s must be a list' % config_path)
+    on_unpriced = str(policy.get("on_unpriced") or "warn").lower()
+    if on_unpriced not in ("warn", "deny"):
+        raise ValueError('"policy.on_unpriced" in %s must be "warn" or "deny"' % config_path)
+    out = []
+    for i, budget in enumerate(raw):
+        if not isinstance(budget, dict):
+            raise ValueError("policy budget %d in %s must be an object" % (i, config_path))
+        unknown = sorted(set(budget) - set(transcript.BUDGET_FIELDS))
+        if unknown:
+            raise ValueError("policy budget %d has unknown field(s) %s. A misspelled field "
+                             "would silently disable the cap, so it is rejected rather than "
+                             "ignored." % (i, unknown))
+        scope = str(budget.get("scope", transcript.SESSION)).lower()
+        if scope not in transcript.BUDGET_SCOPES:
+            raise ValueError("policy budget %d has scope %r; expected one of %s"
+                             % (i, scope, sorted(transcript.BUDGET_SCOPES)))
+        try:
+            limit_usd = float(budget["limit_usd"])
+        except (KeyError, TypeError, ValueError):
+            raise ValueError('policy budget %d needs a numeric "limit_usd" (without one it '
+                             "would never cap anything)" % i)
+        if limit_usd <= 0:
+            raise ValueError("policy budget %d has limit_usd %s; a cap must be greater than zero"
+                             % (i, limit_usd))
+        try:
+            warn_at = float(budget.get("warn_at", 0.8))
+        except (TypeError, ValueError):
+            raise ValueError("policy budget %d warn_at must be a number between 0 and 1" % i)
+        if not 0.0 <= warn_at <= 1.0:
+            raise ValueError("policy budget %d warn_at must be between 0 and 1" % i)
+        out.append((str(budget.get("id") or "budget." + scope), scope, limit_usd, warn_at))
+    return out, on_unpriced
+
+
+def spend_agent_id(config_path):
+    """Ledger key for guard mode: the configured stream, else a shared default.
+
+    Read the same way the installed CLI reads it, because the two engines write the same ledger
+    file and a different key would split one agent's day spend across two rows, each of them
+    under the cap.
+    """
+    if config_path is None:
+        return "default"
+    try:
+        with config_path.open(encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except (OSError, ValueError):
+        return "default"
+    return str(cfg.get("stream_id") or cfg.get("agent_id") or "default")
 
 
 # ---------------------------------------------------------------- payload
@@ -241,6 +324,8 @@ def parse_hook_input(data, default_event="pre"):
         "input": coerce_tool_input(data.get("tool_input")),
         "session_id": data.get("session_id") or "",
         "cwd": data.get("cwd") or "",
+        # The only field in a tool-hook payload that knows what the model has cost.
+        "transcript_path": data.get("transcript_path") or "",
     }
 
 
@@ -302,7 +387,26 @@ def load_counts(config_path, session_id):
     return {}
 
 
-def save_counts(config_path, session_id, counts):
+def load_spend_state(config_path, session_id):
+    """How far this session's transcript has already been priced."""
+    if not session_id:
+        return transcript.TranscriptState()
+    try:
+        with (state_dir(config_path) / COUNTS_FILENAME).open(encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return transcript.TranscriptState()
+    return transcript.find_state(data, session_id)
+
+
+def save_session_entry(config_path, session_id, **fields):
+    """Merge fields into this session's entry, rather than replacing it.
+
+    The entry carries two independent things now, the blast-radius counters and the transcript
+    spend cursor, and writing one by assigning a whole new entry dropped the other. Dropping the
+    spend cursor resets the read offset to zero, which charges the entire transcript again on
+    the very next tool call.
+    """
     if not session_id:
         return
     path = state_dir(config_path) / COUNTS_FILENAME
@@ -314,7 +418,11 @@ def save_counts(config_path, session_id, counts):
                 data = {}
         except (OSError, ValueError):
             data = {}
-        data[session_id] = {"counts": counts, "updated": int(time.time())}
+        entry = data.get(session_id)
+        entry = dict(entry) if isinstance(entry, dict) else {}
+        entry.update(fields)
+        entry["updated"] = int(time.time())
+        data[session_id] = entry
         # Keep the file from growing without bound across months of sessions.
         if len(data) > 200:
             newest = sorted(data.items(), key=lambda kv: kv[1].get("updated", 0), reverse=True)
@@ -475,6 +583,71 @@ def welcome(config_path, catalog, rules, source):
         rules, catalog.get("packs", {}), CONFIG_FILENAME, signed=False))
 
 
+# ---------------------------------------------------------------- spend
+
+
+#: Said on stderr, at most once a day, when budgets are configured but the spend they exist to
+#: cap cannot be counted. A guard that cannot bind and does not say so is worse than no guard.
+CANNOT_BIND = "provenrail-guard: spend cap cannot bind: "
+
+
+def apply_spend(config_path, budgets, on_unpriced, hook):
+    """Price the transcript since the last tool call and answer the budgets. (verdict, stderr).
+
+    `verdict` is the ("deny"|"allow", rule id, text) tuple `transcript.verdict_for` returns, or
+    None. The arithmetic and every sentence come from the vendored `transcript` module, which
+    the installed CLI also calls, so the two engines cannot quote different dollar figures for
+    the same ledger.
+    """
+    if not budgets:
+        # No budget, no transcript I/O. Pricing a multi-megabyte transcript on every tool call
+        # would be a tax paid by every project that has never set a cap, which is nearly all.
+        return None, ""
+    transcript_path = hook.get("transcript_path") or ""
+    if not transcript_path:
+        return None, once_a_day(config_path, "spend-no-transcript", CANNOT_BIND + (
+            "this hook payload carried no transcript_path, so no model spend can be seen from "
+            "here. The cap in the policy is not enforcing anything.\n"))
+    session_id = hook.get("session_id") or ""
+    if not session_id:
+        # Without a session key there is nowhere to persist the read offset, so the next call
+        # would re-price the whole transcript and charge it again. Counting the same tokens once
+        # per tool call would deny a correct cap within minutes, which is a worse failure than
+        # not counting at all, and the notice says which one happened.
+        return None, once_a_day(config_path, "spend-no-session", CANNOT_BIND + (
+            "this hook payload carried no session_id, so the transcript read offset cannot be "
+            "kept between tool calls and spend is not being counted.\n"))
+
+    state = load_spend_state(config_path, session_id)
+    resumed_known = state.known
+    new_cost, _unpriced, state = transcript.accrue(transcript_path, state)
+    save_session_entry(config_path, session_id, spend=state.to_dict())
+    agent_id = spend_agent_id(config_path)
+    if new_cost > 0:
+        spend_ledger.add_spend(new_cost, agent_id)
+    day, total, ledger_known = spend_ledger.prior_spend(agent_id)
+
+    # The ledger already contains this session's spend, because it was just added to it. A
+    # `session` budget still needs the session figure on its own, so it is subtracted out of the
+    # cross-session figures rather than counted twice.
+    session_usd = state.session_usd
+    spent = transcript.spent_by_scope(session_usd, max(0.0, day - session_usd),
+                                      max(0.0, total - session_usd))
+    verdict = transcript.verdict_for(budgets, spent, state.unpriced_calls, on_unpriced,
+                                     CONFIG_FILENAME)
+
+    notice = ""
+    if not state.known or not resumed_known:
+        notice = once_a_day(config_path, "spend-unreadable", CANNOT_BIND + (
+            "transcript unreadable. Part of this session's model spend could not be priced, so "
+            "the figures are a floor, not a total (%s).\n" % transcript_path))
+    elif not ledger_known and any(scope != transcript.SESSION for _, scope, _, _ in budgets):
+        notice = once_a_day(config_path, "spend-ledger", CANNOT_BIND + (
+            "the local spend ledger could not be read, so spend from earlier sessions is not "
+            "counted and a day or total cap sees only this session.\n"))
+    return verdict, notice
+
+
 def run(raw, default_event="pre"):
     """Handle one hook invocation. Returns (stdout, stderr)."""
     try:
@@ -489,11 +662,15 @@ def run(raw, default_event="pre"):
     catalog = load_catalog()
     try:
         rules, source = load_rules(catalog, config_path)
+        budgets, on_unpriced = load_budgets(config_path)
     except ValueError as exc:
         # A broken policy must be loud, not silently permissive.
         return "", "provenrail-guard: could not load the policy (%s); NOT enforcing.\n" % exc
 
-    if not rules:
+    # A budget with no rules IS an armed policy. Counting only rules here sent a config whose
+    # whole purpose was a spend cap into the "nothing is armed" path, where it was never
+    # evaluated at all.
+    if not rules and not budgets:
         return "", once_a_day(config_path, "unarmed", (
             "provenrail-guard: hooks are installed but NO guardrails are armed, so nothing is "
             "being blocked. Remove \"policy\" from %s to get the defaults back.\n"
@@ -503,20 +680,39 @@ def run(raw, default_event="pre"):
     if hook["event"] != "pre":
         return "", notice
 
-    counts = load_counts(config_path, hook["session_id"])
-    before = dict(counts)
-    verdict, rule_id, reason = decide(rules, hook["tool"], hook["input"], counts,
-                                      hook.get("cwd") or "")
-    if counts != before:
-        save_counts(config_path, hook["session_id"], counts)
+    spent, spend_notice = apply_spend(config_path, budgets, on_unpriced, hook)
+    notice += spend_notice
+    warning = ""
+    if spent is not None and spent[0] == DENY:
+        # Before the rules, because a blown cap is not a question about this particular command:
+        # once the money is gone, the next tool call is the one that has to stop, whatever it is.
+        verdict, rule_id, reason = spent
+    else:
+        if spent is not None:
+            warning = spent[2]
+        counts = load_counts(config_path, hook["session_id"])
+        before = dict(counts)
+        verdict, rule_id, reason = decide(rules, hook["tool"], hook["input"], counts,
+                                          hook.get("cwd") or "")
+        if counts != before:
+            save_session_entry(config_path, hook["session_id"], counts=counts)
     if verdict == "ask":
         mark_ask(config_path, hook["session_id"], hook["tool"], rule_id or "")
 
     if verdict == "allow":
-        # Only blocks and prompts are journalled. A line per allowed tool call would add
-        # thousands of rows a day to a file whose entire purpose is to be readable, and the
-        # standalone is not the recorder: capturing what the agent DID is what installing
-        # Provenrail adds. What it must not lose is what it stopped.
+        # Only blocks, prompts and budget warnings are journalled. A line per allowed tool call
+        # would add thousands of rows a day to a file whose entire purpose is to be readable,
+        # and the standalone is not the recorder: capturing what the agent DID is what
+        # installing Provenrail adds. What it must not lose is what it stopped, and a cap about
+        # to stop it, because a warning that only appears once the work is blocked is a
+        # post-mortem rather than a control.
+        if warning:
+            append_journal(config_path, {
+                "at": int(time.time()), "event": "pre", "tool": hook["tool"],
+                "session_id": hook["session_id"], "verdict": "allow", "rule": None,
+                "reason": "", "warning": warning, "by": "standalone"})
+            notice += once_a_day(config_path, "spend-warn",
+                                 "provenrail-guard: %s\n" % warning)
         return "", notice
 
     entry = {
@@ -635,8 +831,15 @@ def status():
         rules, source = load_rules(catalog, config_path)
     except ValueError as exc:
         return "provenrail-guard: the policy will not load, so NOTHING is enforced: %s\n" % exc
-    where = "built-in defaults (no %s in this project)" % CONFIG_FILENAME \
-        if source == "defaults" else source
+    if source != "defaults":
+        where = source
+    elif config_path is None:
+        where = "built-in defaults (no %s in this project)" % CONFIG_FILENAME
+    else:
+        # There IS a config file; it just says nothing about rules, which is what a file holding
+        # only a spend cap looks like. Saying "no config file" there sends the user looking for
+        # one that is sitting in front of them.
+        where = "built-in defaults (%s sets no rules)" % config_path
     lines.append("provenrail-guard: %d rules armed, from %s" % (len(rules), where))
     blocked = sum(1 for r in rules if r.get("effect") == DENY)
     asks = sum(1 for r in rules if r.get("effect") == REQUIRE_OVERSIGHT)
@@ -646,6 +849,27 @@ def status():
     if not rules:
         lines.append("  Nothing is being blocked. Remove \"policy\" from the config to restore "
                      "the defaults.")
+
+    # A cap the user set and cannot see is a cap they will assume is working. There is no
+    # default budget, so this section is absent unless somebody wrote one.
+    try:
+        budgets, _on_unpriced = load_budgets(config_path)
+    except ValueError as exc:
+        return "provenrail-guard: the policy will not load, so NOTHING is enforced: %s\n" % exc
+    if budgets:
+        day, total, known = spend_ledger.prior_spend(spend_agent_id(config_path))
+        lines.append("")
+        lines.append("  Spend caps (%s):" % transcript.ESTIMATE_CAVEAT)
+        for budget_id, scope, limit_usd, _warn_at in budgets:
+            spent = {transcript.DAY: day, transcript.TOTAL: total}.get(scope)
+            if spent is None or not known:
+                # A session figure lives in the per-session state, not the ledger, and an
+                # unreadable ledger is unknown rather than zero. Printing $0.00 of $25 here
+                # would be the reassuring lie this whole feature exists to avoid.
+                lines.append("    %-16s cap $%.2f, spent so far not known from here"
+                             % (budget_id, limit_usd))
+            else:
+                lines.append("    %-16s $%.4f of $%.2f" % (budget_id, spent, limit_usd))
 
     entries = read_journal(config_path)
     denies = [e for e in entries if e.get("verdict") == "deny"]

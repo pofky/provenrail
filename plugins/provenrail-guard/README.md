@@ -14,6 +14,7 @@ nothing leaves your machine. The next tool call your agent makes is already bein
 /guard-status      what is armed, and what it has actually stopped
 /guard-card        a summary of what it stopped, safe to paste anywhere
 /guard-rules       every rule, including the packs that are off by default
+/guard-budget 25   refuse the next tool call once the run has cost $25 (estimated)
 ```
 
 ## What it does

@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 from provenrail import guard
-from provenrail.easy import load_policy
+from provenrail.easy import PolicyConfigError, load_policy
 
 ROOT = Path(__file__).resolve().parent.parent
 STANDALONE = ROOT / "plugins" / "provenrail-guard" / "scripts" / "guard_standalone.py"
@@ -225,3 +225,195 @@ def test_both_engines_keep_the_deny_rules_behind_a_blast_radius_cap(tmp_path):
     payload = {"command": "rm -rf /"}
     assert _standalone_verdict(tmp_path, packs, "Bash", payload) == "deny"
     assert _installed_verdict(packs, "Bash", payload) == "deny"
+
+
+# ---------------------------------------------------------------- the spend cap, 0.5.0
+#
+# The cap is the one control in this space with proven payment behaviour, and it now answers in
+# both engines. A dollar figure that differs between them is worse than a rule verdict that
+# does: the user reads one number in `/guard-status` and is stopped at a different one.
+
+TRANSCRIPT = ROOT / "tests" / "fixtures" / "transcripts" / "claude-code-spend.jsonl"
+TRANSCRIPT_LINES = [ln for ln in TRANSCRIPT.read_text(encoding="utf-8").splitlines() if ln.strip()]
+#: The fixture marks where its own labelled costs total $0.90, under a $1.00 cap and over its
+#: 80% warning line. `tests/test_transcript.py` is what holds that invariant.
+SPLIT_AT = next(i for i, ln in enumerate(TRANSCRIPT_LINES) if json.loads(ln).get("_split"))
+
+DAY_CAP = {"policy": {"use": ["destructive"],
+                      "budgets": [{"scope": "day", "limit_usd": 1.0, "warn_at": 0.8}]}}
+
+
+def _spend_payload(workdir, command="ls -la"):
+    return {"hook_event_name": "PreToolUse", "tool_name": "Bash", "session_id": "s1",
+            "tool_input": {"command": command}, "cwd": str(workdir),
+            "transcript_path": str(workdir / "transcript.jsonl")}
+
+
+def _lay_out(workdir, upto=None):
+    (workdir / ".provenrail.json").write_text(json.dumps(DAY_CAP), encoding="utf-8")
+    (workdir / "transcript.jsonl").write_text("\n".join(TRANSCRIPT_LINES[:upto]) + "\n",
+                                              encoding="utf-8")
+
+
+def _figure(text):
+    """The dollar amounts a reason quotes, which is what the user is actually told."""
+    import re
+    return re.findall(r"\$[\d,]+\.\d{4}", text or "")
+
+
+def _answer(stdout):
+    """(verdict, rule id, dollar figures) from a hook's stdout, in whichever engine wrote it."""
+    if not stdout.strip():
+        return "allow", None, []
+    payload = json.loads(stdout)["hookSpecificOutput"]
+    reason = payload["permissionDecisionReason"]
+    rule = reason.split("Provenrail guardrail ", 1)[-1].split(":", 1)[0]
+    return payload["permissionDecision"], rule, _figure(reason)
+
+
+def _standalone_run(workdir, payload):
+    proc = subprocess.run(
+        [sys.executable, str(STANDALONE), "--event", "pre"],
+        input=json.dumps(payload), capture_output=True, text=True, cwd=str(workdir),
+        env={"PATH": "/usr/bin:/bin", "HOME": str(workdir)})
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout, proc.stderr
+
+
+def _installed_run(workdir, payload, monkeypatch):
+    monkeypatch.chdir(workdir)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: workdir))
+    for var in ("PROVENRAIL_URL", "FLIGHTRECORDER_URL", "PROVENRAIL_GUARD_JOURNAL",
+                "PROVENRAIL_SPEND_LEDGER"):
+        monkeypatch.delenv(var, raising=False)
+    _, out, err = guard.run_hook(json.dumps(payload))
+    return out, err
+
+
+def test_both_engines_deny_the_same_tool_call_at_the_same_dollar(tmp_path, monkeypatch):
+    """Same transcript, same cap, same verdict, same rule id, same number on screen."""
+    one, two = tmp_path / "standalone", tmp_path / "installed"
+    for workdir in (one, two):
+        workdir.mkdir()
+        _lay_out(workdir)
+    standalone = _answer(_standalone_run(one, _spend_payload(one))[0])
+    installed = _answer(_installed_run(two, _spend_payload(two), monkeypatch)[0])
+    assert standalone == installed
+    assert standalone[0] == "deny"
+    assert standalone[1] == "budget.day"
+    assert standalone[2] == ["$1.5000", "$1.0000"]
+
+
+def test_both_engines_allow_and_warn_at_the_same_point(tmp_path, monkeypatch):
+    one, two = tmp_path / "standalone", tmp_path / "installed"
+    for workdir in (one, two):
+        workdir.mkdir()
+        _lay_out(workdir, SPLIT_AT)
+    assert _answer(_standalone_run(one, _spend_payload(one))[0])[0] == "allow"
+    assert _answer(_installed_run(two, _spend_payload(two), monkeypatch)[0])[0] == "allow"
+    warnings = []
+    for workdir in (one, two):
+        entries = [json.loads(line) for line in
+                   (workdir / guard.JOURNAL_FILENAME).read_text(encoding="utf-8").splitlines()]
+        warned = [e for e in entries if e.get("warning")]
+        assert len(warned) == 1
+        warnings.append(warned[0]["warning"])
+    assert warnings[0] == warnings[1]
+    assert "90% of the $1.0000 cap" in warnings[0]
+
+
+def test_both_engines_write_the_same_ledger_figure(tmp_path, monkeypatch):
+    """They share one ledger file on a real machine: installing the CLI over a working plugin
+    must continue the day's spend, not start a second, invisible count under another key."""
+    from provenrail import spend
+
+    one, two = tmp_path / "standalone", tmp_path / "installed"
+    for workdir in (one, two):
+        workdir.mkdir()
+        _lay_out(workdir, SPLIT_AT)
+    _standalone_run(one, _spend_payload(one))
+    _installed_run(two, _spend_payload(two), monkeypatch)
+    ledgers = [json.loads((w / spend.LEDGER_FILENAME).read_text(encoding="utf-8"))
+               for w in (one, two)]
+    assert ledgers[0]["agents"]["default"]["total_usd"] == \
+        ledgers[1]["agents"]["default"]["total_usd"]
+    assert ledgers[0]["agents"]["default"]["total_usd"] == pytest.approx(0.90)
+
+
+def test_both_engines_refuse_a_budget_that_could_never_bind(tmp_path, monkeypatch):
+    """A misspelled scope or a missing limit reads like a spend control and enforces nothing,
+    so both engines refuse to load it rather than arming a policy that lies."""
+    for broken in ({"scope": "daily", "limit_usd": 5},
+                   {"scope": "day"},
+                   {"scope": "day", "limit_usd": 0},
+                   {"scope": "day", "limit_usd": 5, "warn": 0.9}):
+        one = tmp_path / ("s" + str(abs(hash(str(broken)))))
+        one.mkdir()
+        (one / ".provenrail.json").write_text(
+            json.dumps({"policy": {"use": ["destructive"], "budgets": [broken]}}),
+            encoding="utf-8")
+        stdout, stderr = _standalone_run(one, _spend_payload(one))
+        assert stdout.strip() == ""
+        assert "NOT enforcing" in stderr, broken
+        with pytest.raises(PolicyConfigError):
+            load_policy({"use": ["destructive"], "budgets": [broken]})
+
+
+def test_a_policy_with_no_budget_makes_neither_engine_read_a_transcript(tmp_path):
+    """There is no default cap, so this is the path almost every install takes."""
+    workdir = tmp_path / "plain"
+    workdir.mkdir()
+    (workdir / ".provenrail.json").write_text(json.dumps({"policy": {"use": ["destructive"]}}),
+                                              encoding="utf-8")
+    (workdir / "transcript.jsonl").write_text("\n".join(TRANSCRIPT_LINES) + "\n",
+                                              encoding="utf-8")
+    _standalone_run(workdir, _spend_payload(workdir))
+    from provenrail import spend
+    assert not (workdir / spend.LEDGER_FILENAME).exists()
+    assert not (workdir / guard.COUNTS_FILENAME).exists()
+
+
+#: The interpreters the vendored engine has to survive. The plugin's shim runs `python3` off the
+#: user's PATH, which on macOS is still the 3.9 that ships with the developer tools, so the suite
+#: is not allowed to test only the interpreter the maintainer happens to be using. Vendoring
+#: `spend.py` broke exactly here: `from datetime import UTC` is 3.11 and up, and the import error
+#: took the whole guard down to "allowing" on every tool call.
+INTERPRETERS = [sys.executable] + [p for p in ("/usr/bin/python3",) if Path(p).exists()]
+
+
+@pytest.mark.parametrize("module", ["pricing", "spend", "transcript", "shell", "predicates",
+                                    "welcome"])
+@pytest.mark.parametrize("interpreter", INTERPRETERS)
+def test_every_vendored_module_imports_with_no_provenrail_on_the_path(module, interpreter):
+    """They are vendored precisely so they run where the package does not exist. A dependency
+    that only resolves because the repo happens to be importable would work in this suite and
+    fail on every real install."""
+    scripts = STANDALONE.parent
+    proc = subprocess.run(
+        [interpreter, "-c",
+         f"import sys; sys.path[:] = [p for p in sys.path if 'flightrecorder' not in p]; "
+         f"sys.path.insert(0, {str(scripts)!r}); import {module} as m; print(m.__file__)"],
+        capture_output=True, text=True, cwd=str(scripts))
+    assert proc.returncode == 0, proc.stderr
+    assert str(scripts) in proc.stdout
+
+
+def test_a_config_that_only_sets_a_spend_cap_does_not_disarm_the_rules(tmp_path, monkeypatch):
+    """`/guard-budget 25` and `pr guard budget 25` both write a policy block with no `use` key.
+    Reading that as "the user chose no rules" meant that arming a spend cap switched off every
+    destructive rule in both engines at once, while each of them reported a cap as armed."""
+    one, two = tmp_path / "standalone", tmp_path / "installed"
+    for workdir in (one, two):
+        workdir.mkdir()
+        (workdir / ".provenrail.json").write_text(
+            json.dumps({"policy": {"budgets": [{"scope": "day", "limit_usd": 100.0}]}}),
+            encoding="utf-8")
+        (workdir / "transcript.jsonl").write_text("", encoding="utf-8")
+    payload = dict(_spend_payload(one), tool_input={"command": "rm -rf /var/data"})
+    standalone = _answer(_standalone_run(one, payload)[0])
+    installed = _answer(_installed_run(two, dict(payload, cwd=str(two),
+                                                 transcript_path=str(two / "transcript.jsonl")),
+                                       monkeypatch)[0])
+    assert standalone == installed
+    assert standalone[0] == "deny"
+    assert standalone[1] == "destructive.recursive-force-remove"

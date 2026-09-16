@@ -1453,12 +1453,90 @@ def _selected_packs(raw: str) -> list[str]:
     return packs
 
 
+def _guard_budget(args) -> int:
+    """`pr guard budget 25`: the one command that arms a spend cap.
+
+    There is deliberately no default cap and there never will be one. A dollar figure nobody
+    chose is a claim about somebody else's money, and it would be wrong for almost everyone: $5
+    is a rounding error to one team and a month's hobby budget to another. So the cap has to be
+    cheap to set instead of guessed, which is what this is.
+    """
+    from . import guard
+    from .easy import CONFIG_FILENAME, PolicyConfigError, _load_config_file, _validate_budgets
+    from .transcript import ESTIMATE_CAVEAT
+
+    if args.amount is None:
+        print("usage: pr guard budget <usd> [--scope day|session|total] [--warn-at 0.8]")
+        print("\nThere is no default cap. A dollar figure you did not choose would be a claim")
+        print("about your money, so the only cap that exists is one you set here.")
+        return 2
+
+    try:
+        limit: object = float(args.amount)
+        limit = int(limit) if float(limit).is_integer() else limit
+    except ValueError:
+        # Handed to _validate_budgets as-is, so the refusal is the same sentence whether the
+        # bad value arrived from this command or from a hand-edited config file.
+        limit = args.amount
+
+    scope = (args.scope or "day").lower()
+    cfg = _load_config_file() or {}
+    policy = cfg.get("policy") if isinstance(cfg.get("policy"), dict) else {}
+    budgets = [b for b in (policy.get("budgets") or []) if isinstance(b, dict)]
+    entry: dict[str, object] = {"scope": scope, "limit_usd": limit}
+    if args.warn_at is not None:
+        try:
+            entry["warn_at"] = float(args.warn_at)
+        except ValueError:
+            entry["warn_at"] = args.warn_at
+    # What was typed is checked before anything else, so a mistyped amount is answered with
+    # what is wrong with it rather than with a complaint about the config it was headed for.
+    try:
+        _validate_budgets([entry], set())
+    except PolicyConfigError as e:
+        print(f"error: {e}")
+        return 2
+
+    same = [b for b in budgets if str(b.get("scope", "session")).lower() == scope]
+    if same and not args.replace:
+        print(f"error: a {scope} budget already exists in {CONFIG_FILENAME} "
+              f"(${same[0].get('limit_usd')}). Pass --replace to change it.")
+        # Refused rather than appended, because two caps at one scope is a config where the
+        # tighter one binds and the one you just typed appears to have done nothing.
+        return 2
+
+    merged = [b for b in budgets if str(b.get("scope", "session")).lower() != scope] + [entry]
+    try:
+        _validate_budgets(merged, set())
+    except PolicyConfigError as e:
+        print(f"error: {e}")
+        return 2
+
+    policy["budgets"] = merged
+    cfg["policy"] = policy
+    path = guard.config_path()
+    path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    print(f"Spend cap: ${limit} per {scope}, written to {path}")
+    print(f"Spend is {ESTIMATE_CAVEAT}.")
+    print("\nFrom the next tool call in this project, the hook prices the agent's own")
+    print("transcript and refuses the next tool call once the cap is over, so it stops within")
+    print("a turn rather than at the exact dollar.")
+    print("\n  pr guard status     what is armed, and what has been spent today")
+    if not guard.hooks_installed():
+        print("\nThe Claude Code hooks are NOT installed in this project, so nothing is reading")
+        print("the policy yet. Run `pr guard install`.")
+    return 0
+
+
 def _cmd_guard(args) -> int:
     """Guardrails for a coding agent, at its own tool boundary, with a signed receipt."""
     from . import guard
     from .easy import CONFIG_FILENAME, _load_config_file, load_policy
 
     action = args.action or "status"
+
+    if action == "budget":
+        return _guard_budget(args)
 
     if action == "hook":
         use = None
@@ -1541,7 +1619,9 @@ def _cmd_guard(args) -> int:
     # status
     from .easy import find_config_file
     cfg = _load_config_file() or {}
-    policy = load_policy(cfg.get("policy"))
+    # Through the same function the hook uses, so this cannot report a different set of rules
+    # from the one that will actually answer the next tool call.
+    policy = load_policy(guard.policy_spec(cfg))
     installed = guard.hooks_installed()
     pending = guard.read_journal()
     source = find_config_file()
@@ -1573,7 +1653,11 @@ def _cmd_guard(args) -> int:
                 # lie of exactly the kind this feature exists to prevent.
                 print("        no cross-run history available, so this figure counts only the "
                       "current run")
-        print("  Budgets bind model calls made through the SDK; tool hooks carry no model spend.")
+        print("  Budgets bind model calls made through the SDK, and tool calls in hook mode:")
+        print("  the hook prices the agent's own transcript and refuses the next tool call once")
+        print("  the cap is over, so it stops within a turn rather than at the exact dollar.")
+        print("  Figures are estimated at API list price and are notional on Pro and Max")
+        print("  flat-rate plans, where there is no per-token charge to cap.")
     if pending:
         print(f"\n{len(pending)} decision(s) in the local journal: the recording server was")
         print("unreachable when they were made, so they are UNSIGNED and are not evidence "
@@ -1756,9 +1840,18 @@ def build_parser() -> argparse.ArgumentParser:
   others   0 on success, non-zero when the command could not do what was asked.""")
     g.add_argument("action", nargs="?",
                    choices=["install", "uninstall", "status", "card", "receipt", "reset",
-                            "hook"],
-                   help="install/uninstall Claude Code hooks, show status, export a receipt, "
-                        "or reset the blast-radius counters")
+                            "hook", "budget"],
+                   help="install/uninstall Claude Code hooks, show status, set a spend cap, "
+                        "export a receipt, or reset the blast-radius counters")
+    g.add_argument("amount", nargs="?",
+                   help="for `budget`: the cap in US dollars, e.g. `pr guard budget 25`. There "
+                        "is no default: a cap you did not choose is a claim about your money")
+    g.add_argument("--scope", choices=["day", "session", "total"], default="day",
+                   help="for `budget`: what the cap counts (default: day)")
+    g.add_argument("--warn-at", dest="warn_at",
+                   help="for `budget`: warn from this fraction of the cap (default: 0.8)")
+    g.add_argument("--replace", action="store_true",
+                   help="for `budget`: overwrite an existing cap at the same scope")
     g.add_argument("--use", help="comma-separated guardrail packs to arm (default: "
                                  "destructive,secrets,production)")
     g.add_argument("--event", choices=["pre", "post"], default="pre",

@@ -53,6 +53,18 @@ from typing import Any
 
 from .canonical import canonicalize, sha256_hex
 
+# The budget scopes are re-exported here, where callers have always imported them from, but
+# they are DEFINED in `transcript.py`: the zero-install engine needs the same three names and
+# the same arithmetic and cannot import this module. See the note there.
+from .transcript import (  # noqa: F401
+    BUDGET_FIELDS,
+    BUDGET_SCOPES,
+    DAY,
+    SESSION,
+    TOTAL,
+    spent_by_scope,
+)
+
 DENY = "deny"
 REQUIRE_OVERSIGHT = "require_oversight"
 LIMIT = "limit"
@@ -228,12 +240,6 @@ class Decision:
     warning: str | None = None   # set when an allowed call crossed a budget's warn threshold
 
 
-SESSION = "session"
-DAY = "day"
-TOTAL = "total"
-BUDGET_SCOPES = (SESSION, DAY, TOTAL)
-
-
 @dataclass
 class Budget:
     """A spend cap in USD at one scope, with an optional early warning.
@@ -247,7 +253,8 @@ class Budget:
     warn_at: float = 0.8
     id: str = ""
 
-    _FIELDS = ("id", "scope", "limit_usd", "warn_at")
+    #: Defined in `transcript.py` so the zero-install engine rejects exactly the same fields.
+    _FIELDS = BUDGET_FIELDS
 
     def __post_init__(self) -> None:
         self.scope = (self.scope or SESSION).lower()
@@ -321,6 +328,35 @@ class Policy:
             out.append(Budget(scope=SESSION, limit_usd=self.session_spend_cap_usd,
                               warn_at=0.8, id="session_spend_cap"))
         return out
+
+    def spent_verdict(self, session: SessionState) -> Decision | None:
+        """The verdict for spend ALREADY incurred, with no new model call to price.
+
+        `decide()` answers "would this call cross the cap", which needs a `usage` dict, and a
+        tool hook never has one: the model call happened somewhere else and the hook only finds
+        out about it afterwards, by pricing the agent's transcript. So the question a hook can
+        actually ask is the one this answers, "is the cap already over", and the consequence is
+        that enforcement lands within a turn rather than at the exact dollar. The copy says so.
+
+        Returns a DENY decision when a cap is over, an ALLOW decision carrying a `warning` when
+        one has crossed its `warn_at`, and None when there is nothing to say. The sentences and
+        the arithmetic come from `transcript.verdict_for`, which the zero-install engine calls
+        too, so the two cannot drift into quoting different dollar figures for the same ledger.
+        """
+        from .easy import CONFIG_FILENAME
+        from .transcript import verdict_for
+
+        budgets = self.effective_budgets()
+        answer = verdict_for(
+            [(b.id, b.scope, b.limit_usd, b.warn_at) for b in budgets],
+            spent_by_scope(session.spend_usd, session.prior_day_usd, session.prior_total_usd),
+            session.unpriced_calls, self.on_unpriced, CONFIG_FILENAME)
+        if answer is None:
+            return None
+        verdict, rule_id, text = answer
+        if verdict == DENY:
+            return Decision(DENY, rule_id, text)
+        return Decision(ALLOW, None, "within every spend cap", text)
 
     def policy_id(self) -> str:
         """A content hash of the policy. Committed into the signed chain at session start so a
@@ -439,11 +475,10 @@ class SessionState:
 
     def scope_spend(self, scope: str) -> float:
         """Estimated spend so far against one budget scope, this session included."""
-        if scope == DAY:
-            return self.prior_day_usd + self.spend_usd
-        if scope == TOTAL:
-            return self.prior_total_usd + self.spend_usd
-        return self.spend_usd
+        totals = spent_by_scope(self.spend_usd, self.prior_day_usd, self.prior_total_usd)
+        # An unrecognised scope degrades to session, which is the narrowest reading and the one
+        # that cannot silently widen a cap.
+        return totals.get(scope, self.spend_usd)
 
 
 def budget_status(policy: Policy, session: SessionState) -> list[dict[str, Any]]:
@@ -485,11 +520,10 @@ def _estimate_cost(ctx: dict[str, Any]) -> tuple[float, bool]:
     budget silently stops binding the moment an agent moves to a model the price table has not
     caught up with. The cost alone cannot express that; the caller needs the flag.
     """
-    from .pricing import cost_for
+    from .pricing import cost_for, reliable
     c = cost_for(ctx.get("model", ""), ctx.get("usage"))
     # An introductory rate whose end date has passed, with no published successor in the table,
     # is a number we know is too low. Counting it as a real estimate would let a budget keep
-    # reporting itself as binding while undercharging every call, so it is treated the same way
-    # as an unpriced model: the spend still accrues, but the total is declared a floor.
-    reliable = bool(c.get("priced")) and not c.get("price_expired")
-    return c.get("cost_usd", 0.0), reliable
+    # reporting itself as binding while undercharging every call, so `pricing.reliable` treats
+    # it the same way as an unpriced model: the spend still accrues, but the total is a floor.
+    return c.get("cost_usd", 0.0), reliable(c)

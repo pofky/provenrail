@@ -441,9 +441,13 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
       list-price estimate is expected to drift from a negotiated rate.</p>
 
     <div class="note"><strong>Honest scope.</strong> Budgets bind model calls made through the SDK,
-      using the usage each call reports. Tool hooks carry no model spend. A model we have no price
-      for is counted as unpriced rather than as zero, and <code>pr spend --json</code> reports
-      <code>unpriced_calls</code> so a total is never silently short.</div>
+      using the usage each call reports. In hook mode they bind tool calls: the hook prices the
+      agent's own transcript, adds it to the local ledger, and refuses the next tool call once the
+      cap is over, so it stops within a turn rather than at the exact dollar. Every figure is
+      estimated at API list price and is notional on Pro and Max flat-rate plans, where there is no
+      per-token charge to cap. A model we have no price for is counted as unpriced rather than as
+      zero, and <code>pr spend --json</code> reports <code>unpriced_calls</code> so a total is never
+      silently short.</div>
 
     <h2 id="content">Prove a transcript, and disclose a redacted one</h2>
     <p>By default the record stores a hash of each prompt and response, not the text, so the record
