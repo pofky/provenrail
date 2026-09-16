@@ -120,7 +120,17 @@ already host-agnostic; only `parse_hook_input` (Claude field names) and the stdo
 `run_hook` (`hookSpecificOutput.permissionDecision`) are Claude-specific. `predicates.py`
 resolves targets against `cwd`, which every host supplies. The standalone plugin engine is a
 vendored copy held in lockstep by `tests/test_guard_standalone.py`. `pr guard hook --use` arms
-packs with no config file. `attest.AGENT_SIGNATURES` already names the five hosts.
+packs with no config file.
+
+CORRECTION, 2026-09-16, made after checking the code rather than this memo: the line that
+stood here said "`attest.AGENT_SIGNATURES` already names the five hosts" and counted that as a
+head start. It is not one. `AGENT_SIGNATURES` is a list of regexes matching a `Co-authored-by:`
+trailer in a git commit message (`attest.py:74` to `89`). Matching the string "codex" in a
+commit message and driving the Codex CLI's `PreToolUse` hook share a vendor name and nothing
+else. No host other than Claude Code has ever been driven by this project, and the operator has
+never run Codex, Gemini CLI, Copilot CLI or Cursor against it. The "no captured fixture, no
+claim" rule in task 5 is the defence against exactly this, and this memo tripped over it on the
+way to writing it.
 
 What is missing: per-host payload parsing and output rendering (`hosts.py`, task 5), per-host
 install (`pr guard install --host`), one captured real payload per host as a test fixture, a
