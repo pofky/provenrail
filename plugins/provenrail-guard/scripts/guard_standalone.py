@@ -43,6 +43,7 @@ from pathlib import Path
 # it are vendored from `src/provenrail/` by `tools/vendor_guard_rules.py` rather than written a
 # second time here. Imported by path, because this file runs before Provenrail is installed.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import hosts                                      # noqa: E402
 import spend as spend_ledger                      # noqa: E402
 import transcript                                 # noqa: E402
 from predicates import evaluate as predicate_ok   # noqa: E402
@@ -262,24 +263,11 @@ def spend_agent_id(config_path):
 # ---------------------------------------------------------------- payload
 
 
-def coerce_tool_input(value):
-    """Whatever the host sent, in a shape the content rules can read.
-
-    A shape we do not recognise must fail towards being READ, never towards being ignored: a
-    payload that becomes `{}` matches every content rule against two characters and lets a
-    `rm -rf /` straight through.
-    """
-    if isinstance(value, dict):
-        return value
-    if value is None:
-        return {}
-    if isinstance(value, str):
-        return {"command": value}
-    if isinstance(value, list) and all(isinstance(v, str) for v in value):
-        # An argv array IS a command line. As JSON it reads `["rm","-rf","/"]`, and the commas
-        # defeat every `\brm\s+-rf` pattern ever written.
-        return {"command": " ".join(value)}
-    return {"input": value}
+#: The five hosts' payload field names and output envelopes live in `hosts.py`, vendored
+#: alongside this file. A second hand-written copy of that table is how one engine ends up
+#: parsing `toolName` and the other `tool_name` for the same agent.
+coerce_tool_input = hosts.coerce_tool_input
+parse_hook_input = hosts.parse
 
 
 def match_text(value):
@@ -308,25 +296,6 @@ def match_text(value):
     # json.dumps turns a real tab into backslash-t, and a shell treats a tab as whitespace
     # while `\s` in the escaped form no longer matches it.
     return text.replace("\\t", " ").replace("\\n", " ").replace("\\r", " ")
-
-
-def parse_hook_input(data, default_event="pre"):
-    event = (data.get("hook_event_name") or "").strip().lower()
-    if event.startswith("posttool"):
-        phase = "post"
-    elif event.startswith("pretool"):
-        phase = "pre"
-    else:
-        phase = default_event
-    return {
-        "event": phase,
-        "tool": data.get("tool_name") or "",
-        "input": coerce_tool_input(data.get("tool_input")),
-        "session_id": data.get("session_id") or "",
-        "cwd": data.get("cwd") or "",
-        # The only field in a tool-hook payload that knows what the model has cost.
-        "transcript_path": data.get("transcript_path") or "",
-    }
 
 
 # ---------------------------------------------------------------- state
@@ -657,16 +626,34 @@ def apply_spend(config_path, budgets, on_unpriced, hook):
     return verdict, notice
 
 
-def run(raw, default_event="pre"):
+def allow_out(host):
+    """Stdout for "no opinion", which is not the empty string on every host.
+
+    Cursor documents that invalid JSON or a schema mismatch BLOCKS the action, so silence there
+    would block every ordinary command, including on the paths where nothing is armed. The
+    other four hosts read silence as no opinion and get "".
+    """
+    return hosts.render(host, "allow", "")
+
+
+def run(raw, default_event="pre", host=hosts.DEFAULT_HOST):
     """Handle one hook invocation. Returns (stdout, stderr)."""
     try:
         data = json.loads(raw) if raw.strip() else {}
     except ValueError:
-        return "", "provenrail-guard: hook input was not JSON; allowing.\n"
+        return allow_out(host), "provenrail-guard: hook input was not JSON; allowing.\n"
     if not isinstance(data, dict):
-        return "", "provenrail-guard: unexpected hook input; allowing.\n"
+        return allow_out(host), "provenrail-guard: unexpected hook input; allowing.\n"
 
-    hook = parse_hook_input(data, default_event=default_event)
+    try:
+        hook = parse_hook_input(host, data, default_event)
+    except hosts.PayloadShapeError as exc:
+        # A shape we do not recognise on a host nobody has driven means this adapter is wrong,
+        # and an adapter that is wrong must not wave the call through as though it had read it.
+        reason = ("Provenrail could not read this %s hook payload (%s), so it could not screen "
+                  "the call. Blocking rather than passing an unscreened tool call through."
+                  % (hosts.label(host), exc))
+        return hosts.render(host, "deny", reason), "provenrail-guard: %s\n" % reason
     config_path = find_config_file()
     catalog = load_catalog()
     try:
@@ -674,20 +661,21 @@ def run(raw, default_event="pre"):
         budgets, on_unpriced = load_budgets(config_path)
     except ValueError as exc:
         # A broken policy must be loud, not silently permissive.
-        return "", "provenrail-guard: could not load the policy (%s); NOT enforcing.\n" % exc
+        return (allow_out(host),
+                "provenrail-guard: could not load the policy (%s); NOT enforcing.\n" % exc)
 
     # A budget with no rules IS an armed policy. Counting only rules here sent a config whose
     # whole purpose was a spend cap into the "nothing is armed" path, where it was never
     # evaluated at all.
     if not rules and not budgets:
-        return "", once_a_day(config_path, "unarmed", (
+        return allow_out(host), once_a_day(config_path, "unarmed", (
             "provenrail-guard: hooks are installed but NO guardrails are armed, so nothing is "
             "being blocked. Remove \"policy\" from %s to get the defaults back.\n"
             % (config_path or CONFIG_FILENAME)))
 
     notice = welcome(config_path, catalog, rules, source)
     if hook["event"] != "pre":
-        return "", notice
+        return allow_out(host), notice
 
     spent, spend_notice = apply_spend(config_path, budgets, on_unpriced, hook)
     notice += spend_notice
@@ -722,13 +710,18 @@ def run(raw, default_event="pre"):
                 "reason": "", "warning": warning, "by": "standalone"})
             notice += once_a_day(config_path, "spend-warn",
                                  "provenrail-guard: %s\n" % warning)
-        return "", notice
+        return allow_out(host), notice
 
     entry = {
         "at": int(time.time()), "event": "pre", "tool": hook["tool"],
-        "session_id": hook["session_id"], "verdict": verdict, "rule": rule_id,
+        "session_id": hook["session_id"], "host": host,
+        # What the POLICY said. What the host could be told, when it is coarser, goes beside it
+        # rather than over it: an oversight rule enforced as a block is still an oversight rule.
+        "verdict": verdict, "rule": rule_id,
         "reason": reason, "by": "standalone",
     }
+    if hosts.host_verdict(host, verdict) != verdict:
+        entry["host_verdict"] = hosts.host_verdict(host, verdict)
     if verdict != "allow":
         # The verb and its flags, never the operands. See `shell.command_shape`: this is what
         # makes `/guard-card` something a person can paste in public without reading it first.
@@ -736,17 +729,12 @@ def run(raw, default_event="pre"):
     append_journal(config_path, entry)
 
     text = "Provenrail guardrail %s: %s" % (rule_id, reason)
-    if verdict == "ask":
-        text += " (approve here and the approval is recorded as human oversight)"
-    else:
+    if verdict != "ask":
         text += (" [blocked locally and journalled. Install provenrail for a signed receipt "
                  "anyone can verify: uv tool install provenrail]")
-    out = {"hookSpecificOutput": {
-        "hookEventName": "PreToolUse",
-        "permissionDecision": verdict,
-        "permissionDecisionReason": text,
-    }}
-    return json.dumps(out), notice
+    # The ask wording, the note a host that cannot ask gets instead, and the envelope itself
+    # are all in `hosts.render`, so the two engines cannot spell them differently.
+    return hosts.render(host, verdict, text), notice
 
 
 def matched_shape(rules, rule_id, text):
@@ -913,13 +901,24 @@ def main(argv):
         sys.stdout.write(card())
         return 0
     event = "pre"
+    host = hosts.DEFAULT_HOST
     for i, arg in enumerate(argv):
         if arg == "--event" and i + 1 < len(argv):
             event = argv[i + 1]
+        elif arg == "--host" and i + 1 < len(argv):
+            host = argv[i + 1]
         elif arg in ("pre", "post"):
             event = arg
+    if host not in hosts.HOSTS:
+        # Exit 2 is the one blocking signal every supported host documents. A host we have no
+        # contract for must not be answered with silence, because silence is "allow" on four of
+        # the five and this file would then be a guard that had quietly stopped guarding.
+        sys.stderr.write(
+            "provenrail-guard: unknown host %r; known hosts: %s. NOT enforcing: nothing here "
+            "has screened this tool call.\n" % (host, ", ".join(hosts.HOST_NAMES)))
+        return 2
     try:
-        stdout, stderr = run(sys.stdin.read(), default_event=event)
+        stdout, stderr = run(sys.stdin.read(), default_event=event, host=host)
     except Exception as exc:  # never break the session
         sys.stderr.write("provenrail-guard: internal error (%s); allowing.\n" % exc)
         return 0

@@ -14,12 +14,20 @@ The order of operations is the point:
    reports the backlog. A journalled decision is honestly reported as *unsigned and pending*,
    never as proof.
 
-Supported host today: **Claude Code** (`PreToolUse` / `PostToolUse` hooks). Other agents are
-not claimed until their hook contract has been read and tested; a guardrail that silently
-does nothing is worse than no guardrail.
+Hosts: **Claude Code** (`PreToolUse` / `PostToolUse`), and, through `hosts.py`, the pre-tool
+hook of **Codex CLI**, **Gemini CLI**, **GitHub Copilot CLI** and **Cursor**. The engine below
+never needed to know which one it was protecting: only the field names on the way in and the
+JSON envelope on the way out differ, and both live in `hosts.py` with the vendor URL and the
+date each contract was read. What is NOT claimed is that any of those payloads has been
+captured from a running CLI; `hosts.CAPTURED_PAYLOAD` says which have, and it is empty. A
+guardrail that silently does nothing is worse than no guardrail, so an unknown host or a
+payload that does not match the documented shape is loud and non-permissive, never quiet.
 
 Effect mapping, which is where this is better than a shell script: the policy's three effects
 map onto Claude Code's three permission decisions rather than being flattened into "block".
+On a host with no way to ask a human (Gemini CLI, and Codex until its permission event has
+been driven) `require_oversight` is enforced as a block, and the journal and the signed record
+still say `require_oversight`, with the verdict the host was given in `extra`.
 
 | Policy effect                        | Claude Code decision | Meaning                          |
 |--------------------------------------|----------------------|----------------------------------|
@@ -56,6 +64,8 @@ import json
 import os
 from pathlib import Path
 from typing import Any
+
+from . import hosts
 
 JOURNAL_FILENAME = ".provenrail-guard.jsonl"
 CLAUDE_SETTINGS = Path(".claude") / "settings.json"
@@ -96,64 +106,21 @@ class GuardError(RuntimeError):
 # ---------------------------------------------------------------- hook payload
 
 
-def _coerce_tool_input(value: Any) -> Any:
-    """Whatever the host sent, in a shape the content rules can actually read.
+#: The payload shapes live in `hosts.py` with every other host-shaped fact, so a field name
+#: cannot be right in one file and wrong in another. Re-exported here because both names have
+#: callers and because this is still where a reader looks for them.
+_coerce_tool_input = hosts.coerce_tool_input
 
-    A dict passes through. A string is the command itself and is the single most important
-    thing to screen, so it is wrapped rather than discarded. A list or any other shape is kept
-    too: an unrecognised payload must fail towards being READ, never towards being ignored,
-    because the alternative is a guard that reports itself armed while matching every rule
-    against an empty object.
+
+def parse_hook_input(data: dict[str, Any], default_event: str = "pre",
+                     host: str = hosts.DEFAULT_HOST) -> dict[str, Any]:
+    """Normalize a hook payload into the fields the policy engine needs.
+
+    The default host is Claude Code, which is the only host this function used to know about.
+    Every other host's field names are in `hosts.py`; see `hosts.parse` for what is returned
+    and for why an unrecognised shape raises there instead of degrading to an empty object.
     """
-    if isinstance(value, dict):
-        return value
-    if value is None:
-        return {}
-    if isinstance(value, str):
-        return {"command": value}
-    if isinstance(value, list) and all(isinstance(v, str) for v in value):
-        # An argv array IS a command line, and the content rules are written against command
-        # lines. Serialised as JSON it reads `["rm", "-rf", "/"]`, where the comma between the
-        # program and its flags defeats every `\brm\s+-rf` pattern, so it is joined back into
-        # the string it stands for.
-        return {"command": " ".join(value)}
-    return {"input": value}
-
-
-def parse_hook_input(data: dict[str, Any], default_event: str = "pre") -> dict[str, Any]:
-    """Normalize a Claude Code hook payload into the fields the policy engine needs.
-
-    Claude Code sends `tool_name` plus a `tool_input` object (for Bash: `{"command": ...}`),
-    and on PostToolUse a `tool_response`. Everything is read with `.get()`: an unknown or
-    renamed field must degrade to "record it anyway", never to a crash inside the agent's
-    critical path.
-    """
-    event = (data.get("hook_event_name") or "").strip().lower()
-    if event.startswith("posttool"):
-        phase = "post"
-    elif event.startswith("pretool"):
-        phase = "pre"
-    else:
-        # Hook name absent or renamed upstream: fall back to the phase the installed command
-        # declares, rather than guessing "pre" and gating a call that already ran.
-        phase = default_event
-    return {
-        "event": phase,
-        "tool": data.get("tool_name") or "",
-        # A non-dict tool_input used to become `{}`, which every content rule then matched
-        # against the two characters "{}" and let through. For the Bash tool that is the ENTIRE
-        # protection, because the tool name alone cannot tell `ls` from `rm -rf /`, so one
-        # payload with tool_input as a string silently disarmed the guard. Anything that is not
-        # a dict is now kept and screened as text: a string command is exactly the thing that
-        # most needs reading, and a shape we do not recognise must never mean "allow".
-        "input": _coerce_tool_input(data.get("tool_input")),
-        "response": data.get("tool_response"),
-        "session_id": data.get("session_id") or "",
-        "cwd": data.get("cwd") or "",
-        # The only thing in a tool-hook payload that knows what the model has cost. Without it
-        # a budget in hook mode caps nothing, because no model call passes through a tool hook.
-        "transcript_path": data.get("transcript_path") or "",
-    }
+    return hosts.parse(host, data, default_event)
 
 
 def match_text(tool_input: Any) -> str:
@@ -641,26 +608,31 @@ def reset_counts(session_id: str | None = None) -> None:
         pass
 
 
-def record_hook(hook: dict[str, Any], decision: dict[str, Any] | None) -> bool:
+def record_hook(hook: dict[str, Any], decision: dict[str, Any] | None,
+                host: str = hosts.DEFAULT_HOST) -> bool:
     """Best-effort: write this hook's evidence into the signed chain. Returns success.
 
     One short session per hook process, tagged with the host session id, because hook
     invocations are separate processes and a chain cannot span them. The verifier is
     session-aware, so many one-event sessions on one stream verify exactly like one long
     session, each rooted in its own genesis record.
+
+    `host` is recorded, not assumed. A record that says "claude-code" because that was the
+    only host the code knew about would be a false statement about where the decision was
+    made, on the one artefact this product asks anybody to trust.
     """
     from .chain import POLICY_DECISION
     from .easy import make_recorder
 
     try:
-        recorder = make_recorder("claude-code")
+        recorder = make_recorder(host)
     except Exception:
         return False
     # We have already decided, offline, whether this call is allowed. The recorder must not
     # decide again and raise: its job here is evidence, not enforcement.
     recorder.enforce = False
     try:
-        meta = {"agent": "claude-code", "host": "claude-code", "hook": hook["event"],
+        meta = {"agent": host, "host": host, "hook": hook["event"],
                 "host_session_id": hook.get("session_id", "")}
         with recorder.session(meta):
             if decision is not None and decision.get("rule"):
@@ -677,7 +649,12 @@ def record_hook(hook: dict[str, Any], decision: dict[str, Any] | None) -> bool:
                     "event_type": "tool_call",
                     "target": hook.get("tool", ""),
                     "enforced": True,
-                    "extra": {"verdict": decision["verdict"], "host": "claude-code"},
+                    # `verdict` is what the POLICY decided. `host_verdict` is what this host was
+                    # able to be told, which on a host with no `ask` is "deny" for the very same
+                    # decision. Both are kept: collapsing them would make the record answer a
+                    # question about the host when it was asked one about the policy.
+                    "extra": {"verdict": decision["verdict"], "host": host,
+                              "host_verdict": hosts.host_verdict(host, decision["verdict"])},
                 })
             if hook["event"] == "post":
                 # The call ran, so if it had been escalated the human approved it in the
@@ -685,13 +662,13 @@ def record_hook(hook: dict[str, Any], decision: dict[str, Any] | None) -> bool:
                 approved = take_ask(hook.get("session_id", ""), hook.get("tool", ""))
                 if approved:
                     recorder.record_human_oversight(
-                        "approved in the Claude Code permission prompt",
-                        rule=approved, tool=hook.get("tool", ""), host="claude-code")
+                        f"approved in the {hosts.label(host)} permission prompt",
+                        rule=approved, tool=hook.get("tool", ""), host=host)
                 response = hook.get("response")
                 outcome = "failure" if _looks_failed(response) else "success"
                 recorder.record_tool_call(hook.get("tool", ""), hook.get("input"), response,
                                           outcome=outcome, _skip_policy=True,
-                                          host="claude-code")
+                                          host=host)
         return True
     except Exception:
         return False
@@ -778,22 +755,65 @@ def _first_run_notice(policy: Any, config_exists: bool) -> str:
 # ---------------------------------------------------------------- the hook itself
 
 
+#: Exit 2 is the one blocking signal every host in `hosts.py` documents, so it is what an
+#: unknown host gets: we cannot render an envelope for a host we have no contract for, and
+#: staying silent would mean the guard stopped guarding without saying so. That has happened
+#: here twice and it is the failure this product cannot survive.
+UNKNOWN_HOST_EXIT = 2
+
+
+def _allow_out(host: str) -> str:
+    """Stdout for "this hook has no opinion", which is not the empty string everywhere.
+
+    Four of the five hosts read silence as no opinion. Cursor reads a missing envelope as a
+    schema mismatch and BLOCKS the action, so every path that means "carry on" has to say so
+    out loud there, including the paths where the guard is unarmed or broken. A guard that
+    bricks every command in the session because nothing was configured is worse than one that
+    never installed.
+    """
+    return hosts.render(host, "allow", "")
+
+
 def run_hook(raw: str, default_event: str = "pre",
-             use: list[str] | None = None) -> tuple[int, str, str]:
+             use: list[str] | None = None,
+             host: str = hosts.DEFAULT_HOST) -> tuple[int, str, str]:
     """Handle one hook invocation. Returns (exit_code, stdout, stderr).
 
     Never raises into the agent: any internal failure degrades to "allow, unrecorded" rather
     than breaking the user's session. The one thing that is never skipped is the offline
     verdict, which is computed before anything that can touch the network.
+
+    Two failures are the exception to "degrade to allow", because in both of them the guard
+    would otherwise be silently not guarding rather than merely unrecording:
+
+    * an unknown host, which exits `UNKNOWN_HOST_EXIT` with the reason on stderr;
+    * a payload that does not match the host's documented shape, which renders that host's
+      OWN deny envelope. A shape we do not recognise on a host nobody has driven means our
+      adapter is wrong, and an adapter that is wrong must not pass the call through as if it
+      had screened it.
     """
+    try:
+        hosts.spec(host)
+    except hosts.UnknownHost as exc:
+        return UNKNOWN_HOST_EXIT, "", (
+            f"provenrail: {exc}. NOT enforcing and NOT recording: there is no hook contract "
+            "for that host, so nothing here has screened this tool call.\n")
     try:
         data = json.loads(raw) if raw.strip() else {}
     except ValueError:
-        return 0, "", "provenrail: hook input was not JSON; allowing and not recording\n"
+        return 0, _allow_out(host), ("provenrail: hook input was not JSON; allowing and not "
+                                    "recording\n")
     if not isinstance(data, dict):
-        return 0, "", "provenrail: unexpected hook input; allowing and not recording\n"
+        return 0, _allow_out(host), ("provenrail: unexpected hook input; allowing and not "
+                                    "recording\n")
 
-    hook = parse_hook_input(data, default_event=default_event)
+    try:
+        hook = parse_hook_input(data, default_event=default_event, host=host)
+    except hosts.PayloadShapeError as exc:
+        reason = (f"Provenrail could not read this {hosts.label(host)} hook payload ({exc}), "
+                  "so it could not screen the call. Blocking rather than passing an unscreened "
+                  "tool call through.")
+        return 0, hosts.render(host, "deny", reason), f"provenrail: {reason}\n"
     armed_defaults = False
     # The notice says WHY the defaults armed, so the branch that knows records which of the two
     # reasons is true rather than leaving the notice to assume one of them.
@@ -826,7 +846,7 @@ def run_hook(raw: str, default_event: str = "pre",
                 armed_defaults = spec is not config.get("policy")
                 policy = load_policy(spec)
     except Exception as exc:  # a broken policy config must be loud, not silently permissive
-        return 0, "", f"provenrail: could not load the policy ({exc}); NOT enforcing\n"
+        return 0, _allow_out(host), f"provenrail: could not load the policy ({exc}); NOT enforcing\n"
 
     # A budget with no rules IS an armed policy. Testing only for rules meant a config whose
     # whole purpose was a spend cap fell into the "nothing is armed" path and was never
@@ -836,7 +856,7 @@ def run_hook(raw: str, default_event: str = "pre",
         # Hooks are wired but nothing is armed. Staying silent here is how a user ends up
         # believing they are guarded for weeks while nothing is being checked, so say it,
         # rarely enough not to become noise the user tunes out.
-        return 0, "", _no_policy_notice()
+        return 0, _allow_out(host), _no_policy_notice()
 
     # Installing the CLI used to make the plugin's first-run notice disappear, because the CLI
     # answers the hook and had no notice of its own. So the user who followed the upgrade path
@@ -851,7 +871,7 @@ def run_hook(raw: str, default_event: str = "pre",
     if decision is not None and decision["verdict"] == "ask":
         mark_ask(hook.get("session_id", ""), hook.get("tool", ""), decision["rule"] or "")
 
-    recorded = record_hook(hook, decision)
+    recorded = record_hook(hook, decision, host)
     verdict = (decision or {}).get("verdict", "allow")
     # Journalled whenever the guard had an opinion, not only when the sink was unreachable.
     # Otherwise the local history, and everything built on it, is empty on exactly the installs
@@ -863,11 +883,18 @@ def run_hook(raw: str, default_event: str = "pre",
         entry = {"at": int(_time.time()),
                  "event": hook["event"], "tool": hook["tool"],
                  "session_id": hook.get("session_id", ""),
+                 "host": host,
+                 # What the POLICY said, always. The host may only have been able to be told
+                 # something coarser; that goes in `host_verdict` below, never over the top of
+                 # this one.
                  "verdict": verdict,
                  "rule": (decision or {}).get("rule"),
                  "shape": (decision or {}).get("shape", ""),
                  "recorded": bool(recorded),
                  "reason": (decision or {}).get("reason", "")}
+        host_said = hosts.host_verdict(host, verdict)
+        if host_said != verdict:
+            entry["host_verdict"] = host_said
         if budget_warning:
             # Journalled on an ALLOW, which nothing else here is. A cap that only appears in the
             # history at the moment it blocks the work leaves the user no warning they could
@@ -881,19 +908,14 @@ def run_hook(raw: str, default_event: str = "pre",
         notice += _once_a_day("spend-warn", f"provenrail: {budget_warning}\n")
 
     if decision is None or decision["verdict"] == "allow":
-        return 0, "", notice
+        return 0, _allow_out(host), notice
 
     reason = f"Provenrail guardrail {decision['rule']}: {decision['reason']}"
-    if decision["verdict"] == "ask":
-        reason += " (approve here and the approval is recorded as human oversight)"
-    elif not recorded:
+    if decision["verdict"] != "ask" and not recorded:
         reason += " [blocked; receipt journalled locally, sink unreachable]"
-    out = {"hookSpecificOutput": {
-        "hookEventName": "PreToolUse",
-        "permissionDecision": decision["verdict"],
-        "permissionDecisionReason": reason,
-    }}
-    return 0, json.dumps(out), notice
+    # The ask wording, and the note a host that cannot ask gets instead, are in `hosts.render`
+    # so the two engines and the five hosts cannot end up with four spellings of it.
+    return 0, hosts.render(host, decision["verdict"], reason), notice
 
 
 # ---------------------------------------------------------------- install
@@ -941,6 +963,53 @@ def install_claude_hooks(root: Path | None = None, matcher: str = _DEFAULT_MATCH
         entries[:] = [e for e in entries if not (isinstance(e, dict) and _entry_is_ours(e))]
         entries.append(ours)
 
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def _entry_mentions_us(entry: Any) -> bool:
+    """Is this config entry one of ours, whatever shape this host's config entries take?
+
+    Claude Code and Codex nest a `hooks` list, Gemini nests one too with different keys,
+    Copilot puts the command under `bash`, Cursor under `command`. Four shape-specific
+    predicates would be four chances for `install` to stop recognising its own entry and
+    append a second copy on every run. The command string is the identity, so the whole entry
+    is searched for it.
+    """
+    try:
+        return HOOK_COMMAND in json.dumps(entry)
+    except (TypeError, ValueError):
+        return False
+
+
+def install_hooks(host: str = hosts.DEFAULT_HOST, root: Path | None = None) -> Path:
+    """Wire `pr guard hook --host <host>` into that host's own hook config. Idempotent.
+
+    Additive: every entry the user already configured is preserved, and only entries whose
+    command is ours are replaced. Running it twice changes nothing, which is checked rather
+    than asserted, because an installer that appends a duplicate on every run ends up running
+    the guard five times per tool call and gets blamed for the latency.
+    """
+    root = Path(root or Path.cwd())
+    if host == hosts.DEFAULT_HOST:
+        # Claude Code keeps its own installer: it also writes PostToolUse, has a matching
+        # uninstaller, and is the one path with users. Rewriting it to share code here would
+        # risk the only install that is actually in service.
+        return install_claude_hooks(root)
+    plan = hosts.install_plan(host, f"{HOOK_COMMAND} --host {host}", HOOK_TIMEOUT_S)
+    path = root.joinpath(*plan["path"])
+    settings = _load_settings(path)
+    for key, value in plan["top"].items():
+        settings.setdefault(key, value)
+    hook_block = settings.setdefault("hooks", {})
+    if not isinstance(hook_block, dict):
+        raise GuardError(f'{path}: "hooks" is not an object.')
+    for event, ours in plan["entries"].items():
+        entries = hook_block.setdefault(event, [])
+        if not isinstance(entries, list):
+            raise GuardError(f'{path}: hooks.{event} is not a list.')
+        entries[:] = [e for e in entries if not _entry_mentions_us(e)] + list(ours)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
     return path

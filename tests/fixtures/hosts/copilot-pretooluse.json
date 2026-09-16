@@ -1,0 +1,16 @@
+{
+  "_synthetic": true,
+  "_why": "SYNTHETIC. Hand-written from the vendor's documentation, NOT captured from a running CLI. Nobody here has driven this host: Claude Code could not be captured on this machine (the nested CLI is not logged in) and Codex CLI is installed but its stored token is expired. Replace this file with a real payload the day one is captured, drop the synthetic flag, and add the host to hosts.CAPTURED_PAYLOAD. Until then nothing in src/ and nothing on the site may call this host verified.",
+  "_source": "https://docs.github.com/en/copilot/reference/hooks-reference",
+  "_checked": "2026-09-16",
+  "_note": "The command is the literal placeholder \"COMMAND\"; the test substitutes the command under test so one fixture carries the field names for every case rather than one fixture per command.",
+  "payload": {
+    "sessionId": "c-0000-0001",
+    "timestamp": 1789560000000,
+    "cwd": "/home/u/demo",
+    "toolName": "bash",
+    "toolArgs": {
+      "command": "COMMAND"
+    }
+  }
+}

@@ -97,14 +97,36 @@ def flow_demo_and_verify(pr: Path, work: Path) -> None:
     check("pr verify accepts the bundle it just made", r.returncode == 0, r.stderr[-1500:])
 
     # Tamper. A verifier that cannot be made to fail has not been shown to work.
+    #
+    # The mutation goes INSIDE `records[i]["record"]`, which is the signed object. An earlier
+    # version of this harness added a key to the surrounding receipt envelope instead and
+    # reported a false alarm: that envelope carries the server's own receipt fields, an unknown
+    # key in it is part of no hash and readable by nothing, and accepting it changes nothing a
+    # record says. What must never verify clean is a changed field, a changed value or a
+    # dropped record, and all three are checked here.
     b = json.loads((d / "bundle.json").read_text())
     recs = b.get("records") or []
-    if recs and isinstance(recs[-1], dict):
-        recs[-1]["tampered_marker"] = "x"
+    inner = recs[-1].get("record") if recs and isinstance(recs[-1], dict) else None
+    if isinstance(inner, dict):
+        inner["tampered_marker"] = "x"
     (d / "tampered.json").write_text(json.dumps(b))
     r = run([str(pr), "verify", "tampered.json"], d)
-    check("pr verify REJECTS an edited bundle", r.returncode != 0,
-          "a changed record verified clean, which is the one thing this must never do")
+    check("pr verify REJECTS a record with a field added", r.returncode != 0,
+          "an edited record verified clean, which is the one thing this must never do")
+
+    b2 = json.loads((d / "bundle.json").read_text())
+    inner2 = (b2.get("records") or [{}])[-1].get("record")
+    changed = None
+    if isinstance(inner2, dict):
+        for k, v in inner2.items():
+            if isinstance(v, str) and k not in ("prev_hash", "record_hash", "sig"):
+                inner2[k] = v + "X"
+                changed = k
+                break
+    (d / "changed.json").write_text(json.dumps(b2))
+    r = run([str(pr), "verify", "changed.json"], d)
+    check("pr verify REJECTS a record with a value changed", r.returncode != 0 and changed,
+          f"changing {changed} verified clean")
 
     if recs:
         b2 = json.loads((d / "bundle.json").read_text())
@@ -119,7 +141,14 @@ def flow_guard(pr: Path, work: Path) -> None:
     print("\n== flow: the guard, from install to a block ==")
     d = project(work, "guarded")
     r = run([str(pr), "guard", "install"], d)
-    check("pr guard install reports what it armed", r.returncode == 0, r.stderr[-1500:])
+    check("pr guard install succeeds with no recording server", r.returncode == 0,
+          (r.stdout + r.stderr)[-1500:])
+    # It used to print advice and write nothing, which left a CLI user unguarded while the
+    # zero-install plugin armed forty-four rules in the same directory.
+    check("pr guard install actually writes the hooks", (d / ".claude" / "settings.json").is_file(),
+          "no hook file was written, so nothing would ever call the guard")
+    check("pr guard install arms a policy", (d / ".provenrail.json").is_file(),
+          "no policy file was written")
 
     def hook(command: str, cwd: Path, extra: dict | None = None) -> subprocess.CompletedProcess:
         payload = {"hook_event_name": "PreToolUse", "tool_name": "Bash",
@@ -138,17 +167,26 @@ def flow_guard(pr: Path, work: Path) -> None:
 
     # git reset --hard is the command the whole 0.4 rewrite was about: it must be silent on a
     # clean tree and must not be silent when there is work only this machine has.
+    # `git reset --hard` must speak up exactly when there is work no remote has a copy of.
+    # An earlier version of this check called a single-commit repository with no remote a
+    # "clean tree" and expected silence. That was wrong: an unpushed commit IS work only this
+    # machine holds, so asking about it is the rule working, not failing. The honest pair is a
+    # tree whose work is pushed against one that is not, which needs a remote to exist.
     (d / "committed.txt").write_text("x")
     run(["git", "add", "-A"], d)
     run(["git", "commit", "-qm", "one"], d)
-    r = hook("git reset --hard HEAD~1", d)
+    remote = d.parent / "remote.git"
+    run(["git", "init", "-q", "--bare", str(remote)], d)
+    run(["git", "remote", "add", "origin", str(remote)], d)
+    run(["git", "push", "-q", "-u", "origin", "HEAD"], d)
+    r = hook("git reset --hard origin/HEAD", d)
     clean_quiet = '"deny"' not in r.stdout and '"ask"' not in r.stdout
     (d / "uncommitted.txt").write_text("y")
-    r2 = hook("git reset --hard HEAD~1", d)
+    r2 = hook("git reset --hard origin/HEAD", d)
     dirty_loud = '"deny"' in r2.stdout or '"ask"' in r2.stdout
-    check("git reset --hard is quiet on a clean tree and not on a dirty one",
+    check("git reset --hard is quiet on a pushed tree and speaks up on an unsaved one",
           clean_quiet and dirty_loud,
-          f"clean={r.stdout.strip()[:200]} dirty={r2.stdout.strip()[:200]}")
+          f"pushed={r.stdout.strip()[:160]} unsaved={r2.stdout.strip()[:160]}")
 
     r = run([str(pr), "guard", "status"], d)
     check("pr guard status reports the armed rules", r.returncode == 0, r.stderr[-1500:])

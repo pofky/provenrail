@@ -1,0 +1,21 @@
+{
+  "_synthetic": true,
+  "_why": "SYNTHETIC. Hand-written from the vendor's documentation, NOT captured from a running CLI. Nobody here has driven this host: Claude Code could not be captured on this machine (the nested CLI is not logged in) and Codex CLI is installed but its stored token is expired. Replace this file with a real payload the day one is captured, drop the synthetic flag, and add the host to hosts.CAPTURED_PAYLOAD. Until then nothing in src/ and nothing on the site may call this host verified.",
+  "_source": "https://learn.chatgpt.com/docs/hooks",
+  "_checked": "2026-09-16",
+  "_note": "The command is the literal placeholder \"COMMAND\"; the test substitutes the command under test so one fixture carries the field names for every case rather than one fixture per command.",
+  "payload": {
+    "session_id": "01JCODEX0000000000000001",
+    "transcript_path": "/home/u/.codex/sessions/01JCODEX.jsonl",
+    "cwd": "/home/u/demo",
+    "hook_event_name": "PreToolUse",
+    "model": "gpt-5.1-codex",
+    "permission_mode": "on-request",
+    "turn_id": "turn_1",
+    "tool_name": "Bash",
+    "tool_use_id": "call_1",
+    "tool_input": {
+      "command": "COMMAND"
+    }
+  }
+}

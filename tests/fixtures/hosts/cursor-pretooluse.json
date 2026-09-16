@@ -1,0 +1,19 @@
+{
+  "_synthetic": true,
+  "_why": "SYNTHETIC. Hand-written from the vendor's documentation, NOT captured from a running CLI. Nobody here has driven this host: Claude Code could not be captured on this machine (the nested CLI is not logged in) and Codex CLI is installed but its stored token is expired. Replace this file with a real payload the day one is captured, drop the synthetic flag, and add the host to hosts.CAPTURED_PAYLOAD. Until then nothing in src/ and nothing on the site may call this host verified.",
+  "_source": "https://cursor.com/docs/agent/hooks",
+  "_checked": "2026-09-16",
+  "_note": "The command is the literal placeholder \"COMMAND\"; the test substitutes the command under test so one fixture carries the field names for every case rather than one fixture per command.",
+  "payload": {
+    "conversation_id": "cur-0000-0001",
+    "generation_id": "gen-0000-0001",
+    "hook_event_name": "beforeShellExecution",
+    "cursor_version": "1.0.0",
+    "workspace_roots": [
+      "/home/u/demo"
+    ],
+    "cwd": "/home/u/demo",
+    "command": "COMMAND",
+    "sandbox": false
+  }
+}

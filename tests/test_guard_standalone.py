@@ -470,3 +470,95 @@ def test_neither_engine_charges_one_transcript_twice_for_two_session_ids(tmp_pat
                for w in (one, two)]
     assert ledgers[0]["agents"]["default"]["total_usd"] == pytest.approx(0.90)
     assert ledgers[1]["agents"]["default"]["total_usd"] == pytest.approx(0.90)
+
+
+# ---------------------------------------------------------------- one policy, five hosts
+
+#: Where each host's own envelope carries the verdict, read from the vendor pages rather than
+#: from `hosts.py`, so this stays a second reading of the contract instead of an echo of ours.
+#: https://code.claude.com/docs/en/hooks, https://learn.chatgpt.com/docs/hooks,
+#: https://geminicli.com/docs/hooks/reference/,
+#: https://docs.github.com/en/copilot/reference/hooks-reference,
+#: https://cursor.com/docs/agent/hooks (all read 2026-09-16).
+HOST_VERDICT_KEY = {
+    "claude-code": lambda out: out["hookSpecificOutput"]["permissionDecision"],
+    "codex": lambda out: out["hookSpecificOutput"]["permissionDecision"],
+    "gemini": lambda out: out["decision"],
+    "copilot": lambda out: out["permissionDecision"],
+    "cursor": lambda out: out["permission"],
+}
+
+HOST_FIXTURES = ROOT / "tests" / "fixtures" / "hosts"
+
+
+def _host_payload(host, command, cwd):
+    """That host's documented field names, from its synthetic fixture, with one command in it."""
+    data = json.loads(
+        (HOST_FIXTURES / f"{host}-pretooluse.json").read_text(encoding="utf-8"))["payload"]
+    if host == "cursor":
+        data["command"] = command
+    elif host == "copilot":
+        data["toolArgs"] = {"command": command}
+    else:
+        data["tool_input"] = {"command": command}
+    data["cwd"] = cwd
+    return data
+
+
+def _standalone_host_verdict(tmp_path, host, command):
+    proc = subprocess.run(
+        [sys.executable, str(STANDALONE), "--host", host],
+        input=json.dumps(_host_payload(host, command, str(tmp_path))),
+        capture_output=True, text=True, cwd=str(tmp_path),
+        env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path)})
+    assert proc.returncode == 0, proc.stderr
+    if not proc.stdout.strip():
+        return "allow"
+    return HOST_VERDICT_KEY[host](json.loads(proc.stdout))
+
+
+@pytest.mark.parametrize("host", ["claude-code", "codex", "gemini", "copilot", "cursor"])
+@pytest.mark.parametrize("command", ["rm -rf /", "rm -rf ~/", "chmod 777 /etc/passwd", "ls -la"])
+def test_both_engines_reach_the_same_verdict_on_every_host(tmp_path, host, command):
+    """The lockstep that already covers the rules now covers the adapters. Two engines that
+    agree about Claude Code and disagree about Cursor would ship a guard whose behaviour
+    depends on which of the two happened to answer, which is the failure this file exists for."""
+    (tmp_path / ".provenrail.json").write_text(
+        json.dumps({"policy": {"use": list(guard.DEFAULT_PACKS)}}), encoding="utf-8")
+    from provenrail import hosts
+
+    hook = hosts.parse(host, _host_payload(host, command, str(tmp_path)))
+    policy = load_policy({"use": list(guard.DEFAULT_PACKS)})
+    installed = guard.decide(policy, hook["tool"], hook["input"], None, hook["cwd"])["verdict"]
+    expected = hosts.host_verdict(host, installed)
+    assert _standalone_host_verdict(tmp_path, host, command) == expected
+
+
+def test_the_zero_install_engine_answers_an_unknown_host_with_a_block_not_with_silence(tmp_path):
+    """Exit 2 is the one blocking signal every supported host documents. Silence is "allow" on
+    four of the five, and a guard that quietly stops guarding is the failure this product has
+    already shipped twice."""
+    proc = subprocess.run(
+        [sys.executable, str(STANDALONE), "--host", "borg"],
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "rm -rf /"}}),
+        capture_output=True, text=True, cwd=str(tmp_path),
+        env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path)})
+    assert proc.returncode == 2
+    assert proc.stdout == ""
+    assert "unknown host" in proc.stderr and "NOT enforcing" in proc.stderr
+
+
+def test_an_unarmed_project_still_tells_cursor_to_carry_on(tmp_path):
+    """Cursor documents that invalid JSON or a schema mismatch BLOCKS the action, so the paths
+    that mean "nothing is armed" and "the policy would not load" must still print an allow
+    there. A guard that bricks every command in a project it was never configured for is worse
+    than one that was never installed."""
+    (tmp_path / ".provenrail.json").write_text('{"policy": {"use": []}}', encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, str(STANDALONE), "--host", "cursor"],
+        input=json.dumps(_host_payload("cursor", "rm -rf /", str(tmp_path))),
+        capture_output=True, text=True, cwd=str(tmp_path),
+        env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path)})
+    assert proc.returncode == 0
+    assert json.loads(proc.stdout) == {"permission": "allow"}
+    assert "NO guardrails are armed" in proc.stderr

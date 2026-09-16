@@ -1570,7 +1570,7 @@ def _guard_budget(args) -> int:
 
 def _cmd_guard(args) -> int:
     """Guardrails for a coding agent, at its own tool boundary, with a signed receipt."""
-    from . import guard
+    from . import guard, hosts
     from .easy import CONFIG_FILENAME, _load_config_file, load_policy
 
     action = args.action or "status"
@@ -1588,7 +1588,8 @@ def _cmd_guard(args) -> int:
                 # to enforce is the safe half; saying so loudly is the other half.
                 sys.stderr.write(f"provenrail: {e}. NOT enforcing.\n")
                 return 0
-        code, out, err = guard.run_hook(sys.stdin.read(), default_event=args.event, use=use)
+        code, out, err = guard.run_hook(sys.stdin.read(), default_event=args.event, use=use,
+                                        host=args.host)
         if out:
             print(out)
         if err:
@@ -1596,11 +1597,14 @@ def _cmd_guard(args) -> int:
         return code
 
     if action == "install":
-        if not (_load_config_file() or {}).get("endpoint"):
-            print("No Provenrail endpoint configured in this folder, so decisions could be")
-            print("enforced but not recorded. Run `pr quickstart` first (it starts a local")
-            print("recording server and writes .provenrail.json), then `pr guard install`.")
-            return 1
+        # Refusing to install without a recording endpoint was wrong, and wrong in the direction
+        # that leaves someone unguarded while believing they are guarded. `pr guard install` in a
+        # fresh project printed advice to run `pr quickstart` first and wrote nothing at all: no
+        # hooks, no config, exit 1. Meanwhile the zero-install plugin arms forty-four rules in
+        # that same directory with no server anywhere, which is the product's whole promise.
+        # Enforcement does not need a server. Only recording a decision OFF the box does, and a
+        # missing off-box copy is a caveat to state, not a reason to leave the guard unarmed.
+        recorded = bool((_load_config_file() or {}).get("endpoint"))
         chosen = None
         if args.use is not None:
             try:
@@ -1609,15 +1613,52 @@ def _cmd_guard(args) -> int:
                 print(f"error: {e}")
                 return 2
         packs = guard.arm_default_policy(chosen)
-        path = guard.install_claude_hooks()
+        path = guard.install_hooks(args.host)
         print(f"Armed guardrails in {CONFIG_FILENAME}: {', '.join(packs)}")
-        print(f"Installed Claude Code hooks in {path}\n")
+        print(f"Installed {hosts.label(args.host)} hooks in {path}\n")
+        if not recorded:
+            print("Decisions are enforced and journalled locally. Nothing is recorded off this")
+            print("machine, because this folder names no recording endpoint, so the journal is")
+            print("only as trustworthy as the machine holding it. `pr quickstart` starts a local")
+            print("recording server if you want a signed record a third party can check.\n")
+        if args.host != hosts.DEFAULT_HOST:
+            # Said at the moment of install, not buried in a doc. The contract behind this file
+            # was read from the vendor's page on the date below and has NOT been driven against
+            # a running CLI here, so the person installing it is the first to find out if it is
+            # wrong, and they deserve to know that before they rely on it.
+            entry = hosts.HOSTS[args.host]
+            print(f"Contract read from {entry['doc']} on {entry['checked']}. No payload from "
+                  f"{entry['label']} has been captured into this project, so verify it once:")
+            print("  run a harmless command, then `pr guard status`, and check the decision is")
+            print("  there. If nothing was recorded, the guard is not reading this host.")
+            if not hosts.supports_ask(args.host):
+                print(f"\n{entry['label']} has no way to ask a human, so an oversight rule stops")
+                print("the command instead of prompting. The record still says require_oversight.")
+            if args.host == "copilot":
+                print("\nUnder the Copilot cloud agent an `ask` decision is treated as `deny`,")
+                print("because there is nobody there to answer it.")
+            return 0
+        # This list used to be written out by hand here, naming "rm -rf, terraform destroy,
+        # force push, DROP TABLE, world-writable chmod, leaked keys". That is the same hand
+        # written summary welcome.py exists to abolish: when 0.4 added the git pack, which is
+        # the pack that matches what actually destroys people's work, this sentence went on
+        # describing the previous release on the one screen a new user reads. It is derived
+        # from the rules that were just armed, so it cannot describe a different release.
+        from . import rulesets, welcome
+        armed_policy = load_policy(guard.policy_spec(_load_config_file() or {}))
+        armed = [{"id": r.id, "effect": r.effect}
+                 for r in getattr(armed_policy, "rules", [])]
+        titles = {name: {"title": spec["title"]} for name, spec in rulesets.CATALOG.items()}
+        refuse, ask = welcome.summarise(armed, titles)
         print("From the next Claude Code session in this folder:")
-        print("  - a destructive command is BLOCKED before it runs (rm -rf, terraform")
-        print("    destroy, force push, DROP TABLE, world-writable chmod, leaked keys)")
-        print("  - an action needing a human is turned into a permission prompt, and your")
-        print("    answer is recorded as oversight")
-        print("  - every decision is signed and hash-chained\n")
+        if refuse:
+            print(f"  - refused outright: {welcome._phrase(refuse)}")
+        if ask:
+            print("  - turned into a permission prompt, and your answer recorded as oversight:")
+            print(f"    {welcome._phrase(ask)}")
+        print("  - every decision is signed and hash-chained")
+        print("  - quiet on ordinary work: `rm -rf ./build` and `git reset --hard` on a clean,")
+        print("    pushed tree are not touched\n")
         print("  pr guard status     what is armed, and what it has blocked")
         print("  pr guard receipt    export the proof and verify it yourself")
         print("  pr guard uninstall  remove the hooks (your own hooks are left alone)\n")
@@ -1896,6 +1937,12 @@ def build_parser() -> argparse.ArgumentParser:
                                  "destructive,secrets,production)")
     g.add_argument("--event", choices=["pre", "post"], default="pre",
                    help="hook phase (set by the installed hook command, not by hand)")
+    from . import hosts as _hosts
+    g.add_argument("--host", choices=list(_hosts.HOST_NAMES), default=_hosts.DEFAULT_HOST,
+                   help="for `install` and `hook`: which coding agent's hook contract to use "
+                        "(default: claude-code). One policy, whichever agent is running it. "
+                        "Only Claude Code is installed by `install` with a PostToolUse hook; "
+                        "the others get the pre-tool hook their own docs describe")
     g.add_argument("--out", default="guard-receipt.json", help="receipt bundle path")
     g.set_defaults(func=_cmd_guard)
 
