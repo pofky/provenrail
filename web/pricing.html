@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Agent Audit Trail Pricing | Provenrail</title>
-  <meta name="description" content="Provenrail pricing: free forever at 50k events a month, Builder $29/mo, Team $99/mo, Enterprise custom. Hash-chain integrity and the open verifier included.">
+  <title>Pricing: free policy engine, $9 anchored statements | Provenrail</title>
+  <meta name="description" content="Everything that stops your coding agent is free and MIT: the rules, the spend cap, the journal, signed receipts and both verifiers. One paid option at $9 a month buys an outside party's timestamp.">
   <link rel="canonical" href="https://provenrail.com/pricing">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Pricing | Provenrail">
-  <meta name="twitter:description" content="Free forever at 50k events a month. Builder $29/mo, Team $99/mo, Enterprise custom. No email gate, no hidden fees, cancel anytime.">
+  <meta name="twitter:description" content="Everything that stops the agent is free and MIT. One paid option at $9 a month: unlimited independent RFC 3161 timestamps on the root of your receipts.">
   <meta name="twitter:image" content="https://provenrail.com/og.png">
   <meta name="robots" content="index,follow">
-  <meta property="og:title" content="Provenrail pricing: start free, scale when you need to">
-  <meta property="og:description" content="Free forever at 50k events a month. Builder $29/mo, Team $99/mo, Enterprise custom. No email gate, no hidden fees, cancel anytime.">
+  <meta property="og:title" content="Provenrail pricing: the policy engine is free, the timestamp is $9">
+  <meta property="og:description" content="Everything that stops the agent is free and MIT. One paid option at $9 a month: unlimited independent RFC 3161 timestamps on the root of your receipts.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://provenrail.com/pricing">
   <meta property="og:image" content="https://provenrail.com/og.png">
@@ -59,6 +59,9 @@
     .faq-block code { font-family: var(--font-mono); font-size: .85em; background: var(--bg-3); padding: .12em .42em; border-radius: 5px; color: var(--text-hi); }
     .back { display: inline-block; margin-top: 2.5rem; font-family: var(--font-mono); font-size: .82rem; color: var(--text-lo); text-decoration: none; }
     .back:hover { color: var(--accent); }
+    /* Two cards, not four. The shared grid in styles.css is built for four tracks. */
+    .pricing-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 760px; margin-inline: auto; gap: 1rem; }
+    @media (max-width: 760px) { .pricing-grid.two { grid-template-columns: 1fr; } }
   </style>
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
@@ -70,13 +73,12 @@
     "@context": "https://schema.org",
     "@type": "Product",
     "name": "Provenrail",
-    "description": "Guardrails for AI agents, with a receipt. Blocks destructive tool calls before they run and signs every decision into an off-box, hash-chained record anyone can verify.",
+    "description": "A deterministic policy layer for coding agents. The rules, the spend cap and the signed receipts are MIT licensed and free. One paid option adds an independent RFC 3161 timestamp on the root of those receipts.",
     "brand": { "@type": "Organization", "name": "Provenrail", "url": "https://provenrail.com/" },
     "url": "https://provenrail.com/pricing",
     "offers": [
-      { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "50k events per month, single project, hash-chain integrity, open-source verifier." },
-      { "@type": "Offer", "name": "Builder", "price": "29", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "500k events per month, RFC 3161 trusted timestamps, independent anchoring of your chain, shareable proof links and live badge." },
-      { "@type": "Offer", "name": "Team", "price": "99", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "2M events per month, up to 10 members with roles and SSO, unlimited projects, data exports, one-click evidence packs mapped to EU AI Act Article 12 and ISO 42001." }
+      { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "The whole policy engine: guardrail rules, spend caps at the tool boundary, the local journal, signed hash-chained receipts, both open-source verifiers and one independent RFC 3161 timestamp. MIT, no account." },
+      { "@type": "Offer", "name": "Anchored statements", "price": "9", "priceCurrency": "USD", "url": "https://provenrail.com/pricing", "availability": "https://schema.org/InStock", "description": "Unlimited independent RFC 3161 timestamps on the root of your receipts, and a public receipt page a third party can check without an account. A 32-byte fingerprint travels; you keep every record." }
     ]
   }
   </script>
@@ -94,8 +96,8 @@
         </svg>
       </button>
       <div id="nav-links" class="nav-links" role="navigation">
-        <a href="/#how-it-works">How it works</a>
-        <a href="/compare">Compare</a>
+        <a href="/#spend-cap">Spend cap</a>
+        <a href="/claude-code-guardrails">Guardrails</a>
         <a href="/pricing">Pricing</a>
         <a href="/docs">Docs</a>
         <a href="https://github.com/pofky/provenrail" rel="noopener">GitHub</a>
@@ -110,87 +112,50 @@
       <div class="container">
         <div class="price-head">
           <div class="section-eyebrow" style="justify-content:center">Pricing</div>
-          <h1 id="pricing-heading">Start free. Scale when you need to.</h1>
-          <p>No email gate on pricing. No hidden fees. Cancel anytime.</p>
+          <h1 id="pricing-heading">Everything that stops the agent is free.</h1>
+          <p>One paid option, and it buys an artefact rather than a subscription to your own tooling.</p>
         </div>
 
-        <div class="pricing-grid">
+        <div class="pricing-grid two">
           <article class="plan-card" aria-labelledby="plan-free-name">
             <div class="plan-name" id="plan-free-name">Free</div>
             <div class="plan-price">$0</div>
-            <div class="plan-period">forever</div>
+            <div class="plan-period">MIT, forever, no account</div>
             <ul class="plan-features" aria-label="Free plan features">
-              <li class="plan-feature">50k events per month (roughly 200 to 500 agent runs)</li>
-              <li class="plan-feature">Single project, single user</li>
-              <li class="plan-feature">Hash-chain integrity (local timestamps)</li>
+              <li class="plan-feature">The whole policy engine, 44 rules armed by default</li>
+              <li class="plan-feature">Day, session and total spend caps enforced at the tool boundary (<code>pr guard budget 25</code>)</li>
+              <li class="plan-feature">The same policy in an interactive session, in <code>claude -p</code> and in CI</li>
+              <li class="plan-feature"><code>/guard-status</code>, <code>/guard-card</code> and the local decision journal</li>
+              <li class="plan-feature">Signed, hash-chained receipts (<code>pr guard receipt</code>)</li>
+              <li class="plan-feature"><code>pr spend</code>, and <code>pr reconcile</code> against a provider invoice</li>
+              <li class="plan-feature">Both open-source verifiers, offline or in the browser</li>
               <li class="plan-feature">One independent RFC 3161 timestamp, free, so you can see what an outside party's receipt looks like on your own run</li>
-              <li class="plan-feature">Open-source verifier, offline or hosted</li>
-              <li class="plan-feature">Regime mapping reports via CLI (<code>pr report</code>), run on a bundle you export yourself</li>
-              <li class="plan-feature">Self-contained evidence packs via CLI (<code>pr pack</code>), the same way</li>
-              <li class="plan-feature">Prove a transcript is authentic (<code>pr verify-content</code>)</li>
               <li class="plan-feature">Community support</li>
             </ul>
-            <a href="/account" class="btn-plan">Start free, one anchor included</a>
+            <a href="/claude-code-guardrails#install" class="btn-plan">Install the plugin</a>
           </article>
 
-          <article class="plan-card popular" aria-labelledby="plan-builder-name">
-            <div class="plan-popular-badge" aria-label="Most popular plan">Most popular</div>
-            <div class="plan-name" id="plan-builder-name">Builder</div>
-            <div class="plan-price">$29<span>/mo</span></div>
+          <article class="plan-card popular" aria-labelledby="plan-statements-name">
+            <div class="plan-popular-badge" aria-label="The paid option">The only paid thing</div>
+            <div class="plan-name" id="plan-statements-name">Anchored statements</div>
+            <div class="plan-price">$9<span>/mo</span></div>
             <div class="plan-period">billed monthly</div>
-            <ul class="plan-features" aria-label="Builder plan features">
-              <li class="plan-feature">500k events per month</li>
-              <li class="plan-feature">RFC 3161 trusted timestamps</li>
-              <li class="plan-feature">Independent proof of when, unlimited. You send a 32-byte fingerprint of your records; your prompts, payloads and records never leave your machine (<code>pr anchor-push bundle.json</code>, 0.2.33 or later). Your licence key is the only credential, so buying the plan is the whole setup</li>
+            <ul class="plan-features" aria-label="Anchored statements features">
+              <li class="plan-feature">Unlimited <code>pr anchor-push</code> on your receipts and your runs</li>
               <li class="plan-feature">A public authority signs the time under RFC 3161, so the date is not ours to assert and not yours either. That is the part you cannot issue to yourself</li>
-              <li class="plan-feature">A public receipt page your client or auditor opens with no account, and checks offline with the open-source verifier</li>
-              <li class="plan-feature">Timestamped <a href="/ai-code-attribution">AI code attribution</a>. <code>pr attest</code> signs a statement of which commits an AI agent had a hand in, and <code>pr attest-anchor</code> puts an independent authority's time on it, which is what makes it something your customer can check rather than something you typed. A 32-byte root travels; no line of your code ever does</li>
-              <li class="plan-feature">Shareable client proof links + live badge</li>
-              <li class="plan-feature">Single project, single user</li>
+              <li class="plan-feature">A public receipt page your client, your finance team or an auditor opens with no account, and checks offline with the open-source verifier</li>
+              <li class="plan-feature">You send a 32-byte fingerprint of your records and nothing else. You keep every record; the endpoint has no field one could arrive in</li>
+              <li class="plan-feature">Your licence key is the only credential, so buying it is the whole setup</li>
               <li class="plan-feature">Email support</li>
             </ul>
-            <a href="/account?plan=builder" class="btn-plan" data-ev="cta_checkout_builder">Start Builder</a>
-          </article>
-
-          <article class="plan-card" aria-labelledby="plan-team-name">
-            <div class="plan-name" id="plan-team-name">Team</div>
-            <div class="plan-price">$99<span>/mo</span></div>
-            <div class="plan-period">billed monthly</div>
-            <ul class="plan-features" aria-label="Team plan features">
-              <li class="plan-feature">2M events per month</li>
-              <li class="plan-feature">Everything in Builder</li>
-              <li class="plan-feature">Up to 10 team members, roles + SSO</li>
-              <li class="plan-feature">Unlimited projects</li>
-              <li class="plan-feature">Data exports (NDJSON / SIEM)</li>
-              <li class="plan-feature">Evidence packs mapped to EU AI Act Article 12 and ISO 42001 controls, from the dashboard in one click, no export step first (the CLI versions are on every plan)</li>
-              <li class="plan-feature">Priority email support</li>
-            </ul>
-            <a href="/account?plan=team" class="btn-plan" data-ev="cta_checkout_team">Start Team</a>
-          </article>
-
-          <article class="plan-card" aria-labelledby="plan-enterprise-name">
-            <div class="plan-name" id="plan-enterprise-name">Enterprise</div>
-            <div class="plan-price" style="font-size:1.4rem">Custom</div>
-            <div class="plan-period">volume + support</div>
-            <ul class="plan-features" aria-label="Enterprise plan features">
-              <li class="plan-feature">Unlimited events</li>
-              <li class="plan-feature">Everything in Team</li>
-              <li class="plan-feature">Unlimited members + SSO</li>
-              <li class="plan-feature">Private / self-hosted deployment</li>
-              <li class="plan-feature">Support terms by agreement</li>
-              <li class="plan-feature">Dedicated support</li>
-            </ul>
-            <a href="mailto:support@provenrail.com" class="btn-plan">Contact sales</a>
+            <a href="/account?plan=builder" class="btn-plan" data-ev="cta_checkout_builder">Get anchored statements</a>
           </article>
         </div>
 
         <p class="price-note">
-          Every plan includes full hash-chain integrity and the open-source verifier, identical on
-          every tier. Paid plans add RFC 3161 trusted timestamps, shareable proof links and a live
-          badge (Builder); then up to 10 team members with roles and SSO, data exports, and evidence
-          packs mapped to EU AI Act Article 12 and ISO 42001 controls (Team). Limits apply to the
-          licensed build you run. Your agent records stay on your infrastructure on every tier,
-          including paid ones. 14-day refund on paid plans.
+          Nothing that refuses a tool call is behind a payment, and nothing is metered. The paid
+          option adds an outside party's signature on the time. Your agent records stay on your
+          own infrastructure either way, including when you pay. 14-day refund.
         </p>
       </div>
     </section>
@@ -200,32 +165,26 @@
     <section class="price-section" aria-labelledby="compare-heading" style="padding-top:clamp(2.5rem,6vw,4rem)">
       <div class="container">
         <div class="faq-block">
-          <h2 id="compare-heading">What changes between tiers</h2>
-          <p style="color:var(--text-mid)">The cryptography does not. Integrity, the chain and the verifier are the same code on every tier, including free. Paid tiers add external time, sharing and team scale.</p>
-          <p class="table-hint">Scroll the table sideways to see Builder, Team and Enterprise.</p>
+          <h2 id="compare-heading">What changes when you pay</h2>
+          <p style="color:var(--text-mid)">Almost nothing, and that is deliberate. The engine that refuses a tool call, the cap that stops the spend and the cryptography that makes a decision checkable are the same code whether or not you pay. What money buys is an outside party's signature on the time, because that is the one thing you cannot produce for yourself.</p>
+          <p class="table-hint">Scroll the table sideways if it does not fit.</p>
           <div class="price-table-wrap">
             <table class="cmp">
               <thead>
-                <tr><th>Capability</th><th>Free</th><th>Builder</th><th>Team</th><th>Enterprise</th></tr>
+                <tr><th>Capability</th><th>Free</th><th>Anchored statements</th></tr>
               </thead>
               <tbody>
-                <tr><td>Events per month</td><td>50k</td><td>500k</td><td>2M</td><td>Unlimited</td></tr>
-                <tr><td>Hash-chain integrity</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>Open-source verifier</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>Guardrails that block tool calls</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>Evidence packs and reports (CLI)</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>Anchoring of your chain (root only)<span class="sub">to our service, or to a server you run</span></td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>Public anchor receipt for an auditor</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>RFC 3161 trusted timestamps</td><td>One, free</td><td class="yes">Unlimited</td><td class="yes">Unlimited</td><td class="yes">Unlimited</td></tr>
-                <tr><td>AI code attribution (<code>pr attest</code>)<span class="sub">signed, local, on every tier</span></td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>Independently timestamped attribution<span class="sub"><code>pr attest-anchor</code></span></td><td>One, free</td><td class="yes">Unlimited</td><td class="yes">Unlimited</td><td class="yes">Unlimited</td></tr>
-                <tr><td>Shareable proof links + live badge</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>Team members</td><td>1</td><td>1</td><td>Up to 10</td><td>Unlimited</td></tr>
-                <tr><td>Roles + SSO</td><td>No</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>Projects</td><td>1</td><td>1</td><td>Unlimited</td><td>Unlimited</td></tr>
-                <tr><td>Data exports (NDJSON / SIEM)</td><td>No</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>One-click evidence packs in the dashboard</td><td>No</td><td>No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-                <tr><td>Private / self-hosted deployment</td><td>Self-host the AGPL server</td><td>Self-host the AGPL server</td><td>Self-host the AGPL server</td><td class="yes">By agreement</td></tr>
+                <tr><td>Guardrail rules at the tool boundary</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Spend cap that refuses the next tool call<span class="sub">day, session or total</span></td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>The same policy in <code>claude -p</code> and CI</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Signed, hash-chained decision receipts</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Both open-source verifiers</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Reports and self-contained packs from the CLI</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>AI code attribution (<code>pr attest</code>)<span class="sub">signed, local, free for good</span></td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Anchoring the root of your chain<span class="sub">to our service, or to a server you run</span></td><td>One, free</td><td class="yes">Unlimited</td></tr>
+                <tr><td>RFC 3161 timestamp from a public authority</td><td>One, free</td><td class="yes">Unlimited</td></tr>
+                <tr><td>Public receipt page an outside party can open</td><td>One, free</td><td class="yes">Unlimited</td></tr>
+                <tr><td>Run the whole thing yourself instead</td><td>Self-host the AGPL server</td><td>Self-host the AGPL server</td></tr>
               </tbody>
             </table>
           </div>
@@ -240,23 +199,23 @@
         <div class="faq-block">
           <h2 id="pricing-faq-heading">Pricing questions</h2>
           <dl>
-            <dt>What counts as an event?</dt>
-            <dd>One record written into the chain. A tool call, a guardrail decision, a prompt, a completion, a redaction, a run boundary. A typical coding-agent run writes somewhere between 100 and 250 events, so 50k a month covers roughly 200 to 500 runs on the free plan.</dd>
+            <dt>Is anything metered?</dt>
+            <dd>No. There is no quota to run out of and no counter to watch. The policy engine runs on your machine, it makes no network call to decide anything, and the paid option is a flat monthly licence rather than usage.</dd>
 
-            <dt>What happens when I hit the limit?</dt>
-            <dd>Nothing is deleted and no record is dropped silently. Limits apply to the licensed build you run, and the CLI tells you when you are near the cap so you can upgrade or keep running self-hosted under the AGPL.</dd>
+            <dt>Is the spend cap a paid feature?</dt>
+            <dd>No, and it never will be. Charging for the thing that stops a runaway bill would be a strange way to run this. <code>pr guard budget 25</code> works on a free install with no account.</dd>
 
-            <dt>Does the free plan expire?</dt>
-            <dd>No. Free is free forever at 50k events a month. There is no trial clock and no card required to reach it.</dd>
+            <dt>Does the free option expire?</dt>
+            <dd>No. It is MIT licensed source you already have. There is no trial clock and no card required.</dd>
 
-            <dt>Is the cryptography weaker on the free plan?</dt>
-            <dd>No. Hash-chain integrity, Ed25519 signatures and the open-source verifier are identical on every tier. Paid plans add RFC 3161 timestamps from an external time authority, which prevents back-dating; they do not make the chain itself any stronger.</dd>
+            <dt>Is the cryptography weaker without paying?</dt>
+            <dd>No. Hash-chain integrity, Ed25519 signatures and the open-source verifier are the same code either way. Paying adds RFC 3161 timestamps from an external time authority, which prevents back-dating; it does not make the chain itself any stronger.</dd>
 
             <dt>Do you store my agent records?</dt>
             <dd>No. Provenrail hosts identity and billing only. Agent records live in your own sink, on your own infrastructure. That is a deliberate design choice, and it is why the verifier runs entirely in your browser at <a href="/verify">provenrail.com/verify</a> with no upload.</dd>
 
             <dt>Can I self-host instead of paying?</dt>
-            <dd>Yes. The client, SDK, verifier and spec are MIT-licensed and the server is AGPL-3.0-or-later. Run the whole thing yourself at no cost. Paid plans exist for external time, independent anchoring and team features, not to unlock the core. There is no hosted tier to buy: you run the sink either way.</dd>
+            <dd>Yes. The client, SDK, verifier and spec are MIT-licensed and the server is AGPL-3.0-or-later. Run the whole thing yourself at no cost. The paid option exists for external time and independent anchoring, not to unlock the core. There is no hosted tier to buy: you run the sink either way.</dd>
 
             <dt>What is independent anchoring, and what leaves my machine?</dt>
             <dd>Your records are hashed into a chain. Independent anchoring sends us the single root of that chain, 32 bytes, plus how many records it covers. Nothing else is sent, because the endpoint has no field anything else could arrive in. We timestamp that root, keep an append-only history of it, and publish it at a URL anyone can read without an account. Your client or auditor recomputes the root from the records you show them and checks it matches. If you later edit or delete a record, it stops matching, and neither you nor we can make it match again.</dd>
@@ -265,16 +224,19 @@
             <dd>You can, and the tooling is free. What you cannot do is be your own independent party. A timestamp you produced yourself proves the chain is internally consistent, not that it existed before the dispute. That is the only thing a paid plan sells that self-hosting cannot reproduce, which is also why the first one is free: you should see the difference on your own run rather than take this paragraph's word for it.</dd>
 
             <dt>Is the hosted anchor service running today?</dt>
-            <dd>Yes. <code>pr anchor-push bundle.json</code> sends a 32-byte fingerprint of your records and nothing else, and returns a receipt carrying an RFC 3161 timestamp from a public authority. There is no signup step beyond buying the plan: the licence key you activated is the credential, and the command picks it up on its own. You keep every record; we never receive one, which is why this is the only part of Provenrail we can host. Every account gets one anchor free, so you can see the receipt before you decide.</dd>
+            <dd>Yes. <code>pr anchor-push bundle.json</code> sends a 32-byte fingerprint of your records and nothing else, and returns a receipt carrying an RFC 3161 timestamp from a public authority. There is no signup step beyond buying it: the licence key you activated is the credential, and the command picks it up on its own. You keep every record; we never receive one, which is why this is the only part of Provenrail we can host. Every account gets one anchor free, so you can see the receipt before you decide.</dd>
+
+            <dt>Why is this the only thing you charge for?</dt>
+            <dd>Because it is the only thing that has to run on someone else's machine to mean anything. A timestamp you issue yourself proves your chain is internally consistent, not that it existed before the dispute. Everything else, the rules, the cap, the journal, the receipts, the verifiers, runs entirely on your box, so there is nothing to host and nothing to charge for.</dd>
 
             <dt>What can you do with what I send you?</dt>
             <dd>Almost nothing, by design. An anchor request carries a stream label, a 64-character fingerprint of your records, and how many records it covers. There is no field a record could arrive in. We cannot read your prompts, reconstruct your chain, or show anyone what your agents did, because we were never sent it. What we can do is refuse to sign a rewritten history: coverage of a stream only grows, and the same length cannot get two different fingerprints.</dd>
 
             <dt>How do refunds work?</dt>
-            <dd>14 days on paid plans, no questions. Billing runs through Polar as merchant of record, so cancellation and refunds are handled from the same portal you subscribed in.</dd>
+            <dd>14 days, no questions. Billing runs through Polar as merchant of record, so cancellation and refunds are handled from the same portal you subscribed in.</dd>
 
             <dt>Can I pay annually, or in euros?</dt>
-            <dd>Plans are billed monthly in US dollars today. If annual billing or another currency is a blocker for you, write to <a href="mailto:support@provenrail.com">support@provenrail.com</a> and say so; that is the kind of request that decides what ships next.</dd>
+            <dd>Billing is monthly in US dollars today. If annual billing or another currency is a blocker for you, write to <a href="mailto:support@provenrail.com">support@provenrail.com</a> and say so; that is the kind of request that decides what ships next.</dd>
           </dl>
 
           <div class="cta" style="display:flex;flex-wrap:wrap;gap:.7rem;margin:2rem 0 0">
@@ -307,15 +269,23 @@
         <div class="footer-nav-group">
           <div class="footer-nav-label">Product</div>
           <div class="footer-nav-links">
+            <a href="/#spend-cap">Spend cap</a>
+            <a href="/claude-code-guardrails">Guardrail rules</a>
+            <a href="/pricing">Pricing</a>
             <a href="/start">Start here (beginners)</a>
+            <a href="/docs">Quickstart</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Resources</div>
+          <div class="footer-nav-links">
             <a href="/compare">Compare</a>
             <a href="/vs-microsoft-agt">vs Microsoft AGT</a>
             <a href="/for-agencies">For freelancers and agencies</a>
             <a href="/ai-code-attribution">AI code attribution</a>
-            <a href="/#how-it-works">How it works</a>
-            <a href="/#differentiators">Why Provenrail</a>
-            <a href="/pricing">Pricing</a>
-            <a href="/docs">Quickstart</a>
+            <a href="/eu-ai-act">EU AI Act logging</a>
+            <a href="/ai-agent-incidents">Agent incidents</a>
+            <a href="/changelog">Changelog</a>
           </div>
         </div>
         <div class="footer-nav-group">
@@ -342,13 +312,13 @@
     "@context": "https://schema.org",
     "@type": "FAQPage",
     "mainEntity": [
-      { "@type": "Question", "name": "What counts as an event in Provenrail pricing?", "acceptedAnswer": { "@type": "Answer", "text": "One record written into the chain: a tool call, a guardrail decision, a prompt, a completion, a redaction or a run boundary. A typical coding-agent run writes 100 to 250 events, so the free plan's 50k a month covers roughly 200 to 500 runs." } },
-      { "@type": "Question", "name": "Does the Provenrail free plan expire?", "acceptedAnswer": { "@type": "Answer", "text": "No. Free is free forever at 50k events per month. There is no trial clock and no card required." } },
-      { "@type": "Question", "name": "Is the cryptography weaker on the free plan?", "acceptedAnswer": { "@type": "Answer", "text": "No. Hash-chain integrity, Ed25519 signatures and the open-source verifier are identical on every tier. Paid plans add RFC 3161 timestamps from an external time authority, which prevents back-dating; they do not strengthen the chain itself." } },
+      { "@type": "Question", "name": "Is Provenrail metered?", "acceptedAnswer": { "@type": "Answer", "text": "No. There is no quota and no counter. The policy engine runs on your machine and makes no network call to decide anything, and the paid option is a flat $9 a month rather than usage." } },
+      { "@type": "Question", "name": "Is the Provenrail spend cap a paid feature?", "acceptedAnswer": { "@type": "Answer", "text": "No. pr guard budget 25 works on a free install with no account. Charging for the control that stops a runaway bill would be a strange way to run this." } },
+      { "@type": "Question", "name": "Is the cryptography weaker without paying?", "acceptedAnswer": { "@type": "Answer", "text": "No. Hash-chain integrity, Ed25519 signatures and the open-source verifier are the same code either way. Paying adds RFC 3161 timestamps from an external time authority, which prevents back-dating; it does not strengthen the chain itself." } },
       { "@type": "Question", "name": "Does Provenrail store my agent records?", "acceptedAnswer": { "@type": "Answer", "text": "No. Provenrail hosts identity and billing only. Agent records live in your own sink on your own infrastructure, which is why the verifier runs entirely in the browser with no upload." } },
-      { "@type": "Question", "name": "Can I self-host Provenrail instead of paying?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The client, SDK, verifier and spec are MIT-licensed and the server is AGPL-3.0-or-later, so you can run the whole system yourself at no cost. Paid plans add external time, independent anchoring and team features. There is no hosted tier to buy: you run the sink either way." } },
+      { "@type": "Question", "name": "Can I self-host Provenrail instead of paying?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The client, SDK, verifier and spec are MIT-licensed and the server is AGPL-3.0-or-later, so you can run the whole system yourself at no cost. The paid option adds external time and independent anchoring. There is no hosted tier to buy: you run the sink either way." } },
       { "@type": "Question", "name": "What is independent anchoring, and what leaves my machine?", "acceptedAnswer": { "@type": "Answer", "text": "Your records are hashed into a chain. Independent anchoring sends Provenrail the single root of that chain, 32 bytes, plus how many records it covers, and nothing else. Provenrail timestamps that root and publishes it at a URL anyone can read without an account. Your auditor recomputes the root from the records you show them and checks that it matches." } },
-      { "@type": "Question", "name": "How do Provenrail refunds work?", "acceptedAnswer": { "@type": "Answer", "text": "14 days on paid plans. Billing runs through Polar as merchant of record, so cancellation and refunds are handled from the same portal you subscribed in." } }
+      { "@type": "Question", "name": "How do Provenrail refunds work?", "acceptedAnswer": { "@type": "Answer", "text": "14 days. Billing runs through Polar as merchant of record, so cancellation and refunds are handled from the same portal you subscribed in." } }
     ]
   }
   </script>

@@ -109,10 +109,16 @@ def test_the_beacon_still_records_the_event_if_the_proxy_is_down() -> None:
 
 @pytest.mark.parametrize("page", ["index.html", "pricing.html"])
 def test_the_plan_the_visitor_picked_survives_the_click(page: str) -> None:
-    """"Start Builder" has to start Builder. Linking to a bare /account throws the choice away
-    and asks for it again, which is a step between intent and card for no reason."""
+    """A checkout CTA has to start the plan it named. Linking to a bare /account throws the
+    choice away and asks for it again, which is a step between intent and card for no reason.
+
+    The pair of plans is read off the page rather than hardcoded: the price list went from four
+    tiers to two on 2026-09-16, and a fixed list would have pinned the page that was retired
+    instead of the contract that matters, which is that every checkout CTA carries its plan."""
     html = (WEB / page).read_text(encoding="utf-8")
-    for plan in ("builder", "team"):
+    ctas = re.findall(r'data-ev="cta_checkout_([a-z]+)"', html)
+    assert ctas, f"{page}: no checkout CTA is instrumented at all"
+    for plan in ctas:
         assert f'href="/account?plan={plan}"' in html, (
             f"{page}: the {plan} CTA must carry the plan to the account page"
         )

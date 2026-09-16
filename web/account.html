@@ -222,10 +222,8 @@
       <div class="card" id="upgrade-card">
         <label>Subscribe</label>
         <div class="plans">
-          <div class="plan"><div><div class="pn">Builder</div><div class="pp">500k events/mo, RFC 3161 trusted timestamps, proof links</div></div><button class="btn-primary" data-plan="builder" data-ev="cta_checkout_builder"><span data-price="builder">$29/mo</span></button></div>
-          <div class="plan"><div><div class="pn">Team</div><div class="pp">2M events/mo, unlimited projects, exports, evidence packs</div></div><button class="btn-primary" data-plan="team" data-ev="cta_checkout_team"><span data-price="team">$99/mo</span></button></div>
+          <div class="plan"><div><div class="pn">Anchored statements</div><div class="pp">Unlimited RFC 3161 trusted timestamps. You send a 32 byte fingerprint, so your records stay on your machine.</div></div><button class="btn-primary" data-plan="builder" data-ev="cta_checkout_builder"><span data-price="builder">$9/mo</span></button></div>
         </div>
-        <p class="muted">Need private deployment, an SLA, or volume above Team? <a href="mailto:support@provenrail.com">Talk to us about Enterprise</a>.</p>
         <p class="muted">Billing is handled by Polar, our Merchant of Record. Prices include applicable tax. Cancel anytime.</p>
       </div>
 
@@ -292,6 +290,13 @@
     }
 
     function planLabel(p) { return p || "free"; }
+
+    // The name a human sees comes from the card they clicked, never from a second copy
+    // of the product name in the script.
+    function planName(plan) {
+      const card = document.querySelector(`[data-plan="${plan}"]`)?.closest(".plan");
+      return card?.querySelector(".pn")?.textContent?.trim() || "your plan";
+    }
     function fmtDate(iso) {
       if (!iso) return "";
       const d = new Date(iso);
@@ -472,9 +477,12 @@
         });
         if (!res.ok) return;
         const { products } = await res.json();
-        for (const plan of ["builder", "team"]) {
-          const el = document.querySelector(`[data-price="${plan}"]`);
-          if (el && products?.[plan]?.display) el.textContent = products[plan].display;
+        // Read the plans off the page rather than naming them again. A hardcoded list here
+        // outlived the Team card once already, and a price element that no longer exists is
+        // silent, so the drift would not have shown up until someone read the source.
+        for (const el of document.querySelectorAll("[data-price]")) {
+          const d = products?.[el.dataset.price]?.display;
+          if (d) el.textContent = d;
         }
       } catch (_e) { /* keep static fallback */ }
     })();
@@ -501,8 +509,10 @@
     const PLAN_INTENT_KEY = "pr_plan_intent";
     const PLAN_INTENT_TTL_MS = 30 * 60 * 1000;
 
+    const OFFERED_PLANS = [...document.querySelectorAll("[data-plan]")].map((b) => b.dataset.plan);
+
     function rememberPlanIntent(plan) {
-      if (!["builder", "team"].includes(plan)) return;
+      if (!OFFERED_PLANS.includes(plan)) return;
       try { localStorage.setItem(PLAN_INTENT_KEY, JSON.stringify({ plan, at: Date.now() })); }
       catch { /* private mode: the visitor just picks the plan again */ }
     }
@@ -512,7 +522,7 @@
         const raw = localStorage.getItem(PLAN_INTENT_KEY);
         if (consume) localStorage.removeItem(PLAN_INTENT_KEY);
         const v = raw && JSON.parse(raw);
-        if (!v || !["builder", "team"].includes(v.plan)) return null;
+        if (!v || !OFFERED_PLANS.includes(v.plan)) return null;
         return Date.now() - (v.at || 0) < PLAN_INTENT_TTL_MS ? v.plan : null;
       } catch { return null; }
     }
@@ -596,7 +606,7 @@
         paint(null);
         // Say why the sign-in screen appeared, so the plan they picked does not just vanish.
         const wanted = peekPlanIntent();
-        if (wanted) toast(`Sign in to start ${wanted === "team" ? "Team" : "Builder"}. Checkout opens right after.`);
+        if (wanted) toast(`Sign in to start ${planName(wanted)}. Checkout opens right after.`);
         return;
       }
       if (started) { paint(session, await fetchProfile(session.user.id)); return; }
@@ -633,7 +643,7 @@
       // Always consumed, so it can never fire on some later, unrelated visit.
       const wanted = takePlanIntent();
       if (wanted && !justCheckedOut && !nowActive) {
-        toast(`Opening checkout for ${wanted === "team" ? "Team" : "Builder"}...`);
+        toast(`Opening checkout for ${planName(wanted)}...`);
         startCheckout(wanted, document.querySelector(`[data-plan="${wanted}"]`));
       }
     }

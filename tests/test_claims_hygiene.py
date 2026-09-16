@@ -336,7 +336,9 @@ def test_the_advertised_rule_counts_match_the_catalogue():
 # "blocked" for a release after the rule stopped denying it, which is the drift this catches:
 # the string has to still be on the page AND still produce that verdict.
 DEMOED = [
-    ("web/index.html", "git reset --hard origin/main", "ask"),
+    # The homepage used to demo `git reset --hard origin/main`. Auto mode ships that check
+    # itself now, so the page stopped arguing it and this list moved with the page.
+    ("web/index.html", "rm -rf ./build", "allow"),
     ("web/index.html", "rm -rf ~/Projects", "deny"),
     ("web/claude-code-guardrails.html", "git reset --hard", "ask"),
     ("web/claude-code-guardrails.html", "git checkout -- .", "ask"),
@@ -401,12 +403,16 @@ def test_the_page_title_and_the_headline_argue_the_same_thing():
     text = (ROOT / "web" / "claude-code-guardrails.html").read_text(encoding="utf-8")
     title = re.search(r"<title>(.*?)</title>", text, re.S).group(1)
     heading = re.search(r"<h1>(.*?)</h1>", text, re.S).group(1)
-    for phrase in ("git reset --hard",):
-        assert phrase in title, f"the page title does not mention {phrase!r}"
-        assert phrase in heading, f"the h1 does not mention {phrase!r}"
+    # Was "git reset --hard" until 2026-09-16. Anthropic's auto mode now runs `git status`
+    # before that command on every Pro, Max and Team interactive session, so a page whose
+    # title sold the same check was selling a free first-party default. The anchor moved to
+    # the surfaces where the classifier is absent, and the page moved with it.
+    phrase = "in CI and headless"
+    assert phrase in title, f"the page title does not mention {phrase!r}"
+    assert phrase in heading, f"the h1 does not mention {phrase!r}"
     for meta in ("og:title", "twitter:title"):
         card = re.search(rf'(?:property|name)="{meta}" content="(.*?)"', text).group(1)
-        assert "git reset --hard" in card, f"{meta} still leads with something else: {card}"
+        assert phrase in card, f"{meta} still leads with something else: {card}"
 
 
 def test_no_page_claims_an_ordinary_delete_is_denied():
@@ -431,3 +437,169 @@ def test_no_page_claims_an_ordinary_delete_is_denied():
                     offences.append(f"{path.name}: {line.strip()[:120]}")
     assert not offences, ("copy claims an allowed delete is blocked:\n  "
                           + "\n  ".join(offences))
+
+
+# ------------------------------------------------------ the 2026-09-16 repositioning
+#
+# Anthropic made auto mode the built-in starting permission mode on Pro, Max and Team, and it
+# implements what this product's own 0.4 release shipped: `git status` before a command that
+# would discard uncommitted work, and a critical-path check no `permissions.allow` rule or
+# `PreToolUse` hook can override. The old homepage H1 sold that. The tests below pin the
+# position that replaced it, because the previous one drifted back into the copy twice before
+# the vendor closed it for good.
+
+#: The selling pages. Everything below is scoped to these rather than to the whole tree: the
+#: record-layer pages keep their old wording on purpose (search traffic), and `src/` is the
+#: server's internal plan names, which are not what the site offers.
+SELLING_PAGES = ("web/index.html", "web/pricing.html")
+
+#: Wording retired with the four-tier price list on 2026-09-16, and why it cannot come back.
+#: Each of these describes hosted capacity or a hosted feature. The operator trades as a
+#: Lithuanian individuali veikla with no company behind it and cannot be a processor of other
+#: people's agent records, so a page that meters events or sells a dashboard is advertising a
+#: business he is not able to run. `test_no_page_sells_a_liability_the_operator_cannot_carry`
+#: already guards the blunt version of this; these are the softer spellings that shipped anyway.
+RETIRED_FROM_THE_SELLING_PAGES = {
+    "events per month": "reads as hosted capacity; nothing is metered and no quota exists",
+    "events/month": "same, in the compact spelling the FAQ used",
+    "events a month": "same, in the prose spelling",
+    "team plan": "the $99 tier was retired; the site sells Free and Anchored statements",
+    "enterprise": "there is no Enterprise tier and no contract to sign one under",
+    "sso": "single sign-on is not a sold feature; it is server code with no customer",
+    "roles + sso": "same",
+    "team members": "seats are not sold; there is nothing per-seat to buy",
+    "data exports": "an export is a CLI command on every install, never a tier",
+    "evidence pack": "a dashboard evidence pack is hosted work we do not do",
+    "one-click": "the phrase only ever appeared attached to a dashboard feature",
+    "from the dashboard": "there is no dashboard in what the site sells",
+}
+
+
+def test_the_selling_pages_do_not_advertise_the_retired_tiers():
+    patterns = {phrase: re.compile(rf"\b{re.escape(phrase)}\b", re.IGNORECASE)
+                for phrase in RETIRED_FROM_THE_SELLING_PAGES}
+    offences = []
+    for name in SELLING_PAGES:
+        path = ROOT / name
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for phrase, why in RETIRED_FROM_THE_SELLING_PAGES.items():
+                if patterns[phrase].search(line):
+                    offences.append(f"{name}:{n} says {phrase!r}: {why}")
+    assert not offences, ("a selling page advertises something retired on 2026-09-16:\n  "
+                          + "\n  ".join(offences))
+
+
+def test_the_selling_pages_offer_exactly_two_things():
+    """Two cards, one of them free. A third card is how the four-tier list grew the first time."""
+    for name in SELLING_PAGES:
+        text = (ROOT / name).read_text(encoding="utf-8")
+        assert text.count('class="plan-card') == 2, f"{name} does not show exactly two plans"
+        assert "$9" in text, f"{name} does not name the one paid price"
+        for gone in ("$29", "$99"):
+            assert gone not in text, f"{name} still shows the retired price {gone}"
+
+
+def test_the_homepage_leads_with_the_surfaces_where_no_classifier_runs():
+    """The whole repositioning rests on three strings. If a redesign drops them the page is
+    back to arguing a case Anthropic now ships for free on every interactive session."""
+    index = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    flat = " ".join(index.split())
+    for surface in ("claude -p", "Agent SDK", "Bedrock"):
+        assert surface in flat, f"the homepage no longer names {surface!r}"
+    # And the vendor is described fairly, in its own words, rather than argued with.
+    assert "git status" in flat
+    assert "critical path" in flat
+
+
+def test_the_homepage_does_not_sell_a_regime_with_no_dated_obligation():
+    """Article 12 is deferred to 2027-12-02 and the Article 50 guidelines exclude source code,
+    so neither is a reason to buy anything today. The pages keep their URLs for search, and
+    they leave the front page. The footer is allowed to link to them; nothing above it is."""
+    index = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    above_the_footer = index.split('<footer', 1)[0]
+    for phrase in ("Article 12", "HIPAA"):
+        assert phrase not in above_the_footer, (
+            f"{phrase!r} is back above the footer on the homepage")
+
+
+def test_no_selling_page_names_an_agent_host_we_have_no_fixture_for():
+    """`hosts.py` does not exist yet and no captured payload exists for any agent other than
+    Claude Code. Naming one would be a promise the code breaks in silence: the reader installs
+    it, nothing is armed, and the first thing they learn about this product is that it lied.
+
+    Scoped to the selling pages on purpose. `ai-code-attribution.html` names the same tools for
+    an unrelated reason, commit-trailer detection, and `test_the_advertised_detector_list_matches
+    _the_code` is what keeps that honest."""
+    unfixtured = ("Codex", "Gemini CLI", "Copilot", "Cursor")
+    offences = []
+    for name in (*SELLING_PAGES, "web/claude-code-guardrails.html", "web/llms.txt"):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        for host in unfixtured:
+            if host in text:
+                offences.append(f"{name} names {host}, which has no captured payload fixture")
+    assert not offences, "\n  ".join(offences)
+
+
+def _flat(name: str) -> str:
+    return " ".join((ROOT / name).read_text(encoding="utf-8").split())
+
+
+#: Every page that shows a dollar figure from the spend cap.
+SPEND_PAGES = ("web/index.html", "web/claude-code-guardrails.html")
+
+
+def test_every_page_that_shows_a_dollar_figure_shows_what_the_figure_is_not():
+    """Three caveats travel with the number, always, because each one is a way the figure is
+    read as a promise it cannot keep: a metered charge (it is a list-price estimate), a charge
+    at all (it is notional on a flat-rate plan), and a hard stop at the cap (the transcript
+    lags, so it lands within a turn)."""
+    from provenrail.transcript import ESTIMATE_CAVEAT
+
+    assert "estimated at API list price" in ESTIMATE_CAVEAT
+    for name in SPEND_PAGES:
+        flat = _flat(name)
+        assert "estimated at API list price" in flat, f"{name} shows a figure with no basis"
+        assert "notional on Pro and Max" in flat, f"{name} does not say the figure is notional"
+        assert "within a turn" in flat, f"{name} implies the cap stops at the exact dollar"
+
+
+def test_the_spend_cap_shown_on_the_site_is_the_one_the_engine_produces(tmp_path, monkeypatch):
+    """The figures in the terminal demos are not typed. They are what `run_hook` answers when
+    the fixture transcript is priced on top of a day that already cost $24.00, against the
+    $25 cap the page tells the reader to set. A demo is a claim like any other."""
+    import json
+    from pathlib import Path
+
+    from provenrail import guard, spend
+
+    fixture = ROOT / "tests" / "fixtures" / "transcripts" / "claude-code-spend.jsonl"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PROVENRAIL_GUARD_JOURNAL", str(tmp_path / "journal.jsonl"))
+    monkeypatch.setenv("PROVENRAIL_SPEND_LEDGER", str(tmp_path / "ledger.json"))
+    for var in ("PROVENRAIL_URL", "FLIGHTRECORDER_URL"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+    (tmp_path / ".provenrail.json").write_text(json.dumps(
+        {"policy": {"use": ["destructive"],
+                    "budgets": [{"scope": "day", "limit_usd": 25.0, "warn_at": 0.8}]}}),
+        encoding="utf-8")
+    transcript = tmp_path / "transcript.jsonl"
+    transcript.write_text(fixture.read_text(encoding="utf-8"), encoding="utf-8")
+    # The page shows a cap being crossed mid-day, not a $25 session from cold.
+    spend.add_spend(24.00, guard.spend_agent_id())
+
+    _code, out, _err = guard.run_hook(json.dumps({
+        "hook_event_name": "PreToolUse", "tool_name": "Bash", "session_id": "s1",
+        "tool_input": {"command": "npm test"}, "cwd": str(tmp_path),
+        "transcript_path": str(transcript)}))
+    payload = json.loads(out)["hookSpecificOutput"]
+    assert payload["permissionDecision"] == "deny"
+    reason = " ".join(payload["permissionDecisionReason"].split())
+    shown = "estimated day spend is $25.5000, over the $25.0000 cap"
+    assert shown in reason, f"the engine no longer says {shown!r}; it says {reason!r}"
+
+    for name in SPEND_PAGES:
+        flat = _flat(name)
+        assert shown in flat, f"{name} shows a spend figure the engine does not produce"
+        assert "budget.day" in flat, f"{name} does not name the rule that fired"

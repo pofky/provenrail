@@ -127,7 +127,7 @@
       <a href="#selfhost">Self-host the recording server</a>
       <a href="#anchor">Anchor your chain</a>
       <a href="#attest">AI code attribution</a>
-      <a href="#team">Team &amp; SSO</a>
+      <a href="#team">Seats &amp; SSO</a>
       <a href="#licensing">Licensing</a>
       <a href="#source">Source</a>
     </div>
@@ -516,9 +516,9 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
       <a href="/account">provenrail.com/account</a>, claim the key, and run
       <code>pr activate &lt;key&gt;</code> once. One anchor per account, so you can hold a receipt
       with a public authority's signature on it before deciding whether to pay for more. After
-      that it is a <a href="/pricing">Builder or Team plan</a>, and the key you already have names
-      your account and your plan, so the service verifies it without a lookup and there is nothing
-      else to sign up for.</div>
+      that it is <a href="/pricing">anchored statements</a>, and the key you already have names your
+      account and your plan, so the service verifies it without a lookup and there is nothing else
+      to sign up for.</div>
 
     <h3>What actually travels</h3>
     <p>Three things: a stream label you choose, a 64-character fingerprint of your records (a
@@ -577,11 +577,12 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
       third was edited before signing, which a signature alone cannot catch. Full detail:
       <a href="/ai-code-attribution">what it proves and what it does not</a>.</p>
 
-    <h2 id="team">Team and SSO</h2>
-    <p>On the <a href="/pricing">Team plan</a> you can invite up to 10 teammates with role-based
-      access and connect your identity provider, so staff sign in with the IdP you already use.
-      Everything is account-authenticated against your own server; the integrity guarantee is unchanged
-      on every plan.</p>
+    <h2 id="team">Seats and SSO on a server you run</h2>
+    <p>These are capabilities of the recording server, which is AGPL and yours to run. They are not
+      something we sell: a server you host can carry up to 10 members with role-based access and
+      can be pointed at your own identity provider, so staff sign in with the IdP you already use.
+      Everything is account-authenticated against your own server, and the integrity guarantee is
+      the same whether you pay us anything or not.</p>
 
     <h3>Members and roles</h3>
     <p>Invite a teammate and they get their own key (shown once). Four least-privilege roles:

@@ -13,8 +13,7 @@ const ALLOWED_ORIGINS = new Set([
 const ALLOWED_EVENTS = new Set([
   "pageview",
   "cta_start_free",
-  "cta_checkout_builder",
-  "cta_checkout_team",
+  "cta_checkout_builder",   // the one paid SKU; `builder` is its internal id, not its name
   "cta_verify",
   "cta_docs",
   "verify_run",   // the in-browser verifier ran against the built-in demo or tampered fixture
