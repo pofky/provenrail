@@ -79,7 +79,7 @@
     {"@type":"ListItem","position":2,"name":"Docs","item":"https://provenrail.com/docs"}]}
   </script>
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"TechArticle","headline":"Quickstart and docs | Provenrail","url":"https://provenrail.com/docs","description":"Install Provenrail, record your first agent run, and verify it. Python and TypeScript quickstart, CLI reference, self-hosting, and licensing.","dateModified":"2026-08-05","author":{"@type":"Organization","name":"Provenrail"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
+  {"@context":"https://schema.org","@type":"TechArticle","headline":"Quickstart and docs | Provenrail","url":"https://provenrail.com/docs","description":"Install Provenrail, record your first agent run, and verify it. Python and TypeScript quickstart, CLI reference, self-hosting, and licensing.","dateModified":"2026-09-16","author":{"@type":"Organization","name":"Provenrail"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
   </script>
   <script type="application/ld+json">
   {"@context": "https://schema.org", "@type": "HowTo", "name": "Install Provenrail and record your first verifiable agent run", "description": "Install the CLI, record an agent run from Python or TypeScript, and verify the record with the open-source verifier. No account and no server of ours in the path.", "totalTime": "PT5M", "tool": [{"@type": "HowToTool", "name": "A terminal"}, {"@type": "HowToTool", "name": "Python 3 or Node 20+"}], "step": [{"@type": "HowToStep", "position": 1, "name": "Install the CLI", "text": "Run uv tool install provenrail. uv brings its own pinned Python, so a later system Python change cannot orphan the install. pip install provenrail works too, inside a virtualenv rather than a system or Homebrew Python.", "url": "https://provenrail.com/docs#install"}, {"@type": "HowToStep", "position": 2, "name": "Record a run", "text": "Wrap the agent in provenrail.record(\"my-agent\") in Python, or the equivalent record() call in the TypeScript SDK. Model and tool calls are captured automatically, each one Ed25519 signed and hash-chained to the one before it.", "url": "https://provenrail.com/docs#python"}, {"@type": "HowToStep", "position": 3, "name": "Verify the record", "text": "Run pr verify on the exported bundle. The verifier recomputes the hash chain, every signature, the server receipt chain and each RFC 3161 timestamp locally, trusting neither the agent nor the sink. A second verifier written in JavaScript runs the same algorithm in the browser at provenrail.com/verify.", "url": "https://provenrail.com/docs#verify"}, {"@type": "HowToStep", "position": 4, "name": "Cap what the agent can spend", "text": "Run pr guard budget 25 to write a $25 day cap. The PreToolUse hook prices the agent's own transcript and refuses the next tool call once the day is over the cap. The figure is estimated at API list price and is notional on flat-rate plans.", "url": "https://provenrail.com/docs#spend"}]}
@@ -116,12 +116,13 @@
     <p class="eyebrow">Quickstart</p>
     <h1>Record your first run in 60 seconds</h1>
     <p class="lede">Install the SDK, wrap your agent, and verify the result yourself. No account is required to use the open-source software. Python and TypeScript are byte-for-byte compatible.</p>
-    <p class="updated">Last updated <time datetime="2026-08-05">5 August 2026</time></p>
+    <p class="updated">Last updated <time datetime="2026-09-16">16 September 2026</time></p>
 
     <div class="note"><strong>New to the terminal?</strong> If you vibe-coded your way here and have never run a command line, start with <a href="/start">Provenrail from zero</a> instead. It spells out every keystroke, from opening the terminal to your first verified proof. This page is the faster reference once you are comfortable.</div>
 
     <div class="toc">
       <a href="#install">Install</a>
+      <a href="#report">What your agents already did</a>
       <a href="#guard">Guard a coding agent</a>
       <a href="#python">Python</a>
       <a href="#typescript">TypeScript</a>
@@ -191,6 +192,114 @@
       <code>deny</code> and <code>require_oversight</code> never read it. Clear it with
       <code>pr guard reset</code>. Other agent hosts are not claimed until their hook contract has
       been read and tested.</p>
+
+    <h2 id="report">What your agents already did (<code>pr report</code>)</h2>
+    <p>The fastest useful thing this tool does, and it needs nothing configured. Claude Code writes
+      a JSONL transcript for every session, one directory per project under
+      <code>~/.claude/projects</code>. <code>pr report</code> streams those files, prices every
+      model call, counts every tool call, and replays each bash command through the shipped
+      guardrail rules to show what they would have stopped. It is retroactive: it answers before
+      you have changed anything about how you work.</p>
+    <pre><code><span class="g">uv tool install provenrail</span>
+<span class="g">pr report</span></code></pre>
+    <p>No account, no config file, and no network call anywhere in the module or in what it reaches;
+      the test suite asserts it by breaking the socket. Files are read line by line and most lines
+      are rejected on a substring test before a JSON parser sees them, so a multi-gigabyte corpus
+      never lands in memory. On the machine these docs were written on, 2,163 transcripts and
+      3.79 GB took 128 seconds.</p>
+
+    <h3>Flags</h3>
+    <table>
+      <caption class="sr-only">Flags accepted by pr report</caption>
+      <thead><tr><th scope="col">Flag</th><th scope="col">What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>PATH</code></td><td>A transcript directory to read instead of
+          <code>~/.claude/projects</code>. Positional and optional.</td></tr>
+        <tr><td><code>--since YYYY-MM-DD</code></td><td>Only transcripts written on or after this
+          date. A transcript is append-only, so a file last written before the cutoff can hold no
+          line after it and is skipped whole on its mtime. The count of files skipped this way is
+          printed, so a narrow window is visibly a narrow window.</td></tr>
+        <tr><td><code>--project NAME</code></td><td>Only projects whose directory name contains
+          <code>NAME</code>. Substring, case-sensitive.</td></tr>
+        <tr><td><code>--json</code></td><td>The machine-readable document instead of the text
+          report. Its shape is versioned by the <code>schema</code> field; pin on that.</td></tr>
+        <tr><td><code>--share</code></td><td>The version that is safe to post. See below for
+          exactly what it removes.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>What <code>--share</code> removes</h3>
+    <p>Three things, and only these three:</p>
+    <ul>
+      <li>The root path is not printed, so your home directory and your username do not appear.</li>
+      <li>Every project name is replaced by <code>project-</code> plus a short hash of it. The same
+        project keeps the same hash within one report, so the rows still line up.</li>
+      <li>Every bash command is reduced to its verb and flags, and every operand is dropped, because
+        an operand is where a path, a hostname and an API key all live.</li>
+    </ul>
+    <p>It does not redact anything else, because there is nothing else: the report never carries
+      prompt text, file contents, file names or environment values in either mode. Rule names, tool
+      names, model names, counts and dollar figures are printed in both.</p>
+
+    <h3>What each number means</h3>
+    <ul>
+      <li><strong>estimated total</strong>: the sum over every model call found, priced from the
+        model and token usage the transcript itself records. Estimated at API list price, and
+        notional on Pro and Max flat-rate plans, where there is no per-token charge at all.</li>
+      <li><strong>model calls priced</strong> and <strong>unpriced calls</strong>: a model with no
+        verified rate is counted as unpriced, never as free, so a total is never silently short.</li>
+      <li><strong>repeat lines folded into their call</strong>: one model call can appear on many
+        transcript lines, as streamed partials and as history copied into a forked session. Calls
+        are deduplicated by message id across the whole corpus and the largest usage seen for an id
+        wins, so a forked session is not billed twice.</li>
+      <li><strong>Claude Code recorded its own total</strong>: where the host wrote its own running
+        cost on a <code>cost-state</code> line, both figures are printed side by side over exactly
+        the sessions that have both. Neither is reconciled into the other: adopting the host's
+        number would hide a disagreement, and dropping it would hide that a second opinion existed.
+        Both sides are whole-session figures, including any part of a session before
+        <code>--since</code>.</li>
+      <li><strong>tool calls</strong>, <strong>bash commands</strong>, <strong>files written or
+        edited</strong>: counted from the tool-use records. Files are distinct paths, not writes.</li>
+      <li><strong>sessions that ended mid tool call</strong>: a tool call with no result after it,
+        which is what a crashed or killed session looks like from the outside.</li>
+      <li><strong>would have been refused</strong> and <strong>would have been sent to you</strong>:
+        each command replayed offline through the same rules the guard ships, counted as
+        <code>deny</code> and <code>require_oversight</code>. This is a replay, not history: it says
+        what would happen if the guard were installed, not what did happen.</li>
+      <li><strong>blast radius</strong>: the same stopped calls grouped by which rule pack they hit,
+        so the answer is a category rather than a rule name.</li>
+      <li><strong>unreadable transcripts and lines</strong>: a file or line that could not be parsed
+        is counted as unread, never as empty.</li>
+    </ul>
+
+    <h3>The <code>--json</code> shape</h3>
+    <p>Stable and versioned by <code>schema</code>. A change of shape changes that string.</p>
+    <pre><code>{"schema": "provenrail.report/1", "root": str|null, "since": str|null, "share": bool,
+ "read": {"transcripts", "unreadable_transcripts", "unreadable_lines", "bytes",
+          "skipped_by_since", "seconds"},
+ "cost": {"estimated_usd", "caveat", "model_calls", "unpriced_calls", "repeat_lines_folded",
+          "host_crosscheck": {"sessions", "host_recorded_usd", "estimated_here_usd"}|null,
+          "by_model": [{"model", "calls", "estimated_usd", "priced"}]},
+ "activity": {"sessions", "first", "last", "tool_calls", "bash_commands",
+              "files_written", "sessions_ended_mid_tool_call", "by_tool": [[name, n]]},
+ "risk": {"screened", "deny", "ask", "by_rule": [{"rule", "verdict", "count"}],
+          "by_shape": [{"shape", "verdict", "count"}]},
+ "blast_radius": {"by_pack": [{"pack", "title", "count"}],
+                  "busiest_session": {"project", "files", "tool_calls"}|null},
+ "projects": [{"name", "sessions", "estimated_usd", "tool_calls", "deny", "ask",
+               "first", "last"}]}</code></pre>
+    <p>The <code>caveat</code> field carries the same sentence the text report prints, so a consumer
+      that shows <code>estimated_usd</code> has no excuse for showing it bare.</p>
+
+    <div class="note"><strong>Honest scope.</strong> <code>pr report</code> reads Claude Code
+      transcripts. No other agent host is read, and none is claimed until its format has a fixture
+      in this repository. The dollar figure is a floor: measured over the 49 sessions where Claude
+      Code had recorded its own total, the estimate came out about 12 per cent below it. Two known
+      causes are not modelled, because neither is visible in a transcript. Fast mode bills Claude
+      Opus 5 at $10/$50 per million tokens against the standard $5/$25, and web search bills $10
+      per 1,000 searches. No multiplier is applied to close the gap, so the number misses low
+      rather than high. The long context window is not one of the causes: Claude 4.6 and later
+      include the full 1M token context at standard per-token rates.</div>
 
     <h2 id="python">Python quickstart</h2>
     <p>One command sets up a local recording server (the "sink" in the API docs) and writes <code>.provenrail.json</code>, so your code carries no URLs or tokens:</p>

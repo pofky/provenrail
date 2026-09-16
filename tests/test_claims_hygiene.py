@@ -603,3 +603,173 @@ def test_the_spend_cap_shown_on_the_site_is_the_one_the_engine_produces(tmp_path
         flat = _flat(name)
         assert shown in flat, f"{name} shows a spend figure the engine does not produce"
         assert "budget.day" in flat, f"{name} does not name the rule that fired"
+
+
+# ------------------------------------------------------ `pr report`, the front door
+#
+# `pr report` reads transcripts that already exist, so it is the one claim on the site a reader
+# can check within two minutes of installing. That cuts both ways: a flag that does not exist or
+# a figure without its caveat is found immediately, by the person we were trying to convince.
+
+#: Every file that leads with `pr report`. Each is checked for the same three things: the
+#: commands it shows are real, the dollar figures carry the caveat, and the example is labelled
+#: as one machine rather than as a benchmark.
+REPORT_PAGES = ("README.md", "web/index.html", "web/docs.html", "web/start.html", "web/llms.txt")
+
+
+def _code_spans(name: str, text: str) -> list[str]:
+    """Only the parts of a file a reader would copy: code spans, not prose about them.
+
+    Scanning the whole file finds "pr report reads Claude Code transcripts" and tries to parse
+    the sentence as argv, which is how the first version of this test failed on its own copy.
+    """
+    if name.endswith(".html"):
+        spans = re.findall(r"<(?:code|pre)\b[^>]*>(.*?)</(?:code|pre)>", text, re.S)
+        spans = [re.sub(r"<[^>]+>", "", s) for s in spans]
+        return [s.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">") for s in spans]
+    fenced = re.findall(r"```[a-z]*\n(.*?)```", text, re.S)
+    inline = re.findall(r"`([^`\n]+)`", text)
+    return fenced + inline
+
+
+def _report_commands(name: str, text: str) -> list[list[str]]:
+    """Every `pr report ...` invocation shown in a file, as argv after the `report` word.
+
+    A shell redirect or a pipe ends the command: what follows belongs to the shell, not to the
+    parser, and feeding it in would fail a real command for the wrong reason.
+    """
+    found = []
+    for span in _code_spans(name, text):
+        for line in span.splitlines():
+            match = re.search(r"\bpr report\b(.*)$", line)
+            if not match:
+                continue
+            tail = re.split(r"[#|>]|&&", match.group(1))[0]
+            found.append([a.rstrip(".,;:") for a in tail.split()])
+    return found
+
+
+def test_every_pr_report_command_shown_is_one_the_cli_accepts():
+    """Driven through the real parser rather than compared against a list typed here. A hardcoded
+    list of flags restates the implementation and would keep passing after the flag was renamed."""
+    import argparse
+    import contextlib
+    import io
+
+    from provenrail.cli import build_parser
+
+    parser = build_parser()
+    shown = {tuple(args): name
+             for name in REPORT_PAGES
+             for args in _report_commands(name, (ROOT / name).read_text(encoding="utf-8"))}
+    assert shown, "no `pr report` command is shown anywhere; this test has stopped checking"
+    offences = []
+    for args, name in sorted(shown.items()):
+        try:
+            with contextlib.redirect_stderr(io.StringIO()):
+                parsed = parser.parse_args(["report", *args])
+        except SystemExit:
+            offences.append(f"{name} shows `pr report {' '.join(args)}`, which the CLI rejects")
+            continue
+        if not isinstance(parsed, argparse.Namespace):        # pragma: no cover - defensive
+            offences.append(f"{name}: `pr report {' '.join(args)}` parsed to nothing")
+    assert not offences, "\n  ".join(offences)
+
+
+def test_every_flag_documented_for_pr_report_is_a_flag_it_has():
+    """The docs page lists the flags in a table, which is the copy most likely to outlive a
+    rename. Read the flags out of the page and ask the parser for each one."""
+    import contextlib
+    import io
+
+    from provenrail.cli import build_parser
+
+    parser = build_parser()
+    docs = (ROOT / "web" / "docs.html").read_text(encoding="utf-8")
+    section = docs.split('<h2 id="report">', 1)[1].split('<h2 id="python">', 1)[0]
+    flags = sorted({m for m in re.findall(r"<code>(--[a-z-]+)", section)})
+    assert flags, "the docs report section documents no flags"
+    for flag in flags:
+        with contextlib.redirect_stderr(io.StringIO()):
+            try:
+                parser.parse_args(["report", "--help"])
+            except SystemExit:
+                pass
+        actions = {opt for action in parser._subparsers._group_actions[0]  # noqa: SLF001
+                   .choices["report"]._actions                             # noqa: SLF001
+                   for opt in action.option_strings}
+        assert flag in actions, f"docs document {flag}, which `pr report` does not accept"
+
+
+def test_the_share_flag_is_described_as_what_it_actually_removes():
+    """`--share` is the reason the output is postable, so the copy naming it is read as a promise.
+    The three things it removes are asserted against `report.py`, not against this list."""
+    import inspect
+
+    from provenrail import report as report_module
+
+    source = inspect.getsource(report_module)
+    # The root path is withheld, project names are hashed, and a command is reduced to its shape.
+    assert "command_shape" in source, "report.py no longer reduces commands to their shape"
+    assert "hashlib" in source, "report.py no longer hashes anything; check the project names"
+    for name in REPORT_PAGES:
+        flat = _flat(name) if name.startswith("web/") else " ".join(
+            (ROOT / name).read_text(encoding="utf-8").split())
+        if "--share" not in flat:
+            continue
+        assert "verb and flags" in flat, f"{name} names --share without saying what survives it"
+        assert "hash" in flat.lower(), f"{name} names --share without saying names are hashed"
+
+
+def test_every_report_figure_travels_with_the_estimate_caveat():
+    """One sentence, quoted from `transcript.ESTIMATE_CAVEAT`, never paraphrased. A figure with a
+    restated caveat drifts: the restatement is what softens first."""
+    from provenrail.transcript import ESTIMATE_CAVEAT
+
+    for name in REPORT_PAGES:
+        text = (ROOT / name).read_text(encoding="utf-8")
+        flat = " ".join(re.sub(r"<[^>]+>", "", text).split())
+        if "pr report" not in flat:                            # pragma: no cover - defensive
+            continue
+        assert "$" in flat, f"{name} leads with pr report but shows no figure to caveat"
+        assert ESTIMATE_CAVEAT.lower() in flat.lower(), (
+            f"{name} shows a report figure without the canonical caveat: {ESTIMATE_CAVEAT!r}")
+
+
+def test_every_report_figure_is_called_a_floor_and_says_why():
+    """Measured about 12 per cent below Claude Code's own recorded total over 49 sessions. Two
+    causes are known and neither is detectable from a transcript, so the copy names them rather
+    than implying the estimate is exact."""
+    for name in REPORT_PAGES:
+        flat = " ".join(
+            re.sub(r"<[^>]+>", "", (ROOT / name).read_text(encoding="utf-8")).split()).lower()
+        if "pr report" not in flat:                            # pragma: no cover - defensive
+            continue
+        assert "floor" in flat, f"{name} does not say the estimate is a floor"
+        assert "12 per cent" in flat, f"{name} does not give the measured size of the gap"
+        assert "fast mode" in flat, f"{name} does not name fast mode as an unmodelled cause"
+        assert "web search" in flat, f"{name} does not name web search as an unmodelled cause"
+
+
+def test_no_report_copy_claims_a_host_that_is_not_claude_code():
+    """`pr report` parses Claude Code's transcript format. Naming another agent would be a promise
+    the reader disproves on their own machine in one command."""
+    for name in REPORT_PAGES:
+        flat = " ".join(re.sub(r"<[^>]+>", "", (ROOT / name).read_text(encoding="utf-8")).split())
+        if "pr report" not in flat:                            # pragma: no cover - defensive
+            continue
+        assert "claude code transcripts" in flat.lower(), (
+            f"{name} does not say which transcripts pr report reads")
+        assert "no other agent" in flat.lower(), (
+            f"{name} does not say that no other agent host is read")
+
+
+def test_the_report_example_is_labelled_as_one_machine():
+    """A measurement from one corpus printed without that word reads as a benchmark, and the first
+    reader whose numbers differ concludes the tool is wrong rather than that theirs are different."""
+    for name in REPORT_PAGES:
+        flat = " ".join(re.sub(r"<[^>]+>", "", (ROOT / name).read_text(encoding="utf-8")).split())
+        if "7,863.51" not in flat:
+            continue
+        assert "not a benchmark" in flat, f"{name} prints one machine's run without saying so"
+        assert "machine" in flat, f"{name} does not attribute the figures to a machine"

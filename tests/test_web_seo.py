@@ -5,7 +5,7 @@ decides whether anyone reads the copy at all: the tags search engines index, the
 answer engines lift, and the links that have to resolve. Every check here failed on at least one
 page on 2026-09-16, which is why it is a test and not a note.
 
-The rules come from `/Volumes/T7/Projects/engine-agentic/docs/seo-cro-aeo-standard.md`. Where this
+The rules come from the operator's SEO, CRO and AEO standard, which is not in this tree. Where this
 file deviates from that standard it says so in the test that deviates, with the reason, because a
 silent deviation is indistinguishable from a page nobody checked.
 """
@@ -199,6 +199,10 @@ def test_no_page_invents_a_rating_or_a_review():
 #: has to be answered somewhere in FAQPage markup, self-contained, or the answer cannot be lifted.
 #: Add a row when the product starts answering a new question; never delete one to make it pass.
 CITABLE_QUESTIONS = {
+    # `pr report` is the front door: it answers before the reader has changed anything, so these
+    # are the two searches that reach a stranger who has not decided to install a guard yet.
+    "how much am i spending on claude code": "index.html",
+    "how do i see what my ai agent did": "index.html",
     "does claude code have a spend limit": "index.html",
     "does claude code's auto mode run in headless mode": "index.html",
     "how do i put a dollar cap on a claude code session": "claude-code-guardrails.html",

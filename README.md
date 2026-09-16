@@ -4,6 +4,78 @@
 they run, and every decision is signed into an off-box, hash-chained record that anyone
 can verify, trusting neither the agent nor the sink.
 
+### Start here: `pr report`, what your agents already did
+
+You already have the data. Claude Code writes a transcript of every session it runs, and they
+pile up in `~/.claude/projects` whether or not you ever look at them. One command reads them:
+
+```bash
+uv tool install provenrail   # or: pip install provenrail
+pr report
+```
+
+No setup, no config file, no account, and no network call. It reads transcripts that are already
+on your disk, so it tells you something the first time you run it, before you have changed
+anything about how you work. On the machine this was written on it read 2,163 transcripts,
+3.79 GB across 23 active projects, in 128 seconds. Trimmed, and run with `--share` so the
+project names below are hashes:
+
+```
+PROVENRAIL REPORT
+
+  942 sessions across 23 projects, over 31 days, ran 79,883 tool calls
+  and spent an estimated $7,863.51.
+  517 of those would have been stopped: 23 refused, 494 sent to you to approve.
+
+  2,163 transcripts, 3.79 GB, 128.0s
+
+COST
+    estimated total                       $7,863.51
+    model calls priced                    69,573
+    by model
+      claude-opus-5                            $6,646.54   41,554 calls
+      claude-sonnet-5                            $600.45   15,412 calls
+      claude-sonnet-4-6                          $471.85   11,305 calls
+    Claude Code recorded its own total for 49 of these sessions: $5,704.12,
+    against $5,015.01 estimated here for the same ones.
+    Spend is estimated at API list price, and notional on Pro and Max flat-rate
+    plans.
+
+ACTIVITY
+    sessions                              942
+    first and last                        2026-08-17 to 2026-09-16
+    tool calls                            79,883
+    bash commands                         51,494
+    files written or edited               7,027 distinct
+
+RISK   your own commands, replayed offline through the shipped rules
+    tool calls screened                   79,883
+    would have been refused               23   0.03%
+    would have been sent to you           494   0.62%
+    rules that would have fired
+         138  ask   production.deploy-command
+         119  ask   access.disarm-the-guard
+         104  ask   destructive.force-remove
+```
+
+Those are one machine's numbers, not a benchmark. Run it on yours and the numbers are yours.
+
+Four flags. `--since 2026-09-01` limits the window and skips whole files on their mtime.
+`--project foo` narrows to project names containing `foo`. `--json` prints a versioned
+machine-readable document. `--share` produces the version that is safe to post: it drops the
+root path, replaces every project name with a short hash, and reduces each command to its verb
+and flags so no operand can carry a path, a hostname or a key.
+
+Two honest notes about the dollar figure. It is **estimated at API list price, and notional on
+Pro and Max flat-rate plans**, where there is no per-token charge at all. And it is a **floor**:
+over the 49 sessions where Claude Code recorded its own total, the estimate came out about 12
+per cent low. Two known causes are unmodelled, because neither is visible anywhere in a
+transcript: fast mode bills Claude Opus 5 at $10/$50 per million tokens against the standard
+$5/$25, and web search bills $10 per 1,000 searches. No multiplier is guessed at to close the
+gap, so the number misses low rather than high.
+
+`pr report` reads Claude Code transcripts. No other agent host is read.
+
 ### One command, nothing installed: guard Claude Code
 
 Inside Claude Code:

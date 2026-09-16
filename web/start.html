@@ -89,7 +89,7 @@
     {"@type":"ListItem","position":2,"name":"Start","item":"https://provenrail.com/start"}]}
   </script>
   <script type="application/ld+json">
-  {"@context": "https://schema.org", "@type": "WebPage", "name": "Provenrail from zero: your first proof | Provenrail", "url": "https://provenrail.com/start", "description": "Never opened a terminal? This walkthrough takes you from a blank screen to a verified, tamper-evident record of your AI agent. Mac, Windows, Linux.", "dateModified": "2026-08-21", "isPartOf": {"@type": "WebSite", "name": "Provenrail", "url": "https://provenrail.com/"}, "publisher": {"@type": "Organization", "name": "Provenrail", "url": "https://provenrail.com/"}}
+  {"@context": "https://schema.org", "@type": "WebPage", "name": "Provenrail from zero: your first proof | Provenrail", "url": "https://provenrail.com/start", "description": "Never opened a terminal? This walkthrough takes you from a blank screen to a verified, tamper-evident record of your AI agent. Mac, Windows, Linux.", "dateModified": "2026-09-16", "isPartOf": {"@type": "WebSite", "name": "Provenrail", "url": "https://provenrail.com/"}, "publisher": {"@type": "Organization", "name": "Provenrail", "url": "https://provenrail.com/"}}
   </script>
 </head>
 <body>
@@ -123,7 +123,7 @@
     <p class="eyebrow">Start here</p>
     <h1>Provenrail from zero: open a terminal, ship your first proof</h1>
     <p class="lede">Built your app by vibe-coding and never really touched a terminal? Good. This is the one page that takes you from a blank screen to a verified, tamper-evident record of what your AI agent did. Every keystroke is written out. You do not need to know how to code, and you do not need to install or understand Python.</p>
-    <p class="updated">Last updated <time datetime="2026-08-05">5 August 2026</time></p>
+    <p class="updated">Last updated <time datetime="2026-09-16">16 September 2026</time></p>
 
     <div class="meta">
       <span>About 10 minutes</span>
@@ -139,10 +139,11 @@
       <a href="#terminal">1. Open the terminal</a>
       <a href="#uv">2. Install uv</a>
       <a href="#install">3. Install Provenrail</a>
-      <a href="#firstproof">4. Your first proof</a>
-      <a href="#record">5. Record your own agent</a>
-      <a href="#realcalls">6. Capture real AI calls</a>
-      <a href="#hosted">7. Share and go live</a>
+      <a href="#report">4. What your agents already did</a>
+      <a href="#firstproof">5. Your first proof</a>
+      <a href="#record">6. Record your own agent</a>
+      <a href="#realcalls">7. Capture real AI calls</a>
+      <a href="#hosted">8. Share and go live</a>
       <a href="#trouble">If something goes wrong</a>
       <a href="#faq">FAQ</a>
     </div>
@@ -202,7 +203,24 @@
 <span class="c">  pr demo            create a sample sealed run</span></code></pre>
     <div class="note">If <code>pr</code> says <code>command not found</code>, close and reopen the terminal once (the same PATH reason as uv), then try again. Still stuck? See <a href="#trouble">troubleshooting</a>.</div>
 
-    <h2 id="firstproof">4. Your first proof, with no code at all</h2>
+    <h2 id="report">4. The first useful answer: what your agents already did</h2>
+    <p>Most tools give you nothing until you change how you work. This one does not. If you have ever used Claude Code on this computer, it has already written a file for every session, quietly, in a folder called <code>~/.claude/projects</code>. One command reads all of them and tells you what those sessions cost, what they ran, what they touched, and which of their commands Provenrail's rules would have stopped.</p>
+    <pre><code><span class="p">$ </span><span class="g">pr report</span></code></pre>
+    <p>It takes a minute or two on a big pile of sessions and prints something like this. These are one machine's numbers on 16 September 2026, trimmed, not a benchmark:</p>
+    <pre><code><span class="c">PROVENRAIL REPORT</span>
+
+<span class="c">  942 sessions across 23 projects, over 31 days,</span>
+<span class="c">  ran 79,883 tool calls and spent an estimated</span>
+<span class="c">  $7,863.51.</span>
+<span class="c">  517 of those would have been stopped: 23 refused,</span>
+<span class="c">  494 sent to you to approve.</span>
+
+<span class="c">  2,163 transcripts, 3.79 GB, 128.0s</span></code></pre>
+    <p>Nothing was set up, no account was made, and nothing left the machine: there is no network call anywhere in this command. If you have never run Claude Code, it will say it found no transcripts, which is the honest answer rather than an empty report.</p>
+    <p>Three flags are worth knowing on the first run. <code>pr report --since 2026-09-01</code> limits it to the last few weeks. <code>pr report --project myapp</code> narrows it to projects whose name contains <code>myapp</code>. And <code>pr report --share</code> prints the version that is safe to paste in public: the path to your home folder is gone, every project name is replaced by a short hash, and every command is cut down to its verb and flags so no file path, hostname or API key can be hiding in it.</p>
+    <div class="note"><strong>About that dollar figure.</strong> It is estimated at API list price, and notional on Pro and Max flat-rate plans, where you pay a flat monthly fee and there is no per-token charge at all. It is also a floor rather than an exact number. Fast mode bills Claude Opus 5 at twice the standard rate and web search bills $10 per 1,000 searches, and neither of those shows up anywhere in a transcript, so the report does not guess at them. Measured against Claude Code's own recorded totals over 49 sessions, it came out about 12 per cent low. <code>pr report</code> reads Claude Code transcripts only; no other agent is read.</div>
+
+    <h2 id="firstproof">5. Your first proof, with no code at all</h2>
     <p>Before touching your own agent, prove the whole idea in two commands. The first creates a small sample run and seals it into a file called a <strong>bundle</strong>. The second checks that bundle, recomputing every hash and signature, and tells you whether anyone tampered with it.</p>
     <pre><code><span class="p">$ </span><span class="g">pr demo</span>
 <span class="c">Recorded a 6-event demo run and sealed it into bundle.json.</span>
@@ -215,10 +233,10 @@
 <span class="ok">RESULT: VERIFIED</span>
 <span class="c">The warn/info lines above are advisory context, not failures.</span></code></pre>
     <p><strong>That green <span class="ok">VERIFIED</span> is the entire product in one word.</strong> The verifier trusted nobody: not us, not the file, not your network. It re-derived the record from scratch and confirmed it is intact. Want to feel the other side? Open <code>bundle.json</code> in any text editor, change a single character inside it, save, and run <code>pr verify bundle.json</code> again. It will report <strong>TAMPERING DETECTED</strong> and refuse to pass. That is the point: a changed record cannot pass.</p>
-    <div class="note"><strong>You will also see a few <code>[warn]</code> lines, and that is expected on the free plan.</strong> They say things like "local anchor only" and "not witnessed": the record carries your own machine's time, not a trusted third-party timestamp. That timestamp, plus witness cosignatures, is the paid Builder feature. The integrity proof is identical on every plan, so the line that matters here is the last one: <span class="ok">RESULT: VERIFIED</span>. Warnings are guidance, not failures; only <strong>TAMPERING DETECTED</strong> is a failure.</div>
+    <div class="note"><strong>You will also see a few <code>[warn]</code> lines, and that is expected on the free plan.</strong> They say things like "local anchor only" and "not witnessed": the record carries your own machine's time, not a trusted third-party timestamp. That timestamp, plus witness cosignatures, is what anchored statements add. The integrity proof is identical on every plan, so the line that matters here is the last one: <span class="ok">RESULT: VERIFIED</span>. Warnings are guidance, not failures; only <strong>TAMPERING DETECTED</strong> is a failure.</div>
     <div class="note">No coding happened here, and nothing left your machine. You can also try it in your browser with no install at all on the <a href="/verify?demo">live verifier</a>.</div>
 
-    <h2 id="record">5. Record a run of your own agent</h2>
+    <h2 id="record">6. Record a run of your own agent</h2>
     <p>Now record something yourself. We will keep it to a tiny example with no AI keys required, so it runs anywhere. Once you see it work, swapping in your real agent is one line (next section).</p>
 
     <div class="step"><div class="n">1</div><div class="b">
@@ -308,7 +326,7 @@ print(<span class="g">"Done. The run was captured and sealed off-box."</span>)</
       <p>A green VERIFIED is the proof. The value is what you do with it. Two commands turn your run into a deliverable, both free and on your own machine.</p>
       <p><strong>A readable report for a client or auditor:</strong></p>
       <pre><code><span class="p">$ </span><span class="g">pr report --regime eu-ai-act my-run.json --md &gt; report.md</span></code></pre>
-      <p>That writes a plain-English <code>report.md</code>: what was recorded, whether integrity verified, a breakdown of the events, and how they map to EU AI Act Article 12. Swap in <code>--regime hipaa</code> or <code>--regime generic</code> for other contexts. On this free local setup the report honestly notes that the recorded times are self-asserted; the Builder plan adds RFC 3161 trusted time so an auditor can rely on the timing too.</p>
+      <p>That writes a plain-English <code>report.md</code>: what was recorded, whether integrity verified, a breakdown of the events, and how they map to EU AI Act Article 12. Swap in <code>--regime hipaa</code> or <code>--regime generic</code> for other contexts. On this free local setup the report honestly notes that the recorded times are self-asserted; anchored statements add RFC 3161 trusted time so an auditor can rely on the timing too.</p>
       <p><strong>A self-contained evidence package for an auditor:</strong></p>
       <pre><code><span class="p">$ </span><span class="g">pr pack my-run.json --out evidence.zip</span>
 <span class="c">Wrote 12893 byte evidence pack to evidence.zip (regime=generic)   # exact size varies by run</span>
@@ -322,7 +340,7 @@ print(<span class="g">"Done. The run was captured and sealed off-box."</span>)</
 <span class="c">stopped the local Provenrail sink</span></code></pre>
     </div></div>
 
-    <h2 id="realcalls">6. Capture your real AI calls automatically</h2>
+    <h2 id="realcalls">7. Capture your real AI calls automatically</h2>
     <p>The example above logged events by hand so it would run with no API keys. In a real app you do not write those lines yourself. You hand Provenrail your OpenAI or Anthropic client once, and every model call inside the recorded block is captured for you:</p>
     <pre><code>import provenrail as fr
 from openai import OpenAI
@@ -337,7 +355,7 @@ with fr.record(<span class="g">"billing-agent"</span>, clients=[client]):
     <span class="c"># every call your agent makes in here is recorded, no extra lines</span></code></pre>
     <p>Anthropic works the same way: pass your Anthropic client in <code>clients=[...]</code>. LangChain and MCP are supported too, and anything else records with one explicit line. Full reference lives in the <a href="/docs">docs</a>.</p>
 
-    <h2 id="hosted">7. Share a proof and go live</h2>
+    <h2 id="hosted">8. Share a proof and go live</h2>
     <p>Everything so far ran free on your own machine, and it stays that way. Your records never move. What a paid plan adds is the one thing you cannot produce yourself: an independent party who wrote down what your chain looked like, at a time you did not choose. You send a 32-byte fingerprint of your records and keep every record. Your client or auditor gets a receipt they can check without an account and without trusting you, carrying a timestamp from a public time authority. This runs at <code>provenrail.com</code> today, and every account gets one anchor free, so you can hold the receipt before you decide anything:</p>
     <pre><code>pr anchor-push bundle.json
 pr anchor-verify bundle.json anchor-receipt.json</code></pre>
@@ -346,7 +364,7 @@ pr anchor-verify bundle.json anchor-receipt.json</code></pre>
       <li>Pick a plan. After payment your account page shows a license key that starts with <code>prl_live_</code>.</li>
       <li>Activate it in your terminal:
         <pre style="margin-top:.5rem"><code><span class="p">$ </span><span class="g">pr activate prl_live_your_key_here</span>
-<span class="ok">License valid: builder tier (no expiry). Verified offline, nothing was sent anywhere.</span></code></pre>
+<span class="ok">License valid: anchored statements (no expiry). Verified offline, nothing was sent anywhere.</span></code></pre>
       </li>
     </ol>
     <p>The key is checked on your own machine, offline. From then on your runs can carry trusted timestamps and shareable proof links. See <a href="/pricing">pricing</a> for what each tier includes.</p>
@@ -370,11 +388,11 @@ pr anchor-verify bundle.json anchor-receipt.json</code></pre>
     <h2 id="faq">FAQ</h2>
     <dl class="faq">
       <dt>Do I need to know how to code?</dt>
-      <dd>No. Steps 1 through 4 are pure copy and paste and give you a real verified proof. Recording your own agent (step 5) means pasting one short file; you do not need to understand it to run it.</dd>
+      <dd>No. Steps 1 through 5 are pure copy and paste and give you a real verified proof. Recording your own agent (step 6) means pasting one short file; you do not need to understand it to run it.</dd>
       <dt>Do I need Python installed?</dt>
       <dd>No. uv brings its own Python, and the <code>uv run</code> command uses it. You never install or manage Python yourself.</dd>
       <dt>Does it matter which folder I am in?</dt>
-      <dd>For installing (steps 2 and 3) it does not matter at all. For recording your own run (step 5), make a folder and <code>cd</code> into it first, so the config file and your script live together. The recorder reads the config from the folder you run your script in.</dd>
+      <dd>For installing (steps 2 and 3) it does not matter at all. For recording your own run (step 6), make a folder and <code>cd</code> into it first, so the config file and your script live together. The recorder reads the config from the folder you run your script in.</dd>
       <dt>Do I have to keep the terminal open?</dt>
       <dd>Keep it open while you work through the guide. The local recorder from <code>pr quickstart</code> runs until you run <code>pr quickstart --stop</code> or close the terminal. Installed tools like <code>pr</code> and <code>uv</code> stay installed forever; you do not reinstall them.</dd>
       <dt>Is any of my data sent to Provenrail?</dt>
