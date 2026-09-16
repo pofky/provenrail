@@ -73,10 +73,16 @@ def test_the_plugin_version_matches_the_package_it_shims() -> None:
         f"plugin.json says {data['version']}, the package is {__version__}; bump both")
 
 
+def hook_events() -> dict:
+    """The event map, read through the wrapper `claude plugin validate` requires."""
+    raw = json.loads((PLUGIN_DIR / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+    return raw["hooks"]
+
+
 def test_hooks_reference_the_plugin_root_not_an_absolute_path() -> None:
     """Plugins are copied to a cache directory on install, so any path that is not resolved
     through ${CLAUDE_PLUGIN_ROOT} points at the author's machine and fails for every user."""
-    hooks = json.loads((PLUGIN_DIR / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+    hooks = hook_events()
     commands = [h["command"] for group in hooks.values() for entry in group
                 for h in entry["hooks"]]
     assert commands, "hooks.json defines no commands"
@@ -116,8 +122,20 @@ def test_hook_script_fails_open() -> None:
     assert "command -v pr" in script
 
 
+def test_hooks_json_wraps_its_events_in_a_hooks_object() -> None:
+    """`claude plugin validate` rejects an event declared at the top level, and the review
+    pipeline for the community marketplace runs that same check on every submission. The file
+    shipped with the events at the top level from the start: it loaded and fired correctly, so
+    nothing here caught it, and the first thing that did was the validator on 2026-09-16."""
+    raw = json.loads((PLUGIN_DIR / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+    assert set(raw) == {"hooks"}, (
+        f"hooks.json declares {sorted(set(raw) - {'hooks'})} at the top level; every event "
+        f"belongs inside the \"hooks\" object or `claude plugin validate` fails"
+    )
+
+
 def test_every_hook_event_is_one_claude_code_supports() -> None:
-    hooks = json.loads((PLUGIN_DIR / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+    hooks = hook_events()
     assert set(hooks) <= {"PreToolUse", "PostToolUse"}, (
         "only the two tool-boundary events are wired; anything else is a typo that "
         "silently never fires"
@@ -154,3 +172,18 @@ def test_hook_script_forwards_stderr_rather_than_discarding_it() -> None:
     for line in script.splitlines():
         if "run_and_forward " in line and not line.lstrip().startswith("#"):
             assert "2>/dev/null" not in line, f"stderr discarded on the decision call: {line}"
+
+
+def test_the_plugin_passes_claude_plugin_validate() -> None:
+    """The community-marketplace review pipeline runs exactly this check on every submission,
+    so a plugin that fails it cannot be listed. Skipped where the CLI is absent, which is most
+    CI runners: the shape assertions above are the part that runs everywhere."""
+    import shutil
+    import subprocess
+
+    claude = shutil.which("claude")
+    if not claude:
+        pytest.skip("claude CLI not on PATH")
+    out = subprocess.run([claude, "plugin", "validate", str(PLUGIN_DIR)],
+                         capture_output=True, text=True, timeout=180)
+    assert out.returncode == 0, (out.stdout + out.stderr)[-2000:]

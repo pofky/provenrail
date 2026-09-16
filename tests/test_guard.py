@@ -677,7 +677,7 @@ def test_the_hook_command_is_quoted_so_an_install_path_with_a_space_still_works(
 
     hooks = _json.loads((pathlib.Path(__file__).resolve().parent.parent / "plugins" /
                          "provenrail-guard" / "hooks" / "hooks.json").read_text(encoding="utf-8"))
-    commands = [h["command"] for event in hooks.values() for entry in event
+    commands = [h["command"] for event in hooks["hooks"].values() for entry in event
                 for h in entry["hooks"]]
     assert commands
     for command in commands:

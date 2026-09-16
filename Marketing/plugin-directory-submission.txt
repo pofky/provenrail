@@ -1,0 +1,64 @@
+CLAUDE CODE COMMUNITY MARKETPLACE SUBMISSION
+
+Where to submit. Individual authors who are not in a Team or Enterprise organisation use the
+Console form at platform.claude.com/plugins/submit. The claude.ai form at
+claude.ai/admin-settings/directory/submissions/plugins/new needs a Team or Enterprise org with
+directory management access, so it is the wrong one for this account. Approved plugins are
+pinned to a commit SHA in anthropics/claude-plugins-community and CI bumps the pin as you push,
+and the public catalogue syncs nightly, so there is a delay between approval and the listing.
+
+Already done, do not repeat it: `claude plugin validate ./plugins/provenrail-guard` passes, and
+it is now a test so it cannot regress. The hooks file had its events declared at the top level,
+which loaded and fired correctly but fails the validator that the review pipeline runs.
+
+Fields below, one per block.
+
+
+=== REPOSITORY URL ===
+
+https://github.com/pofky/provenrail
+
+
+=== PLUGIN NAME ===
+
+provenrail-guard
+
+
+=== DESCRIPTION ===
+
+A day spend cap that refuses the next tool call once your agent has spent it, plus delete and git rules that screen where a command points rather than what it says. Deterministic, offline, and it runs in `claude -p`, the Agent SDK and CI, where the auto mode classifier does not run at all.
+
+
+=== CATEGORY ===
+
+security
+
+
+=== IF THERE IS A LONGER "WHAT IT DOES" FIELD ===
+
+Auto mode already covers a lot of this for interactive sessions on a paid plan, and it is good. Two things it does not do. It has no dollar limit anywhere in the permission system, and it is simply absent from claude -p, the Agent SDK, Bedrock, Google Cloud's Agent Platform, Microsoft Foundry and Claude Platform on AWS, which all start in Manual. Hooks fire in all of those, so the same policy applies unattended and in CI where nobody is there to approve a prompt.
+
+44 rules are armed by default out of 54, from seven packs: git-worktree, destructive, database, cloud, secrets, production and access. The rules come from public incident reports filed against coding agents rather than from a list of scary-looking verbs, so they cover git reset --hard, git checkout -- ., git clean -fd, git stash, a framework database reset pointed at a live database, terraform destroy, DROP TABLE, a DELETE with no WHERE, kubectl delete namespace and a credential about to be committed. The git rules read the repository first and stay quiet when there is nothing uncommitted and nothing unpushed, because a prompt about nothing is how people learn to click through prompts. rm is screened by where it points: a delete inside your repository, a temp directory, a package cache or a build directory runs without a word, and a home directory, a whole disk or an unset variable followed by a slash is refused.
+
+/guard-budget 25 prices the session's own transcript and refuses the next tool call once the day's estimated cost crosses the number. Estimated, and the word appears wherever the figure does, because a transcript does not carry a price.
+
+Nothing is installed and nothing leaves the machine. No account, no pip install, no server, no network call. Every block and every prompt is written to a local journal that /guard-status reports, and installing the Provenrail CLI upgrades that journal in place into an Ed25519 signed, hash-chained receipt that a second implementation verifies in a browser. That part is optional and the guard is complete without it.
+
+If anything at all goes wrong the tool call proceeds: the hook exits with no opinion rather than failing, and says so once a day rather than on every call. A guardrail that bricks your agent is worse than no guardrail.
+
+
+=== IF THERE IS AN "INSTALL" OR "USAGE" FIELD ===
+
+/plugin marketplace add pofky/provenrail
+/plugin install provenrail-guard@provenrail
+/guard-budget 25
+
+/guard-status shows what is armed and what it has actually stopped. /guard-rules prints every rule including the packs that are off by default. /guard-card produces a paste-safe summary with every operand stripped.
+
+
+=== AFTER IT IS APPROVED ===
+
+Add the community catalogue URL to the Organization "sameAs" list in web/index.html, and say on
+web/claude-code-guardrails.html that it installs from @claude-community as well as from our own
+marketplace. Check the listing is live by searching the name in
+github.com/anthropics/claude-plugins-community/blob/main/.claude-plugin/marketplace.json

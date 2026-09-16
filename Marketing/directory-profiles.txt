@@ -1,74 +1,85 @@
 DIRECTORY AND ENTITY PROFILES
-Being listed on four or more platforms makes a tool substantially more likely to be named
-by an AI assistant, and these listings are close to a hard gate: nearly every tool that
-gets cited has them. Each block below is paste-ready for one destination.
 
+Being listed on four or more platforms makes a tool substantially more likely to be named by an
+AI assistant, and these listings are close to a hard gate: nearly every tool that gets cited has
+them. Each block below is paste-ready for one destination. Use the same words everywhere. The
+same entity described the same way in many places is what an assistant resolves into a confident
+answer; five different descriptions resolve into none.
 
-=== SHORT DESCRIPTION (50 words, for anywhere with a small field) ===
-
-Provenrail blocks destructive AI agent actions before they run and signs every decision into a hash-chained record that cannot be altered without it showing. Verification is open source, runs offline, and trusts neither the agent nor the server. Python and TypeScript SDKs, self-hostable, free tier.
+Facts in this file, all checkable: 54 rules across 10 packs, 44 armed by default from 7 packs.
+One paid plan at $9 a month. MIT licence. Verified against the shipped catalogue on 16 September
+2026. If you edit a number here, edit it in the product first.
 
 
 === ONE LINE (for fields under 120 characters) ===
 
-Guardrails for AI agents, with a tamper-evident record anyone can independently verify.
+A spend cap and a delete policy for coding agents, enforced at the tool boundary and signed.
+
+
+=== SHORT DESCRIPTION (50 words, for anywhere with a small field) ===
+
+Provenrail gives a coding agent a daily spend cap it cannot argue its way past and a delete policy that holds in CI, where no human is there to approve a prompt. Every block and every prompt is signed into a record anyone can verify offline. Free plugin, no account.
 
 
 === LONG DESCRIPTION (for Crunchbase, AlternativeTo, StackShare) ===
 
-Provenrail is a tamper-evident audit trail and guardrail layer for AI agents. It intercepts an agent's tool calls and blocks destructive ones before execution, using 36 built-in rules across seven packs covering destructive commands, secrets, spending, production access, permissions, data exfiltration and blast radius. Every decision, allowed or denied, is canonicalised, signed with Ed25519 and written into a hash-chained record that leaves the agent's machine immediately.
+Provenrail is a policy layer for coding agents. It runs at the tool boundary, before a command executes, and answers one question deterministically: should this call happen. 54 rules across 10 packs, 44 of them armed by default, cover the commands that actually destroy work, taken from public incident reports filed against coding agents: git reset --hard, git checkout -- ., git clean -fd, a framework database reset pointed at production, terraform destroy, DROP TABLE, a DELETE with no WHERE, a credential committed to a repository. The git rules read the repository first and stay silent when there is nothing uncommitted and nothing unpushed, because a prompt about nothing is how people learn to click through prompts.
 
-The record carries two independent chains, one produced by the agent and one by the receiving server, which must agree, so entries cannot be edited, reordered or removed after the fact without detection. Record heads are folded into an RFC 6962 Merkle tree, published as signed transparency-log checkpoints, optionally countersigned by independent witnesses, and timestamped by an RFC 3161 authority.
+Two things it adds that a permission prompt cannot. First, a spend cap: it prices the agent's own transcript and refuses the next tool call once the day's estimated cost crosses a number you set. No permission system has a dollar limit. Second, it runs where nobody is watching. An agent started with claude -p, or through the Agent SDK, Bedrock, Google Cloud's Agent Platform, Microsoft Foundry or Claude Platform on AWS, has no interactive classifier in front of it at all. Hooks still fire there, so the same policy applies in CI and on a schedule.
 
-Verification is open source under the MIT licence, runs entirely offline, and trusts neither the agent, the server, nor Provenrail. Two independent verifier implementations, one in Python and one in JavaScript, are held to a frozen conformance suite that both must agree on. Anyone can verify a record in a browser without an account.
+Every decision, allowed or denied, is canonicalised, Ed25519 signed and written into a hash-chained record. The record carries two independent chains, one from the agent and one from the receiving server, which must agree, so entries cannot be edited, reordered or removed after the fact without it showing. Record heads fold into an RFC 6962 Merkle tree published as signed transparency-log checkpoints, optionally countersigned by independent witnesses and timestamped by an RFC 3161 authority, which is the part you cannot issue to yourself.
 
-Provenrail integrates with Claude Code as an installable plugin, and with OpenAI, Anthropic, LangChain and MCP through one-line instrumentation. The server is self-hostable, so records need never reach a third party. There is a free tier including one independent RFC 3161 timestamp, and paid tiers add unlimited trusted timestamping, team access with roles and single sign-on, evidence exports and compliance reports.
+Verification is MIT licensed, runs entirely offline, and trusts neither the agent, the server, nor Provenrail. Two independent verifiers, one in Python and one in JavaScript, are held to a frozen conformance suite both must agree on, and anyone can check a record in a browser with no account. The command pr report reads the transcripts your agent already wrote, prices them per project and per day, and replays every tool call against the rules to say how many would have been stopped. On the machine it was built on that was 79,883 tool calls and an estimated $7,863.51 in 31 days.
+
+The guard is free and installs as a Claude Code plugin with nothing to set up. The paid plan, $9 a month, adds independent RFC 3161 timestamps and shareable proof links. The server is self-hostable, so records need never reach a third party.
 
 
 === CATEGORIES AND TAGS (use whichever the destination supports) ===
 
 Developer Tools, AI, Security, Compliance, Observability, DevSecOps, Audit, Monitoring
 
-ai-agents, guardrails, audit-log, tamper-evident, agent-security, ai-safety, compliance, transparency-log, claude-code, devsecops
+ai-agents, guardrails, coding-agent, spend-cap, audit-log, tamper-evident, agent-security,
+ai-safety, compliance, transparency-log, claude-code, devsecops
 
 
 === WHERE TO CREATE PROFILES, IN PRIORITY ORDER ===
 
-1. Crunchbase. Free basic profile. Organisation entity that feeds knowledge graphs.
-   Use the long description, the logo at provenrail.com/icon-512.png, founding year 2026,
-   Lithuania, and link the website and GitHub.
+1. The Claude Code plugin directory, at clau.de/plugin-directory-submission. This is first and
+   it is not close. It is the only listing on this page where the audience is already running
+   the host the plugin installs into, and there were 2,282 plugins listed and none of them ours
+   when this was checked. The submission content is in plugin-directory-submission.txt.
 
-2. AlternativeTo. Free. Very high intent traffic and heavily cited in "best X" answers.
-   List as an alternative to: audit logging tools, and in AI developer tooling. Use the
-   long description and the one line.
-
-3. StackShare. Free. Developer-tool entity record with good citation weight.
-
-4. Wikidata. Free, no notability bar for a software item. Create an item of type
-   "software" with: label Provenrail, description "open-source tamper-evident audit trail
-   for AI agents", official website https://provenrail.com, source code repository
+2. Wikidata. Free, no notability bar for a software item. Create an item of type "software"
+   with: label Provenrail, description "policy layer and tamper-evident audit trail for coding
+   agents", official website https://provenrail.com, source code repository
    https://github.com/pofky/provenrail, licence MIT, programming languages Python and
    TypeScript. This feeds knowledge graphs directly and is the highest ratio of effect to
    effort on this list.
 
-5. Product Hunt. See launch-product-hunt.txt. Also creates an entity record.
+3. AlternativeTo. Free. Very high intent traffic and heavily cited in "best X" answers.
+   List as an alternative to audit logging tools, and in AI developer tooling.
 
-6. GitHub topics on the repo itself. Add: ai-agents, audit-log, tamper-evident,
-   ai-safety, claude-code, guardrails, transparency-log, compliance. Free, thirty seconds,
-   and it is how people browsing GitHub by topic find anything.
+4. GitHub topics on the repo itself. Add: ai-agents, guardrails, coding-agent, audit-log,
+   tamper-evident, ai-safety, claude-code, transparency-log. Free, thirty seconds, and it is
+   how people browsing GitHub by topic find anything.
 
-7. PyPI and npm listings already exist. Make sure both carry the same one line as above,
-   so the description is identical everywhere. Consistency across platforms is the point:
-   the same entity described the same way in many places is what an assistant resolves
-   into a confident answer.
+5. Crunchbase. Free basic profile. Organisation entity that feeds knowledge graphs. Use the
+   long description, the logo at provenrail.com/icon-512.png, founding year 2026, Lithuania,
+   and link the website and GitHub.
 
-8. Awesome lists. Submit a pull request to awesome-ai-agents, awesome-llm-security and
-   awesome-mcp if it fits. One line, alphabetical position, no marketing language, link
+6. StackShare. Free. Developer-tool entity record with good citation weight.
+
+7. Product Hunt. See launch-product-hunt.txt. Also creates an entity record.
+
+8. PyPI and npm listings already exist. Make sure both carry the same one line as above.
+
+9. Awesome lists. Submit a pull request to awesome-ai-agents, awesome-llm-security and
+   awesome-claude-code if it fits. One line, alphabetical position, no marketing language, link
    straight to the repo. Maintainers reject anything that reads like an ad.
 
 
 === AFTER EACH PROFILE IS LIVE ===
 
-Add its URL to the Organization "sameAs" list in web/index.html. It currently lists PyPI,
-npm and GitHub. Every additional platform in that list strengthens the entity, and the
-list is how a machine knows all these profiles are the same thing.
+Add its URL to the Organization "sameAs" list in web/index.html. It currently lists PyPI, npm
+and GitHub. Every additional platform in that list strengthens the entity, and the list is how a
+machine knows all these profiles are the same thing.

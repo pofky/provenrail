@@ -16,11 +16,16 @@ Honesty notes, load-bearing:
     the operator's own storage decision. We never claim a retention window we do not control.
   - `None` on a numeric limit means unlimited. A feature value is a plain bool.
 
-Tiers (must match web/index.html pricing and the Polar product mapping exactly):
+Tiers. Only two of these are on sale. As of 2026-09-16 the hosted product is one paid SKU
+at $9/month, which maps to `builder`, plus `free`. `team` and `enterprise` stay defined here
+because a licensed self-hosted deployment still resolves entitlements through this table and
+a seat-limited install must keep working; they are not purchasable and the site does not
+offer them. A tier defined here is an entitlement set, not a price list.
+
   free       integrity + local/hosted verify, single project, single user, hash-chain only (no trusted time)
-  builder    + RFC 3161 trusted timestamps, + shareable proof links/badge (still single user)
+  builder    + RFC 3161 trusted timestamps, + shareable proof links/badge (still single user)   ON SALE, $9/mo
   team       + unlimited projects, + up to 10 members with roles + SSO, + data exports, + evidence packs
-  enterprise unlimited volume + unlimited members, everything on, sold by contact (custom deploy + SLA)
+  enterprise unlimited volume + unlimited members, everything on (custom deploy + SLA)
 """
 
 from __future__ import annotations
