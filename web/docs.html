@@ -13,7 +13,7 @@
   <meta property="og:image" content="https://provenrail.com/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Provenrail: the verifiable audit trail for AI agents.">
+  <meta property="og:image:alt" content="Provenrail: a spend cap your coding agent cannot talk past.">
   <meta property="og:site_name" content="Provenrail">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Quickstart and docs | Provenrail">
@@ -81,6 +81,9 @@
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"TechArticle","headline":"Quickstart and docs | Provenrail","url":"https://provenrail.com/docs","description":"Install Provenrail, record your first agent run, and verify it. Python and TypeScript quickstart, CLI reference, self-hosting, and licensing.","dateModified":"2026-08-05","author":{"@type":"Organization","name":"Provenrail"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
   </script>
+  <script type="application/ld+json">
+  {"@context": "https://schema.org", "@type": "HowTo", "name": "Install Provenrail and record your first verifiable agent run", "description": "Install the CLI, record an agent run from Python or TypeScript, and verify the record with the open-source verifier. No account and no server of ours in the path.", "totalTime": "PT5M", "tool": [{"@type": "HowToTool", "name": "A terminal"}, {"@type": "HowToTool", "name": "Python 3 or Node 20+"}], "step": [{"@type": "HowToStep", "position": 1, "name": "Install the CLI", "text": "Run uv tool install provenrail. uv brings its own pinned Python, so a later system Python change cannot orphan the install. pip install provenrail works too, inside a virtualenv rather than a system or Homebrew Python.", "url": "https://provenrail.com/docs#install"}, {"@type": "HowToStep", "position": 2, "name": "Record a run", "text": "Wrap the agent in provenrail.record(\"my-agent\") in Python, or the equivalent record() call in the TypeScript SDK. Model and tool calls are captured automatically, each one Ed25519 signed and hash-chained to the one before it.", "url": "https://provenrail.com/docs#python"}, {"@type": "HowToStep", "position": 3, "name": "Verify the record", "text": "Run pr verify on the exported bundle. The verifier recomputes the hash chain, every signature, the server receipt chain and each RFC 3161 timestamp locally, trusting neither the agent nor the sink. A second verifier written in JavaScript runs the same algorithm in the browser at provenrail.com/verify.", "url": "https://provenrail.com/docs#verify"}, {"@type": "HowToStep", "position": 4, "name": "Cap what the agent can spend", "text": "Run pr guard budget 25 to write a $25 day cap. The PreToolUse hook prices the agent's own transcript and refuses the next tool call once the day is over the cap. The figure is estimated at API list price and is notional on flat-rate plans.", "url": "https://provenrail.com/docs#spend"}]}
+  </script>
 </head>
 <body>
   <header>
@@ -95,8 +98,8 @@
         </svg>
       </button>
       <div id="nav-links" class="nav-links" role="navigation">
-        <a href="/#how-it-works">How it works</a>
-        <a href="/compare">Compare</a>
+        <a href="/#spend-cap">Spend cap</a>
+        <a href="/claude-code-guardrails">Guardrails</a>
         <a href="/pricing">Pricing</a>
         <a href="/docs">Docs</a>
         <a href="https://github.com/pofky/provenrail" rel="noopener">GitHub</a>
@@ -105,6 +108,9 @@
       </div>
     </nav>
   </header>
+  <!-- The page's own content, so a reader mode or a crawler can tell it from
+       the chrome that repeats on every page. -->
+  <main>
   <div class="wrap">
 
     <p class="eyebrow">Quickstart</p>
@@ -211,7 +217,7 @@ instrument_openai(openai_client, fr)      <span class="c"># every model call cap
 instrument_anthropic(anthropic_client, fr)
 instrument_mcp(mcp_session, fr)           <span class="c"># every MCP call_tool captured</span></code></pre>
 
-    <h3>LangChain / LangGraph (Article 12 callback handler)</h3>
+    <h3>LangChain / LangGraph (compliance callback handler)</h3>
     <pre><code>from provenrail.integrations.langchain import ComplianceCallbackHandler
 
 with fr.record(<span class="g">"my-agent"</span>) as rec:
@@ -649,18 +655,22 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
       <a href="/pricing">See pricing <span>/#pricing</span></a>
     </div>
   </div>
+  </main>
+
   <footer class="footer" aria-label="Site footer">
     <div class="footer-inner">
       <div>
         <div class="footer-brand">
           <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block">
         </div>
-        <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Designed for audits and incident reconstruction.</p>
+        <p class="footer-tagline">A deterministic policy layer for coding agents. It stops the agent at the tool boundary, and signs what it stopped into a record anyone can verify.</p>
         <nav class="footer-links" aria-label="Footer links">
           <a href="/docs">Documentation</a>
           <a href="/pricing">Pricing</a>
           <a href="/#faq">FAQ</a>
           <a href="/verify">Verify a record</a>
+          <a href="https://github.com/pofky/provenrail" rel="noopener">Source (GitHub)</a>
+          <a href="https://pypi.org/project/provenrail/" rel="noopener">Package (PyPI)</a>
           <a href="mailto:support@provenrail.com">support@provenrail.com</a>
         </nav>
       </div>
@@ -668,16 +678,27 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
         <div class="footer-nav-group">
           <div class="footer-nav-label">Product</div>
           <div class="footer-nav-links">
-            <a href="/#how-it-works">How it works</a>
+            <a href="/#spend-cap">Spend cap</a>
+            <a href="/claude-code-guardrails">Guardrail rules</a>
             <a href="/#see-it">Watch it work</a>
-            <a href="/#differentiators">Why Provenrail</a>
             <a href="/pricing">Pricing</a>
             <a href="/start">Start here (beginners)</a>
             <a href="/docs">Quickstart</a>
+          </div>
+        </div>
+        <div class="footer-nav-group">
+          <div class="footer-nav-label">Resources</div>
+          <div class="footer-nav-links">
+            <a href="/compare">Compare</a>
             <a href="/vs-microsoft-agt">vs Microsoft AGT</a>
             <a href="/for-agencies">For freelancers and agencies</a>
             <a href="/ai-code-attribution">AI code attribution</a>
-</div>
+            <a href="/eu-ai-act">EU AI Act logging</a>
+            <a href="/ai-agent-incidents">Agent incidents</a>
+            <a href="/security">Security</a>
+            <a href="/conformance">Conformance</a>
+            <a href="/changelog">Changelog</a>
+          </div>
         </div>
         <div class="footer-nav-group">
           <div class="footer-nav-label">Legal</div>

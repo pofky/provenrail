@@ -125,6 +125,12 @@ a { color: inherit; text-decoration: none; }
 .container { max-width: var(--max-w); margin-inline: auto; padding-inline: var(--gutter); width: 100%; }
 
 code, .mono { font-family: var(--font-mono); }
+/* An inline code span with no space in it (a tool-name alternation, a long path) is one
+   unbreakable word, and at 320px it pushed the whole document 135px wider than the
+   viewport on the changelog. Breaking inside it is the only option that does not scroll
+   the page sideways; block code keeps its own overflow-x container and is unaffected. */
+code { overflow-wrap: anywhere; }
+pre code { overflow-wrap: normal; }
 
 /* ---------- Reveal ---------- */
 .reveal { opacity: 0; transform: translateY(14px); transition: opacity .32s var(--ease), transform .32s var(--ease); }

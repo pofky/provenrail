@@ -703,8 +703,10 @@ function globMatch(pattern, value) {
 // `until` is the last date a published introductory rate holds, and `after` is the standard
 // rate that replaces it. Without the successor, an intro price keeps billing after it ends and
 // every replayed budget is quietly low, which is precisely what `until` exists to prevent.
-const _a = (i, o, until, after) => ({
-  in: i, out: o, cr: i * 0.10, cw: i * 1.25, cw1h: i * 2.00, incl: false,
+// `cr` overrides the 0.1x cache-read default, which stopped being universal when Fable 5.1 and
+// Mythos 5.1 moved to 0.025x of base input.
+const _a = (i, o, until, after, cr) => ({
+  in: i, out: o, cr: cr === undefined ? i * 0.10 : cr, cw: i * 1.25, cw1h: i * 2.00, incl: false,
   ...(until ? { until } : {}),
   ...(after ? { successor: _a(after[0], after[1]) } : {}),
 });
@@ -737,7 +739,9 @@ const JS_PRICES = {
   "claude-sonnet-4-5": _a(3.00, 15.00), "claude-sonnet-4-6": _a(3.00, 15.00),
   "claude-sonnet-4": _a(3.00, 15.00),
   // Introductory pricing published as ending 31 August 2026; standard $3/$15 from 1 September.
-  "claude-sonnet-5": _a(2.00, 10.00, "2026-08-31", [3.00, 15.00]),
+  // The September increase was cancelled and $2/$10 became the standard price, so the
+  // scheduled rollover that used to live here estimated every Sonnet 5 call 50% high.
+  "claude-sonnet-5": _a(2.00, 10.00),
   // Every current Opus is listed: longest-substring resolution would otherwise hand 4-6, 4-7
   // and 4-8 to "claude-opus-4" and bill them at the retired $15/$75 rate.
   "claude-opus-4-5": _a(5.00, 25.00), "claude-opus-4-6": _a(5.00, 25.00),
@@ -746,6 +750,10 @@ const JS_PRICES = {
   "claude-opus-5": _a(5.00, 25.00), "claude-fable-5": _a(10.00, 50.00),
   // Same rate and context window as Fable 5; availability differs, price does not.
   "claude-mythos-5": _a(10.00, 50.00), "claude-mythos-preview": _a(10.00, 50.00),
+  // Cache read is 0.025x base on the .1 models, not 0.1x. Falling back to the .0 entry by
+  // prefix charged every cached read four times over.
+  "claude-fable-5-1": _a(10.00, 50.00, undefined, undefined, 0.25),
+  "claude-mythos-5-1": _a(10.00, 50.00, undefined, undefined, 0.25),
   "gemini-2.5-flash-lite": _g(0.10, 0.40), "gemini-2.5-flash": _g(0.30, 2.50),
   "gemini-2.5-pro": _g(1.25, 10.00, { tierAt: 200000, tierIn: 2.50, tierOut: 15.00 }),
   "gemini-1.5-flash": _g(0.075, 0.30), "gemini-1.5-pro": _g(1.25, 5.00),

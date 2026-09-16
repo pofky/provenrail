@@ -110,14 +110,22 @@ class ModelPrice:
 
 
 #: Every rate below was read off the provider's own pricing page on this date.
-VERIFIED = "2026-08-04"
+VERIFIED = "2026-09-16"
 
 
 def _a(input_: float, output: float, as_of: str = VERIFIED, until: str = "",
-       after: tuple[float, float] | None = None) -> ModelPrice:
+       after: tuple[float, float] | None = None,
+       cache_read: float | None = None) -> ModelPrice:
     """Anthropic: cache read 0.1x input, 5m cache write 1.25x, 1h cache write 2x, usage
-    EXCLUSIVE. Multipliers from platform.claude.com/docs/en/about-claude/pricing."""
-    return ModelPrice(input_, output, round(input_ * 0.10, 6), round(input_ * 1.25, 6),
+    EXCLUSIVE. Multipliers from platform.claude.com/docs/en/about-claude/pricing.
+
+    `cache_read` overrides the 0.1x default, which stopped being universal when Fable 5.1 and
+    Mythos 5.1 moved to 0.025x. A multiplier that is right for most models is still a guess for
+    the ones it is wrong about, so those carry their published rate instead.
+    """
+    return ModelPrice(input_, output,
+                      round(input_ * 0.10, 6) if cache_read is None else cache_read,
+                      round(input_ * 1.25, 6),
                       cache_inclusive=False, as_of=as_of,
                       cache_write_1h=round(input_ * 2.00, 6), until=until,
                       successor=(_a(after[0], after[1], as_of=as_of) if after else None))
@@ -190,7 +198,14 @@ PRICES: dict[str, ModelPrice] = {
     # Introductory pricing, published as ending 31 August 2026, with the standard $3/$15 rate
     # taking over on 1 September. Without the successor the table would keep billing the intro
     # rate and undercount every September call by a third.
-    "claude-sonnet-5": _a(2.00, 10.00, until="2026-08-31", after=(3.00, 15.00)),
+    # The $2/$10 launch price was announced as introductory "through August 31, 2026" and
+    # this table duly rolled over to $3/$15 on the 1st of September. Anthropic then made it
+    # permanent: "is now the standard price. The previously scheduled increase to $3/$15 per
+    # million input/output tokens on September 1, 2026 will not occur"
+    # (platform.claude.com/docs/en/about-claude/pricing, read 2026-09-16). So every Sonnet 5
+    # call was being estimated 50% high, which also made a spend cap deny early. A scheduled
+    # increase is a plan, not a fact, and this table must carry only the rate in force.
+    "claude-sonnet-5": _a(2.00, 10.00),
     "claude-opus-4-5": _a(5.00, 25.00),
     "claude-opus-4-6": _a(5.00, 25.00),
     "claude-opus-4-7": _a(5.00, 25.00),
@@ -201,6 +216,13 @@ PRICES: dict[str, ModelPrice] = {
     "claude-fable-5": _a(10.00, 50.00),
     # Same rate and context window as Fable 5; availability differs, price does not.
     "claude-mythos-5": _a(10.00, 50.00),
+    # The .1 models share every rate with the .0 ones EXCEPT the cache read, which is 0.025x
+    # base instead of the 0.1x every other Anthropic model uses: "$0.25 / MTok" against Fable
+    # 5's "$1 / MTok" (same page, same day). Without their own entries these fell back to the
+    # .0 rate by prefix and every cached read was charged four times over, on exactly the
+    # models whose long system prompts make caching worth using.
+    "claude-fable-5-1": _a(10.00, 50.00, cache_read=0.25),
+    "claude-mythos-5-1": _a(10.00, 50.00, cache_read=0.25),
     "claude-mythos-preview": _a(10.00, 50.00),
     # Google
     "gemini-2.5-flash-lite": _g(0.10, 0.40),

@@ -1,5 +1,7 @@
 # Provenrail
 
+Last updated: 2026-09-16.
+
 > A deterministic policy layer for coding agents running where nobody is watching. It stops an agent at the tool boundary when it is about to spend past a dollar cap or destroy work no remote has a copy of, and it signs every decision into a hash-chained record anyone can verify with an open-source tool.
 
 ## What it is
@@ -104,6 +106,12 @@ The tool recomputes the hash chain, every Ed25519 signature, the independent ser
 
 Q: How do I put a dollar cap on a Claude Code session?
 A: Run `pr guard budget 25`, or `/guard-budget 25` inside Claude Code with no CLI installed. The `PreToolUse` hook reads the transcript the payload names, prices each new assistant message, adds the delta to a local ledger, and refuses the next tool call once the day cap is crossed. There is no default cap. The figure is estimated at API list price and is notional on Pro and Max flat-rate plans, and the cap stops the agent within a turn rather than at the exact dollar.
+
+Q: Does Claude Code have a spend limit?
+A: Claude Code reports cost; it does not stop on it. A `claude -p` run prints `total_cost_usd` when it finishes, which is the invoice arriving after the spending. Provenrail adds the ceiling: `pr guard budget 25` writes a $25 day cap into `.provenrail.json`, and the `PreToolUse` hook refuses the next tool call once the day is over it. The figure is estimated at API list price, it is notional on Pro and Max flat-rate plans where there is no per-token charge to cap, and the cap lands within a turn rather than at the exact dollar.
+
+Q: Does Claude Code's auto mode run in headless mode?
+A: No. Auto mode is the built-in starting permission mode for interactive sessions on Pro, Max and Team. Anthropic lists `claude -p`, the Agent SDK, Amazon Bedrock, Google Cloud's Agent Platform, Microsoft Foundry and Claude Platform on AWS as starting in the permissive `default` mode, with no classifier in front of the tool call, and the headless documentation says that for `-p` the built-in starting permission mode is Manual on every plan. Hooks do run in all of them, so a deterministic policy in the hook is what is left deciding.
 
 Q: Does Claude Code's auto mode already stop destructive commands?
 A: In an interactive session on Pro, Max or Team, yes. Anthropic documents that it runs `git status` before a command that would discard uncommitted work, and that it never lets a `permissions.allow` rule or a `PreToolUse` hook returning "allow" approve an `rm` or `rmdir` targeting a critical path. What it does not do is run where the session did not start in auto mode, and it is not a cost control.

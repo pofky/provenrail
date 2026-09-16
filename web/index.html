@@ -16,7 +16,7 @@
   <meta property="og:image" content="https://provenrail.com/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Provenrail: deterministic policy for coding agents.">
+  <meta property="og:image:alt" content="Provenrail: a spend cap your coding agent cannot talk past.">
   <meta property="og:site_name" content="Provenrail">
 
   <!-- Twitter Card -->
@@ -52,7 +52,11 @@
   </style>
   <link rel="stylesheet" href="styles.css">
 
-  <!-- JSON-LD: Organization + WebSite + SoftwareApplication + FAQPage -->
+  <!-- JSON-LD: Organization + WebSite + SoftwareApplication + FAQPage.
+       The WebSite node carries no SearchAction on purpose. A SearchAction names a URL
+       template a search engine may send a query to, and this site has no search endpoint,
+       so declaring one would advertise a route that answers 404. Add it in the same change
+       that ships a real /search, never before. -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -67,12 +71,17 @@
           "https://www.npmjs.com/package/provenrail",
           "https://github.com/pofky/provenrail"
         ],
+        "email": "support@provenrail.com",
+        "description": "Provenrail publishes a deterministic policy layer for coding agents. It is operated as a sole trader registered under individual activity in Lithuania.",
         "contactPoint": { "@type": "ContactPoint", "contactType": "customer support", "email": "support@provenrail.com" }
       },
       {
         "@type": "WebSite",
         "name": "Provenrail",
-        "url": "https://provenrail.com"
+        "url": "https://provenrail.com",
+        "inLanguage": "en",
+        "description": "A deterministic policy layer for coding agents: a day dollar cap enforced at the tool boundary, and destructive-command rules that resolve where a command points.",
+        "publisher": { "@type": "Organization", "name": "Provenrail", "url": "https://provenrail.com" }
       },
       {
         "@type": "SoftwareApplication",
@@ -105,6 +114,8 @@
         "mainEntity": [
           { "@type": "Question", "name": "Claude Code already blocks git reset --hard. Why install anything?", "acceptedAnswer": { "@type": "Answer", "text": "In an interactive session on Pro, Max or Team it does, and we would rather say so than argue with it. Anthropic's documentation states that Claude Code runs git status itself before a command that would discard uncommitted work, and that it never lets a permissions.allow rule or a PreToolUse hook that returns allow approve an rm or rmdir command targeting a critical path. What that classifier does not do is run in claude -p, the Agent SDK, Amazon Bedrock, Google Cloud's Agent Platform or Microsoft Foundry, which start in the permissive default mode, and it does not cap spend anywhere. Hooks run in all of those places, so a deterministic policy in the hook is what keeps deciding." } },
           { "@type": "Question", "name": "How does a spend cap work at the tool boundary?", "acceptedAnswer": { "@type": "Answer", "text": "The PreToolUse payload carries transcript_path. Provenrail reads the transcript from where it last stopped, prices each new assistant message from its reported model and token usage, adds the delta to a local cross-process ledger, and refuses the next tool call once the day cap is crossed. Set one with pr guard budget 25. There is no default cap, because a cap you did not choose is a claim about your money." } },
+          {"@type": "Question", "name": "Does Claude Code have a spend limit?", "acceptedAnswer": {"@type": "Answer", "text": "Claude Code reports cost; it does not stop on it. A claude -p run prints total_cost_usd when it finishes, which is the invoice arriving after the spending. Provenrail adds the ceiling Claude Code does not take: pr guard budget 25 writes a $25 day cap into .provenrail.json, and the PreToolUse hook refuses the next tool call once the day is over it. The figure is estimated at API list price, it is notional on Pro and Max flat-rate plans where there is no per-token charge to cap, and because the transcript is written asynchronously the cap lands within a turn rather than at the exact dollar."}},
+          {"@type": "Question", "name": "Does Claude Code's auto mode run in headless mode?", "acceptedAnswer": {"@type": "Answer", "text": "Auto mode is the built-in starting permission mode for interactive sessions on Pro, Max and Team. A headless run does not start in it: Anthropic lists claude -p, the Agent SDK, Amazon Bedrock, Google Cloud's Agent Platform, Microsoft Foundry and Claude Platform on AWS as starting in the permissive default mode, with no classifier in front of the tool call. Hooks do run in all of them: without --bare, a -p session runs the hooks in a project's .claude/settings.json, and the Agent SDK runs settings-file hooks by default. A deterministic policy in that hook is what is left deciding in CI and headless."}},
           { "@type": "Question", "name": "How accurate is the dollar figure?", "acceptedAnswer": { "@type": "Answer", "text": "It is estimated at API list price, and it is notional on Pro and Max flat-rate plans, where there is no per-token charge to cap. The transcript is written asynchronously, so the cap stops the agent within a turn rather than at the exact dollar. A model with no verified rate is reported as unpriced rather than counted as zero." } },
           { "@type": "Question", "name": "Can the agent bypass the guard?", "acceptedAnswer": { "@type": "Answer", "text": "The hook runs outside the model's context and the model does not get a vote on the verdict. Two documented limits are stated on the page rather than buried. Anthropic's hooks documentation says the permissionDecision field is ignored in bypassPermissions mode, when the classifier has not finished running, or when the API has denied the call, so under --dangerously-skip-permissions Provenrail records and advises but does not block. And a rule matches text, so a command written to defeat a pattern is not caught, which is a property of every hook of this kind." } },
           { "@type": "Question", "name": "Can the agent fake the record?", "acceptedAnswer": { "@type": "Answer", "text": "A cooperative agent cannot silently alter records once they reach a sink: the hash chain makes any tampering detectable. A hostile agent that never calls the hook will not appear at all. Provenrail detects tampering and deletion of records that were written; it cannot force an uncooperative process to write in the first place. That limitation is stated on this page rather than in fine print." } },
@@ -543,7 +554,7 @@
               new one.
             </p>
             <p class="lead" style="font-family:var(--font-mono);font-size:1rem;color:var(--text-lo)">
-              <span style="color:var(--accent)">uv tool install provenrail</span>&nbsp;&nbsp;/&nbsp;&nbsp;<span style="color:var(--accent)">npm install provenrail</span>
+              <span style="color:var(--accent)">uv tool install provenrail</span><span style="padding:0 .6rem;opacity:.6">/</span><span style="color:var(--accent)">npm install provenrail</span>
             </p>
             <a href="/docs" class="btn-secondary">Read the quickstart guide</a>
           </div>
@@ -703,6 +714,14 @@
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false" aria-controls="faq-a-2">How does a spend cap work at the tool boundary?<span class="faq-q-icon" aria-hidden="true"></span></button>
             <div class="faq-a" id="faq-a-2" role="region">The <code>PreToolUse</code> payload carries <code>transcript_path</code>. Provenrail reads that transcript from where it last stopped, prices each new assistant message from its reported model and token usage, adds the delta to a local cross-process ledger, and refuses the next tool call once the day cap is crossed. Set one with <code>pr guard budget 25</code>. There is no default cap, because a cap you did not choose is a claim about your money.</div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-8">Does Claude Code have a spend limit?<span class="faq-q-icon" aria-hidden="true"></span></button>
+            <div class="faq-a" id="faq-a-8" role="region">Claude Code reports cost; it does not stop on it. A <code>claude -p</code> run prints <code>total_cost_usd</code> when it finishes, which is the invoice arriving after the spending. Provenrail adds the ceiling Claude Code does not take: <code>pr guard budget 25</code> writes a $25 day cap into <code>.provenrail.json</code>, and the <code>PreToolUse</code> hook refuses the next tool call once the day is over it. The figure is estimated at API list price, it is notional on Pro and Max flat-rate plans where there is no per-token charge to cap, and because the transcript is written asynchronously the cap lands within a turn rather than at the exact dollar.</div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-9">Does Claude Code's auto mode run in headless mode?<span class="faq-q-icon" aria-hidden="true"></span></button>
+            <div class="faq-a" id="faq-a-9" role="region">Auto mode is the built-in starting permission mode for interactive sessions on Pro, Max and Team. A headless run does not start in it: Anthropic lists <code>claude -p</code>, the Agent SDK, Amazon Bedrock, Google Cloud's Agent Platform, Microsoft Foundry and Claude Platform on AWS as starting in the permissive <code>default</code> mode, with no classifier in front of the tool call. Hooks do run in all of them: without <code>--bare</code>, a <code>-p</code> session runs the hooks in a project's <code>.claude/settings.json</code>, and the Agent SDK runs settings-file hooks by default. A deterministic policy in that hook is what is left deciding in CI and headless.</div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false" aria-controls="faq-a-3">How accurate is the dollar figure?<span class="faq-q-icon" aria-hidden="true"></span></button>

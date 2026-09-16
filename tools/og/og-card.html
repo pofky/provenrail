@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face { font-family:'DM Sans'; src:url('../../web/fonts/dm-sans-latin.woff2') format('woff2'); font-weight:100 1000; font-display:block; }
+  @font-face { font-family:'DM Mono'; src:url('../../web/fonts/dm-mono-400-latin.woff2') format('woff2'); font-weight:400; font-display:block; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:1200px; height:630px; }
+  body {
+    background:#0b0a08;
+    background-image:
+      radial-gradient(900px 480px at 50% -12%, rgba(211,169,87,.16), transparent 62%),
+      radial-gradient(600px 400px at 92% 108%, rgba(211,169,87,.07), transparent 60%);
+    font-family:'DM Sans', system-ui, sans-serif;
+    color:#f6f1e7;
+    display:flex; flex-direction:column; justify-content:center;
+    padding:0 84px;
+  }
+  .brand { display:flex; align-items:center; gap:14px; margin-bottom:44px; }
+  .brand img { width:48px; height:48px; }
+  .brand span { font-size:27px; font-weight:600; letter-spacing:-.02em; color:#f6f1e7; }
+  .brand span i { font-style:normal; color:#d3a957; }
+  h1 { font-size:62px; font-weight:600; letter-spacing:-.035em; line-height:1.08; max-width:19ch; }
+  h1 em { font-style:normal; color:#d3a957; }
+  p.sub { margin-top:28px; font-family:'DM Mono', ui-monospace, monospace; font-size:20px; line-height:1.6; color:#b0a48f; max-width:50ch; }
+  .rule { width:76px; height:3px; background:linear-gradient(90deg,#d3a957,#ecca7e); border-radius:2px; margin-top:38px; }
+</style>
+</head>
+<body>
+  <div class="brand">
+    <img src="../../web/assets/logo-mark.png" alt="">
+    <span>proven<i>rail</i></span>
+  </div>
+  <h1>A spend cap your coding agent <em>cannot talk past</em>.</h1>
+  <p class="sub">Deterministic policy in the tool hook. It runs in claude -p, the Agent SDK and CI, where the auto-mode classifier does not. Free and MIT.</p>
+  <div class="rule"></div>
+</body>
+</html>

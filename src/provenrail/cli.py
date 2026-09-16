@@ -1945,7 +1945,9 @@ def build_parser() -> argparse.ArgumentParser:
     r = sub.add_parser("report",
                        help="what your agents already did: cost, activity and risk, read off "
                             "your own Claude Code transcripts (or, given a bundle, the regime map)")
-    r.add_argument("bundle", nargs="?",
+    # Still `args.bundle`, because that is what the evidence report has always called it, but
+    # shown as PATH: the same argument now also names a directory of transcripts.
+    r.add_argument("bundle", nargs="?", metavar="PATH",
                    help="a transcript directory (default ~/.claude/projects), or a run bundle")
     r.add_argument("--since", metavar="YYYY-MM-DD",
                    help="only transcripts written on or after this date")

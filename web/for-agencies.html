@@ -16,7 +16,7 @@
   <meta property="og:image" content="https://provenrail.com/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Provenrail: the verifiable audit trail for AI agents.">
+  <meta property="og:image:alt" content="Provenrail: a spend cap your coding agent cannot talk past.">
   <meta property="og:site_name" content="Provenrail">
 
   <!-- Twitter Card -->
@@ -39,7 +39,12 @@
 
   <link rel="stylesheet" href="/styles.css">
   <style>
+    /* The :root opener and the light-mode override were lost in an edit on 2026-08-18, which
+       left an orphaned declaration list and a stray brace: the browser discarded the whole
+       first rule, so --yes and --no resolved to nothing on this page. Restored from e9996c9. */
+    :root{--bg:#0b0a08;--bg-2:#12100c;--bg-3:#181510;--border:#29221a;--accent:#d3a957;--accent-ink:#0b0a08;--text-hi:#f3f5f7;--text-mid:#99a2af;--text-lo:#7c8490;
       --font-mono:'DM Mono','Fira Code',ui-monospace,monospace;--font-body:'DM Sans',system-ui,-apple-system,sans-serif;--yes:#6fcf86;--no:#e2705a}
+    @media(prefers-color-scheme:light){:root{--bg:#fdfbf7;--bg-2:#f6f3ed;--bg-3:#f0ebe1;--border:#e9e2d5;--accent:#7e6428;--accent-ink:#fdfbf7;--text-hi:#0c0f14;--text-mid:#515b67;--text-lo:#5f6974;--yes:#1f7038;--no:#b1442a}}
     *{box-sizing:border-box;margin:0;padding:0}
     html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
     body{font-family:var(--font-body);background:var(--bg);color:var(--text-hi);line-height:1.65}
@@ -169,6 +174,9 @@
       }
     ]
   }
+  </script>
+  <script type="application/ld+json">
+  {"@context": "https://schema.org", "@type": "WebPage", "name": "AI agent records for agencies and freelancers | Provenrail", "url": "https://provenrail.com/for-agencies", "description": "Give your client a signed, tamper-evident record they can verify without trusting you. Five minutes to instrument. One command to produce the proof.", "dateModified": "2026-09-16", "isPartOf": {"@type": "WebSite", "name": "Provenrail", "url": "https://provenrail.com/"}, "publisher": {"@type": "Organization", "name": "Provenrail", "url": "https://provenrail.com/"}}
   </script>
 </head>
 
@@ -414,7 +422,7 @@ pr verify my-run.json</pre>
         <div class="footer-brand">
           <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block" loading="lazy" decoding="async">
         </div>
-        <p class="footer-tagline">Off-box, hash-chained, independently verifiable records of what your AI agent did. Designed for audits and incident reconstruction.</p>
+        <p class="footer-tagline">A deterministic policy layer for coding agents. It stops the agent at the tool boundary, and signs what it stopped into a record anyone can verify.</p>
         <nav class="footer-links" aria-label="Footer links">
           <a href="/docs">Documentation</a>
           <a href="/pricing">Pricing</a>
@@ -429,9 +437,9 @@ pr verify my-run.json</pre>
         <div class="footer-nav-group">
           <div class="footer-nav-label">Product</div>
           <div class="footer-nav-links">
-            <a href="/#how-it-works">How it works</a>
+            <a href="/#spend-cap">Spend cap</a>
+            <a href="/claude-code-guardrails">Guardrail rules</a>
             <a href="/#see-it">Watch it work</a>
-            <a href="/#differentiators">Why Provenrail</a>
             <a href="/pricing">Pricing</a>
             <a href="/start">Start here (beginners)</a>
             <a href="/docs">Quickstart</a>
@@ -443,11 +451,11 @@ pr verify my-run.json</pre>
             <a href="/compare">Compare</a>
             <a href="/vs-microsoft-agt">vs Microsoft AGT</a>
             <a href="/for-agencies">For freelancers and agencies</a>
-            <a href="/claude-code-guardrails">Claude Code guardrails</a>
-            <a href="/eu-ai-act">EU AI Act Article 12</a>
-            <a href="/for-agencies">For freelancers and agencies</a>
+            <a href="/ai-code-attribution">AI code attribution</a>
+            <a href="/eu-ai-act">EU AI Act logging</a>
             <a href="/ai-agent-incidents">Agent incidents</a>
             <a href="/security">Security</a>
+            <a href="/conformance">Conformance</a>
             <a href="/changelog">Changelog</a>
           </div>
         </div>

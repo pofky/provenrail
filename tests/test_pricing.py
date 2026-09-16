@@ -232,26 +232,49 @@ def test_current_opus_models_are_not_billed_at_the_retired_opus_4_rate():
 
 
 def test_a_published_future_price_change_is_flagged_before_it_bites():
-    """Sonnet 5 is on introductory pricing that the provider has already announced ends on
-    31 August 2026. The table is freshly verified and still about to be wrong, which ordinary
-    staleness cannot express."""
+    """A scheduled rate change must be applied on its date, not silently ignored until someone
+    notices the estimate is wrong.
+
+    This used to be asserted against Sonnet 5's real introductory pricing, which was announced
+    as ending on 31 August 2026. It did not end: Anthropic made $2/$10 the standard price and
+    said the increase "will not occur". The table had already rolled over, so every Sonnet 5
+    call was estimated 50% high and a spend cap built on it denied early. The lesson is in the
+    table, which now carries only the rate in force; the mechanism is still needed, so it is
+    exercised here against a fixture rather than against a real model whose announced future
+    can be cancelled out from under the test.
+    """
+    from provenrail.pricing import ModelPrice
+    intro = ModelPrice(2.00, 10.00, 0.20, 2.50, cache_inclusive=False, as_of="2026-08-04",
+                       cache_write_1h=4.00, until="2026-08-31",
+                       successor=ModelPrice(3.00, 15.00, 0.30, 3.75, cache_inclusive=False,
+                                            as_of="2026-08-04", cache_write_1h=6.00))
     usage = {"input_tokens": 1_000_000, "output_tokens": 1_000_000}
-    before = cost_for("claude-sonnet-5", usage, today="2026-08-04")
-    assert before["cost_usd"] == pytest.approx(12.00)   # $2 in + $10 out, introductory
+    before = cost_for("x-intro", usage, today="2026-08-04", table={"x-intro": intro})
+    assert before["cost_usd"] == pytest.approx(12.00)
     assert before["price_until"] == "2026-08-31"
     assert before["price_expired"] is False
-    # The date is passed in rather than read from the clock, so the post-intro branch is actually
-    # exercised. Asserting only "not expired yet" against the real clock tests nothing today and
-    # would start lying on 1 September, the one day this matters.
-    after = cost_for("claude-sonnet-5", usage, today="2026-09-01")
-    assert after["cost_usd"] == pytest.approx(18.00)   # $3 in + $15 out, the standard rate
+    # The date is passed in rather than read from the clock, so the post-intro branch is
+    # actually exercised instead of only being true today.
+    after = cost_for("x-intro", usage, today="2026-09-01", table={"x-intro": intro})
+    assert after["cost_usd"] == pytest.approx(18.00)
     assert after["price_superseded"] is True
-    # Not "expired": the successor rate is published and applied, so the number is correct and a
-    # budget built on it still binds. `price_expired` is reserved for a rate we know is stale
-    # and have nothing to replace with.
     assert after["price_expired"] is False
-    assert cost_for("claude-sonnet-4-5", {"input_tokens": 1})["price_until"] is None
 
+
+def test_the_rates_in_force_carry_no_scheduled_successor():
+    """The cancelled Sonnet 5 increase, as a standing check rather than a memory.
+
+    A successor rate is a plan someone published, and a plan can be withdrawn. Applying one
+    automatically is how this table came to estimate a live model 50% high for two weeks, so
+    the shipped rates carry none and a future one has to be a deliberate, dated addition.
+    """
+    from provenrail.pricing import PRICES
+
+    scheduled = {name: p.until for name, p in PRICES.items() if p.successor is not None}
+    assert not scheduled, (
+        f"{sorted(scheduled)} carry a scheduled successor rate. Verify it against the "
+        f"provider's page before shipping it: the last one was cancelled."
+    )
 
 def test_an_ended_intro_price_with_no_successor_stops_a_budget_binding():
     """A rate whose end date has passed and that has no published replacement is a number we

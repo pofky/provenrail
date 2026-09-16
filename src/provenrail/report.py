@@ -4,9 +4,10 @@ A guard is insurance. It is silent until the day it is not, and a thing that has
 done anything gets uninstalled long before the day it would have paid out. Meanwhile the same
 machine is carrying months of transcripts of work that already happened: on the machine this
 was written on, 2,129 files and 3.5 GB of them. `ccusage` reads a strict subset of those same
-files, reports cost alone, and is downloaded 332,083 times a month, which is the measurement
-that this report's value is retroactive. Install, run one command, and learn what the agents
-did over the last months, with nothing to set up and nothing to wait for.
+files, reports cost alone, and is downloaded 332,083 times a month, which is the evidence that
+people will run something over that pile. So the value here is retroactive: install, run one
+command, and see what the agents did over the last months, with nothing to set up and nothing
+to wait for.
 
 So this is the front door, and four things have to be true of it or it is worse than nothing.
 
@@ -18,6 +19,13 @@ the machine and then opens a connection is a tool nobody can run at work.
 model with no verified rate is reported as unpriced, not as free. This is the same rule
 `transcript.accrue` and `spend.prior_spend` already hold, and for the same reason: a total
 reported on authority is acted on, so it has to say where it stops.
+
+Where the host left its own total on a `cost-state` line, both figures are printed side by
+side over exactly the sessions that have both, rather than one being reconciled into the other.
+Adopting the host's number would hide a disagreement and dropping it would hide that a second
+opinion existed. On the corpus this was written against the estimates here come out about 8 per
+cent BELOW what Claude Code recorded for the same sessions, never above, which is the direction
+a floor is supposed to miss in.
 
 **Shareable is a separate thing from readable.** The plain report prints the user's own paths
 and project names on the user's own screen, which is fine. `--share` produces the version that
@@ -45,7 +53,8 @@ JSON shape, stable and versioned by `SCHEMA`:
     {"schema": "provenrail.report/1", "root": str|null, "since": str|null, "share": bool,
      "read": {"transcripts", "unreadable_transcripts", "unreadable_lines", "bytes",
               "skipped_by_since", "seconds"},
-     "cost": {"estimated_usd", "caveat", "model_calls", "unpriced_calls", "duplicate_calls",
+     "cost": {"estimated_usd", "caveat", "model_calls", "unpriced_calls", "repeat_lines_folded",
+              "host_crosscheck": {"sessions", "host_recorded_usd", "estimated_here_usd"}|null,
               "by_model": [{"model", "calls", "estimated_usd", "priced"}]},
      "activity": {"sessions", "first", "last", "tool_calls", "bash_commands",
                   "files_written", "sessions_ended_mid_tool_call", "by_tool": [[name, n]]},
@@ -62,19 +71,26 @@ from __future__ import annotations
 import collections
 import hashlib
 import json
+import textwrap
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from .pricing import cost_for, reliable
-from .shell import command_shape
+from .shell import command_shape, segments
 
 # `_message_id` is private because nothing outside the spend path had a reason to ask "which
 # call is this", and re-deriving the answer here would be a second copy of a rule that decides
 # whether a streamed reply is charged once or eleven times. It is imported rather than copied.
 # `transcript.py` is vendored verbatim into the zero-install plugin, so it is not renamed.
 from .transcript import ESTIMATE_CAVEAT, _message_id
+
+#: The token counts `pricing.cost_for` reports back. `tokens_cache_write_1h` is deliberately
+#: not among them: it is the long-TTL portion of `tokens_cache_write`, so adding it would count
+#: those tokens twice. Only ever used to ask whether a call reported any tokens at all.
+_TOKEN_KEYS = ("tokens_in", "tokens_out", "tokens_cache_read", "tokens_cache_write",
+               "tokens_reasoning")
 
 #: Version of the `--json` document. Consumers pin on this, so a change of shape changes it.
 SCHEMA = "provenrail.report/1"
@@ -85,7 +101,20 @@ DEFAULT_ROOT = Path.home() / ".claude" / "projects"
 #: Lines worth handing to a JSON parser. Everything else in a transcript is host bookkeeping
 #: (mode changes, titles, queue operations) that carries neither money nor a tool call, and on
 #: a 3.5 GB corpus the difference between testing a substring and parsing the line is minutes.
-_INTERESTING = ('"assistant"', "tool_use", "tool_result")
+_INTERESTING = ('"assistant"', "tool_use", "tool_result", '"cost-state"')
+
+#: Claude Code writes its own running total for a session on a `cost-state` line. It is the one
+#: figure on disk that was not produced by this code, so it is the only available check on
+#: whether these estimates are plausible, and it is printed rather than reconciled: silently
+#: adopting the host's number would hide a disagreement, and silently ignoring it would hide
+#: that a second opinion existed. Only recent sessions carry one.
+_HOST_COST = "cost-state"
+
+#: Where a segment that did not reduce to a verb is counted: the body of a heredoc feeding a
+#: shell, a line of shell control flow, a bare quoted string. It is a real and large part of
+#: what agents run, so it is counted, but it is kept OUT of the ranked table below it. Left in,
+#: it sat second in a table people screenshot, saying nothing.
+UNRECOGNISED = "(not a recognisable command)"
 
 #: A worktree is the same project as the repo it was cut from. Folding them together keeps one
 #: feature branch from reading as its own project in the per-project table.
@@ -154,19 +183,32 @@ class Report:
     transcripts: int = 0
     unreadable_transcripts: int = 0
     unreadable_lines: int = 0
+    #: Bytes on disk of every transcript opened.
     bytes_read: int = 0
     skipped_by_since: int = 0
     seconds: float = 0.0
     estimated_usd: float = 0.0
     model_calls: int = 0
+    #: Assistant lines carrying usage, counted whether or not they were a new call. It is the
+    #: fallback key for a line with neither a message id nor a uuid, and it has to keep rising
+    #: even when nothing was charged: reusing the count of DISTINCT calls would eventually hand
+    #: two different unidentified lines the same key, and the second would vanish as a repeat.
+    priced_lines: int = 0
     unpriced_calls: int = 0
-    duplicate_calls: int = 0
+    #: Repeat APPEARANCES of a call, not calls. A streamed message arrives as many lines
+    #: sharing one id, and a forked session's copied history repeats the whole parent. Naming
+    #: this "calls" printed a number larger than the priced-call count on the line below it,
+    #: which reads as more calls deduplicated than were ever priced.
+    repeat_lines_folded: int = 0
     by_model: collections.Counter[str] = field(default_factory=collections.Counter)
     model_cost: dict[str, float] = field(default_factory=dict)
     unpriced_models: set[str] = field(default_factory=set)
     by_tool: collections.Counter[str] = field(default_factory=collections.Counter)
-    #: Every Bash command reduced to its verb and flags. Kept instead of the commands because
-    #: this table is printed in the shareable report, and an operand is where a secret lives.
+    #: Every command a Bash call would run, reduced to its verb and flags. Kept instead of the
+    #: commands because this table is printed in the shareable report, and an operand is where a
+    #: secret lives. Counted per segment, not per call: `cd web && npm test` is a directory
+    #: change and a test run, and shaping only the first of them reported a corpus whose most
+    #: used program was `cd`, which is true of the first word and false about the work.
     bash_shapes: collections.Counter[str] = field(default_factory=collections.Counter)
     screened: int = 0
     deny: int = 0
@@ -174,6 +216,8 @@ class Report:
     by_rule: collections.Counter[tuple[str, str]] = field(default_factory=collections.Counter)
     by_shape: collections.Counter[tuple[str, str]] = field(default_factory=collections.Counter)
     sessions: dict[str, SessionStats] = field(default_factory=dict)
+    #: session id -> the total Claude Code recorded for it itself.
+    host_cost: dict[str, float] = field(default_factory=dict)
 
     @property
     def tool_calls(self) -> int:
@@ -273,8 +317,14 @@ def scan(root: Path, policy: Any, since: str = "", project: str = "") -> Report:
             continue
         with handle:
             report.transcripts += 1
+            try:
+                # The size on disk, not the length of the decoded lines: the file is opened in
+                # text mode, so counting characters would quietly under-report every transcript
+                # holding anything outside ASCII.
+                report.bytes_read += path.stat().st_size
+            except OSError:
+                pass
             for line in handle:
-                report.bytes_read += len(line)
                 if not any(marker in line for marker in _INTERESTING):
                     continue
                 try:
@@ -291,10 +341,20 @@ def scan(root: Path, policy: Any, since: str = "", project: str = "") -> Report:
                     readable = False
                     continue
 
+                if record.get("type") == _HOST_COST:
+                    _host_cost(report, record)
+                    continue
+
                 cwd = _fold_worktree(str(record.get("cwd") or ""))
                 if session is None:
                     session = _session_for(report, record, path, cwd)
                     if needle and needle not in session.project.lower():
+                        # Created a moment ago to learn its project name. Leaving it behind is
+                        # how a filtered report still reported every session in the corpus,
+                        # with the filtered ones showing zero of everything.
+                        if not session.tool_calls and not session.cost_usd:
+                            report.sessions.pop(session.session_id, None)
+                        session = None
                         break
                 elif cwd and not session.project:
                     session.project = Path(cwd).name or cwd
@@ -311,6 +371,31 @@ def scan(root: Path, policy: Any, since: str = "", project: str = "") -> Report:
 
     report.seconds = round(time.time() - started, 3)
     return report
+
+
+def _host_cost(report: Report, record: dict[str, Any]) -> None:
+    """Remember the host's own total for a session, keeping the largest it ever reported.
+
+    The line is rewritten as the session grows, so an earlier one is a prefix of a later one.
+    """
+    session_id = record.get("sessionId")
+    total = record.get("totalCostUSD")
+    if isinstance(session_id, str) and isinstance(total, (int, float)):
+        report.host_cost[session_id] = max(report.host_cost.get(session_id, 0.0), float(total))
+
+
+def _crosscheck(report: Report) -> dict[str, Any] | None:
+    """What the host said, and what this said, over exactly the sessions both have a figure for.
+
+    Comparing a subset total against the whole-corpus total would manufacture a disagreement out
+    of the sessions that simply predate the host writing the line.
+    """
+    shared = [sid for sid in report.host_cost if sid in report.sessions]
+    if not shared:
+        return None
+    return {"sessions": len(shared),
+            "host_recorded_usd": round(sum(report.host_cost[sid] for sid in shared), 2),
+            "estimated_here_usd": round(sum(report.sessions[sid].cost_usd for sid in shared), 2)}
 
 
 def _session_for(report: Report, record: dict[str, Any], path: Path, cwd: str) -> SessionStats:
@@ -346,18 +431,23 @@ def _price(report: Report, session: SessionStats, record: dict[str, Any],
     model = str(message.get("model") or "")
     priced = cost_for(model, usage)
     cost = float(priced.get("cost_usd", 0.0) or 0.0)
-    key = _message_id(record, message, report.model_calls)
+    report.priced_lines += 1
+    key = _message_id(record, message, report.priced_lines)
     already = charged.get(key)
     if already is None:
         report.model_calls += 1
         report.by_model[model or "(no model reported)"] += 1
-        if not reliable(priced):
-            # Unpriced is not free. It is counted and named so the total below it can be read
-            # as the floor it is.
+        # Unpriced is not free, and is counted and named so the total below it reads as the
+        # floor it is. With one exception, measured rather than assumed: a line reporting zero
+        # tokens costs zero at EVERY rate, so a missing rate tells us nothing we did not
+        # already know. Claude Code writes such lines under the model name `<synthetic>` for
+        # assistant text it generated locally, 223 of them in the corpus this was written
+        # against, and calling them unpriced declared the total uncertain by exactly zero.
+        if not reliable(priced) and any(int(priced.get(k, 0) or 0) for k in _TOKEN_KEYS):
             report.unpriced_calls += 1
             report.unpriced_models.add(model or "(no model reported)")
     else:
-        report.duplicate_calls += 1
+        report.repeat_lines_folded += 1
     delta = cost if already is None else max(0.0, cost - already)
     charged[key] = max(already or 0.0, cost)
     report.estimated_usd = round(report.estimated_usd + delta, 6)
@@ -392,7 +482,13 @@ def _tools(report: Report, session: SessionStats, record: dict[str, Any], policy
         command = args.get("command")
         if tool == "Bash" and isinstance(command, str):
             session.bash_commands += 1
-            report.bash_shapes[command_shape(command) or "(empty command)"] += 1
+            for part in segments(command):
+                shape = command_shape(part)
+                # A segment that reduces to nothing is a heredoc body, a bare quoted string or
+                # something this is not a shell parser for. Counted under one honest label
+                # rather than dropped, or the percentages below it would be about a corpus
+                # smaller than the one on disk.
+                report.bash_shapes[shape or UNRECOGNISED] += 1
         for key in ("file_path", "notebook_path"):
             target = args.get(key)
             if isinstance(target, str) and target:
@@ -426,8 +522,12 @@ def _tools(report: Report, session: SessionStats, record: dict[str, Any], policy
 def _projects(report: Report) -> list[dict[str, Any]]:
     rows: dict[str, dict[str, Any]] = {}
     for session in report.sessions.values():
-        row = rows.setdefault(session.project or "(no working directory recorded)",
-                              {"name": session.project, "sessions": 0, "estimated_usd": 0.0,
+        # A session whose lines never carried a cwd still has to land somewhere with a name on
+        # it. Filed under a blank it read as an unnamed row in the table and, under --share, as
+        # a hash of the empty string.
+        name = session.project or "(no working directory recorded)"
+        row = rows.setdefault(name,
+                              {"name": name, "sessions": 0, "estimated_usd": 0.0,
                                "tool_calls": 0, "deny": 0, "ask": 0, "first": "", "last": ""})
         row["sessions"] += 1
         row["estimated_usd"] = round(row["estimated_usd"] + session.cost_usd, 6)
@@ -517,7 +617,8 @@ def as_json(report: Report, share: bool = False) -> dict[str, Any]:
                  "caveat": ESTIMATE_CAVEAT,
                  "model_calls": report.model_calls,
                  "unpriced_calls": report.unpriced_calls,
-                 "duplicate_calls": report.duplicate_calls,
+                 "repeat_lines_folded": report.repeat_lines_folded,
+                 "host_crosscheck": _crosscheck(report),
                  "by_model": by_model},
         "activity": {"sessions": len(report.sessions),
                      "first": report.first or None,
@@ -542,6 +643,28 @@ def as_json(report: Report, share: bool = False) -> dict[str, Any]:
 
 def _money(value: float) -> str:
     return f"${value:,.2f}"
+
+
+#: The report is read in a terminal on somebody else's machine and in a screenshot, and both of
+#: those break at 80 columns. Every sentence goes through `_wrap`; a path does not, because
+#: breaking a path makes it uncopyable and a path is the one thing here worth copying.
+_WIDTH = 80
+
+
+def _wrap(text: str, indent: str = "  ") -> list[str]:
+    return textwrap.wrap(text, width=_WIDTH, initial_indent=indent, subsequent_indent=indent)
+
+
+def _size(byte_count: int) -> str:
+    """Bytes at a unit a person can read. A small corpus printed as "0.00 GB" reads as broken."""
+    for unit, scale in (("GB", 1e9), ("MB", 1e6), ("KB", 1e3)):
+        if byte_count >= scale:
+            return f"{byte_count / scale:.2f} {unit}"
+    return f"{byte_count:,} bytes"
+
+
+def _plural(count: int, word: str) -> str:
+    return f"{count:,} {word}" + ("" if count == 1 else "s")
 
 
 def _days(first: str, last: str) -> int:
@@ -570,14 +693,14 @@ def _headline(report: Report) -> list[str]:
              f"  and spent an estimated {_money(report.estimated_usd)}."]
     stopped = report.deny + report.ask
     if stopped:
-        lines.append(f"  {stopped:,} of those tool calls would have been stopped: "
-                     f"{report.deny:,} refused, {report.ask:,} sent to you to approve.")
+        lines += _wrap(f"{stopped:,} of those would have been stopped: {report.deny:,} refused, "
+                       f"{report.ask:,} sent to you to approve.")
     else:
-        lines.append("  None of those tool calls would have been stopped by the default rules.")
+        lines += _wrap("None of them would have been stopped by the default rules.")
     return lines
 
 
-def _table(rows: list[tuple[str, str]], indent: str = "    ", width: int = 34) -> list[str]:
+def _table(rows: list[tuple[str, str]], indent: str = "    ", width: int = 38) -> list[str]:
     return [f"{indent}{left:<{width}}{right}" for left, right in rows]
 
 
@@ -593,7 +716,7 @@ def render_text(report: Report, share: bool = False) -> str:
     out += _headline(report)
     out.append("")
 
-    read = [f"{report.transcripts:,} transcripts", f"{report.bytes_read / 1e9:.2f} GB",
+    read = [_plural(report.transcripts, "transcript"), _size(report.bytes_read),
             f"{report.seconds:.1f}s"]
     if report.since:
         read.append(f"since {report.since[:10]}")
@@ -605,8 +728,9 @@ def render_text(report: Report, share: bool = False) -> str:
     if report.unreadable_transcripts or report.unreadable_lines:
         # Never folded into the totals as zero. A corpus that could not be fully read produces
         # a floor, and the only honest thing to do with a floor is to say it is one.
-        out.append(f"  {report.unreadable_transcripts:,} transcripts had lines that could not be "
-                   f"read ({report.unreadable_lines:,} lines). Everything below is a floor.")
+        out += _wrap(f"{_plural(report.unreadable_transcripts, 'transcript')} had lines that "
+                     f"could not be read ({_plural(report.unreadable_lines, 'line')}). "
+                     f"Everything below is a floor, not a total.")
     out.append("")
 
     out.append("COST")
@@ -614,18 +738,24 @@ def render_text(report: Report, share: bool = False) -> str:
             ("model calls priced", f"{report.model_calls - report.unpriced_calls:,}")]
     if report.unpriced_calls:
         rows.append(("model calls with no verified rate", f"{report.unpriced_calls:,}"))
-    if report.duplicate_calls:
-        rows.append(("repeated calls counted once", f"{report.duplicate_calls:,}"))
+    if report.repeat_lines_folded:
+        rows.append(("repeat lines folded into their call", f"{report.repeat_lines_folded:,}"))
     out += _table(rows)
     out.append("    by model")
     for model, calls in report.by_model.most_common(_TOP):
         amount = ("unpriced" if model in report.unpriced_models
                   else _money(report.model_cost.get(model, 0.0)))
-        out.append(f"      {model[:34]:<34}{amount:>12}   {calls:,} calls")
+        out.append(f"      {model[:38]:<38}{amount:>12}   {_plural(calls, 'call')}")
     if report.unpriced_calls:
-        out.append(f"    {report.unpriced_calls:,} calls have no verified price and add $0.00 "
-                   f"to the total above.")
-    out.append(f"    Spend is {ESTIMATE_CAVEAT}.")
+        out += _wrap("Calls with no verified price add $0.00 to the total above, which makes "
+                     "it a floor.", indent="    ")
+    cross = _crosscheck(report)
+    if cross:
+        out += _wrap(f"Claude Code recorded its own total for {cross['sessions']:,} of these "
+                     f"sessions: {_money(cross['host_recorded_usd'])}, against "
+                     f"{_money(cross['estimated_here_usd'])} estimated here for the same ones.",
+                     indent="    ")
+    out += _wrap(f"Spend is {ESTIMATE_CAVEAT}.", indent="    ")
     out.append("")
 
     out.append("ACTIVITY")
@@ -637,14 +767,22 @@ def render_text(report: Report, share: bool = False) -> str:
                    ("sessions that ended mid tool call", f"{report.abandoned:,}")])
     out.append("    tools most used")
     for tool, count in report.by_tool.most_common(_TOP):
-        out.append(f"      {tool[:34]:<34}{count:>12,}")
-    if report.bash_shapes:
+        out.append(f"      {tool[:38]:<38}{count:>12,}")
+    known = collections.Counter({shape: n for shape, n in report.bash_shapes.items()
+                                 if shape != UNRECOGNISED})
+    if known:
         out.append("    bash commands most run (verb and flags only, operands dropped)")
-        for shape, count in report.bash_shapes.most_common(_TOP):
-            out.append(f"      {shape[:34]:<34}{count:>12,}")
+        for shape, count in known.most_common(_TOP):
+            out.append(f"      {shape[:38]:<38}{count:>12,}")
+        unknown = report.bash_shapes.get(UNRECOGNISED, 0)
+        if unknown:
+            out += _wrap(f"{unknown:,} of {sum(report.bash_shapes.values()):,} commands were "
+                         f"shell control flow or a heredoc body rather than a program, and are "
+                         f"not in that list.", indent="      ")
     out.append("")
 
-    out.append("RISK   your own commands, replayed offline through the shipped default rules")
+    out.append("RISK   your own commands, replayed offline through the shipped rules")
+
     def pct(n: int) -> str:
         return f"{n / report.screened * 100:.2f}%" if report.screened else "0%"
 
@@ -664,13 +802,13 @@ def render_text(report: Report, share: bool = False) -> str:
     packs = _packs(report)
     if packs:
         for row in packs:
-            out.append(f"    {row['title'][:34]:<34}{row['count']:>12,}")
+            out.append(f"    {row['title'][:38]:<38}{row['count']:>12,}")
     else:
         out.append("    Nothing in the corpus would have been stopped.")
     busiest = _busiest(report, share)
     if busiest:
-        out.append(f"    busiest single session: {busiest['files']:,} distinct files touched, "
-                   f"{busiest['tool_calls']:,} tool calls")
+        out.append(f"    busiest single session: {_plural(busiest['files'], 'distinct file')} "
+                   f"touched, {_plural(busiest['tool_calls'], 'tool call')}")
         out.append(f"      in {busiest['project']}")
     out.append("")
 
@@ -682,9 +820,15 @@ def render_text(report: Report, share: bool = False) -> str:
                    f"{_money(row['estimated_usd']):>12}{stopped:>9,}")
     out.append("")
 
-    if share:
-        out.append("  Safe to post: no paths, no hostnames, no project names, and every command")
-        out.append("  reduced to its verb and flags, so nothing here can be an operand.")
+    if share and hide:
+        out += _wrap("Safe to post: no paths, no hostnames, no project names, and every "
+                     "command reduced to its verb and flags, so nothing here is an operand.")
+    elif share:
+        # The claim has to match what was printed. With `--project` the names are the user's
+        # own word, and saying "no project names" over a page that shows one is a false claim
+        # in the one place the product is asking to be trusted.
+        out += _wrap("Safe to post: no paths, no hostnames, and every command reduced to its "
+                     "verb and flags. The only name here is the one you asked for.")
     else:
         out.append("  Shareable version, with every path and name removed:  pr report --share")
     out.append("  Stop these before they run:  claude plugin install provenrail-guard")
