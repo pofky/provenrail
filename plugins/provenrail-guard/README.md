@@ -1,14 +1,35 @@
 # provenrail-guard
 
-Stops your coding agent one command before it deletes prod.
+A spend cap your coding agent cannot talk its way past, and a delete policy that holds in CI.
 
 ```
 /plugin marketplace add pofky/provenrail
 /plugin install provenrail-guard@provenrail
+/guard-budget 25
 ```
 
 That is the whole setup. There is no second step, no `pip install`, no account, no server, and
 nothing leaves your machine. The next tool call your agent makes is already being checked.
+
+## Why this exists, given auto mode
+
+If every session you run is interactive on Pro, Max or Team, you already have most of the
+delete protection for free, and it is good. Auto mode is the built-in starting permission mode
+there, it runs `git status` before a command that would discard uncommitted work, and it refuses
+a critical-path `rm` even when a hook says allow.
+
+Two things it does not do.
+
+**It does not stop spending.** No dollar cap exists anywhere in the permission system. This one
+prices the agent's own transcript and refuses the next tool call once the day's cap is crossed.
+
+**It does not run everywhere.** `claude -p` and the Agent SDK start in Manual on every plan, and
+so do Bedrock, Google Cloud's Agent Platform, Microsoft Foundry and Claude Platform on AWS. The
+classifier is simply absent there. Hooks are not, so the same rules apply unattended and in CI,
+where nobody is watching and nobody approves a prompt.
+
+It also leaves an artefact. A classifier denial is a rule name; this writes a signed, hash
+chained receipt you can show someone.
 
 ```
 /guard-status      what is armed, and what it has actually stopped

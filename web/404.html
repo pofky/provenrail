@@ -5,9 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Page not found | Provenrail</title>
   <meta name="description" content="That page does not exist on provenrail.com. Here is where the docs, the live verifier and the guardrails guide actually live.">
-  <!-- A 404 must never be indexed and has no canonical of its own: it is not a page,
-       it is the absence of one. noindex,follow keeps the outbound links crawlable. -->
+  <!-- A 404 is never indexed. It still carries a self-canonical and an og:url so that
+       every page on the site answers the same set of questions a crawler asks, and so
+       the site-wide audit has one rule rather than an exception. noindex,follow keeps
+       the outbound links crawlable. -->
+  <link rel="canonical" href="https://provenrail.com/404">
   <meta name="robots" content="noindex,follow">
+  <meta property="og:url" content="https://provenrail.com/404">
   <meta property="og:title" content="Page not found | Provenrail">
   <meta property="og:description" content="That page does not exist on provenrail.com. Here is where the docs, the live verifier and the guardrails guide actually live.">
   
@@ -21,7 +25,6 @@
   <meta name="twitter:title" content="Page not found | Provenrail">
   <meta name="twitter:description" content="That page does not exist on provenrail.com. Here is where the docs, the live verifier and the guardrails guide actually live.">
   <meta name="twitter:image" content="https://provenrail.com/og.png">
-  <meta name="robots" content="noindex,follow">
   <link rel="icon" href="/favicon.ico" sizes="32x32">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">

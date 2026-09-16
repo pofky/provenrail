@@ -1401,7 +1401,47 @@ def _cmd_reconcile(args) -> int:
     return 1 if result["totals"]["unaccounted_on_invoice_usd"] > 0 else 0
 
 
+#: Flags that only the evidence report understands. `pr report` answers to two different
+#: questions now, and a flag from the wrong one must fail loudly rather than be ignored.
+_EVIDENCE_ONLY = ("pin", "html", "md", "tlog_pubkey", "witness_pubkeys")
+
+
 def _cmd_report(args) -> int:
+    """Dispatch between the transcript report and the evidence report.
+
+    `pr report <bundle>` mapped a run to a regime's requirements long before `pr report` with no
+    arguments became the first thing a new user runs, and both names are documented. Renaming
+    either would break someone's script, so the argument decides: a bundle is a FILE, a
+    transcript tree is a DIRECTORY or nothing at all. Every invocation that worked before still
+    reaches the same code.
+    """
+    if args.bundle is None or Path(args.bundle).is_dir():
+        wanted = [f for f in _EVIDENCE_ONLY if getattr(args, f, None) not in (None, False)]
+        if wanted:
+            print(f"pr report {', '.join('--' + f for f in wanted)} needs a bundle file. "
+                  f"`pr report` with no bundle reads your transcripts instead.", file=sys.stderr)
+            return 2
+        return _cmd_transcript_report(args)
+    return _cmd_evidence_report(args)
+
+
+def _cmd_transcript_report(args) -> int:
+    from . import report as report_mod
+
+    try:
+        built = report_mod.build(args.bundle, since=args.since or "",
+                                 project=args.project or "")
+    except (FileNotFoundError, ValueError) as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    if args.as_json:
+        print(json.dumps(report_mod.as_json(built, share=args.share), indent=2))
+    else:
+        print(report_mod.render_text(built, share=args.share), end="")
+    return 0
+
+
+def _cmd_evidence_report(args) -> int:
     from .reports import generate_attestation, render_markdown
     bundle = json.loads(open(args.bundle, encoding="utf-8").read())
     pin = json.loads(open(args.pin, encoding="utf-8").read()) if args.pin else None
@@ -1902,8 +1942,18 @@ def build_parser() -> argparse.ArgumentParser:
     rc.add_argument("--json", action="store_true", help="machine-readable output")
     rc.set_defaults(func=_cmd_reconcile)
 
-    r = sub.add_parser("report", help="map a bundle's evidence to a regime's requirements")
-    r.add_argument("bundle")
+    r = sub.add_parser("report",
+                       help="what your agents already did: cost, activity and risk, read off "
+                            "your own Claude Code transcripts (or, given a bundle, the regime map)")
+    r.add_argument("bundle", nargs="?",
+                   help="a transcript directory (default ~/.claude/projects), or a run bundle")
+    r.add_argument("--since", metavar="YYYY-MM-DD",
+                   help="only transcripts written on or after this date")
+    r.add_argument("--project", help="only projects whose name contains this")
+    r.add_argument("--share", action="store_true",
+                   help="the version that is safe to post: no paths, no names, no operands")
+    r.add_argument("--json", action="store_true", dest="as_json",
+                   help="machine-readable output")
     r.add_argument("--regime", choices=["eu-ai-act", "hipaa", "generic"], default="generic")
     r.add_argument("--pin")
     r.add_argument("--md", action="store_true", help="render human-readable Markdown")

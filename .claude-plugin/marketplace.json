@@ -1,6 +1,6 @@
 {
   "name": "provenrail",
-  "description": "Guardrails for coding agents, with a receipt anyone can verify.",
+  "description": "A spend cap and a delete policy for coding agents, enforced in the tool hook and signed into a receipt anyone can verify.",
   "owner": {
     "name": "Provenrail",
     "email": "support@provenrail.com",
@@ -10,10 +10,17 @@
     {
       "name": "provenrail-guard",
       "source": "./plugins/provenrail-guard",
-      "description": "Block destructive tool calls before they run (rm -rf, terraform destroy, force push, DROP TABLE, chmod 777, leaked API keys) and sign every decision into a hash-chained record anyone can verify with an open-source tool.",
+      "description": "A day spend cap that refuses the next tool call once your agent has spent it, plus delete and git rules that screen where a command points rather than what it says. Deterministic, offline, and it runs in `claude -p`, the Agent SDK and CI, where the auto mode classifier does not run at all.",
       "category": "security",
-      "tags": ["guardrails", "safety", "audit-log", "tamper-evident", "agent-security"],
-      "homepage": "https://provenrail.com/docs#guard",
+      "tags": [
+        "spend-cap",
+        "budget",
+        "cost-control",
+        "guardrails",
+        "ci",
+        "headless"
+      ],
+      "homepage": "https://provenrail.com/claude-code-guardrails",
       "license": "MIT"
     }
   ]

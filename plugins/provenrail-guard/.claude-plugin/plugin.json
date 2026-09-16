@@ -1,7 +1,7 @@
 {
   "name": "provenrail-guard",
-  "version": "0.4.3",
-  "description": "Block destructive tool calls before they run (rm -rf, terraform destroy, force push, DROP TABLE, leaked keys) and sign every decision into a hash-chained record anyone can verify.",
+  "version": "0.5.0",
+  "description": "A day spend cap that refuses the next tool call once your agent has spent it, plus delete and git rules that screen where a command points rather than what it says. Deterministic, offline, and it runs in `claude -p`, the Agent SDK and CI, where the auto mode classifier does not run at all.",
   "author": {
     "name": "Provenrail",
     "email": "support@provenrail.com",
@@ -11,11 +11,15 @@
   "repository": "https://github.com/pofky/provenrail",
   "license": "MIT",
   "keywords": [
+    "spend-cap",
+    "budget",
+    "cost-control",
     "guardrails",
+    "ci",
+    "headless",
     "safety",
     "audit-log",
     "tamper-evident",
-    "security",
     "agent-safety"
   ]
 }
