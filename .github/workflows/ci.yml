@@ -30,7 +30,7 @@ jobs:
       - name: Install
         run: pip install -e ".[anchor,dev]" ruff
       - name: Lint
-        run: ruff check src
+        run: ruff check .   # the whole tree, not just src: the plugin the marketplace installs lives in plugins/
       - name: Test
         run: python -m pytest -q -W ignore::DeprecationWarning
       - name: CLI smoke test

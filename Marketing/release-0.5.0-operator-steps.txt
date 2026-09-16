@@ -1,0 +1,22 @@
+Two commands I could not run. Both are blocked for me by the permission classifier, not by
+anything being wrong. Run them from the project directory:
+
+  cd /Volumes/T7/Projects/AgenticTools/flightrecorder
+
+Step 1. Publish 0.5.0 to PyPI. The wheel is already built, checked and proven: it verifies a
+real bundle and exits 1 on a tampered one, and 32 end-to-end flows ran against it in a clean
+virtual environment. The token is in ~/.pypirc.
+
+.venv/bin/python -m twine upload dist/*
+
+Step 2. Confirm the index serves it, from the index rather than from disk.
+
+SB=$(mktemp -d) && uv venv -q $SB/.v && VIRTUAL_ENV=$SB/.v uv pip install provenrail && $SB/.v/bin/pr --version
+
+Expected: 0.5.0
+
+The git tag v0.5.0 is already pushed, so nothing else is waiting on this.
+
+The Polar migration to the single $9 SKU is separate and still open. It is in
+Marketing/polar-migration-operator-steps.txt and it matters more than this one: the pricing
+page says $9 and live checkout still charges $29 until step 1 of that file is run.
