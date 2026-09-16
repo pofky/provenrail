@@ -47,6 +47,12 @@ tutorials/out/
 /docs/langchain-issue-replies.md
 /docs/research-2026-06-29-market-synthesis.md
 /docs/design-research.md
+# The 2026-09-16 repositioning: the decision, the evidence behind it, the kill dates and the
+# measured baselines. Same category as GTM and DISTRIBUTION-KIT above, and it was briefly
+# committed here by mistake before this line existed.
+/docs/direction-2026-09-16.md
+/docs/launch-baselines-2026-09-16.md
+/DISTRIBUTION.md
 
 # Local guard runtime state. The journal and the pending-ask/blast-radius state files are
 # per-machine working state, not source; committing them would leak session ids and let a

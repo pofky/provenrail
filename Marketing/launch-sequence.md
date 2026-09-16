@@ -1,6 +1,6 @@
 # Launch sequence
 
-Written 5 August 2026, from `engine-agentic/docs/distribution-virality-playbook.md`, with
+Written 5 August 2026, from the operator's own distribution playbook, with
 the consumer-app parts (TikTok, ASO, App Store) dropped because this is a developer tool.
 
 The starting position, measured not guessed: 1,691 lifetime pageviews of which roughly
