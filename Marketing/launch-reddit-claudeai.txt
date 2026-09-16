@@ -1,60 +1,17 @@
-I read the data-loss reports on this repo. Almost none of them are rm -rf. My own guard plugin allowed every single one, so I rewrote it.
+I pulled apart a month of my own Claude Code transcripts. 942 sessions, $7,856, and 512 commands I should probably have looked at
 
-I have been building a guardrail plugin for Claude Code and I had it aimed at the wrong thing.
+Credit where it is due first, because this post is not a complaint about Claude Code. Auto mode has been the default starting mode on Pro, Max and Team for a while now and it is good. It runs git status before anything that would discard uncommitted work, and it refuses a recursive delete pointed at a critical path even when a hook tries to allow it. I have not lost work since it shipped.
 
-Like every other hook of this kind, mine blocked rm -rf. Then I went and read the actual issues people file here when an agent destroys their work, and the command is almost never rm -rf. It is this:
+What I could not see was everything else. I had no idea how much I was spending, which projects were eating it, or how often my agents were one approval away from doing something I would have stopped. The data was sitting there the whole time: every session Claude Code runs writes a transcript to ~/.claude/projects, and mine had 2,154 of them, 3.78 GB.
 
-#34327 "destroyed user's uncommitted work by running git reset --hard on session start"
-#7232 "CRITICAL: Claude executed git reset --hard without authorization causing data destruction"
-#81508 "ran git checkout -- unprompted and destroyed all uncommitted work"
-#45974 "ran git clean -fd without permission, destroyed untracked files"
-#85879 "git stash ran on my working tree with no corresponding tool call in any transcript, 170 files"
-#46444 "worktree auto-cleanup permanently deleted 10 days of uncommitted project work"
-#87360 "an agent-authored script ran git clean -xdff"
-#90808 "ran a destructive migrate:fresh command against the live app DB instead of an isolated one"
-#86872 "sub-agent ran recursive delete outside working dir, wiped entire user profile, ~235k files"
+So I wrote something that reads them. It took 124 seconds and printed this.
 
-I ran all forty commands I collected from those reports through my own plugin's default rules. It allowed all forty.
+942 sessions across 23 projects, over 31 days, ran 79,782 tool calls and spent an estimated $7,856.31. 512 of those would have been stopped: 29 refused, 483 sent to me to approve.
 
-To be fair to the other hooks in this space: several of them already block the git commands. Matt Pocock's and Dicklesworthstone's both do, and they were right and I was not. What I think is missing everywhere, including in mine until this week, is the other half of the problem.
+The breakdown was the interesting part. Opus was $6,641 of it across 41,510 calls. One project alone was $2,592. My busiest single session touched 663 distinct files and made 5,747 tool calls, which I would not have guessed within an order of magnitude. And when it replayed my actual commands through a policy engine, the things that came up were not dramatic: deploy commands, recursive deletes pointed outside the project, and 41 reads of .env files.
 
-So I rewrote it. Two things changed.
+Two honest notes, because I would want them if I were reading this. The cost is an estimate at API list price and it is notional if you are on a flat-rate plan, so treat it as what the same work would cost on the API rather than as your bill. It is also a floor: across the 49 sessions where Claude Code recorded its own total, mine came out about 12 per cent under. I can name two reasons I cannot detect from a transcript, fast mode billing Opus at double, and web search at $10 per thousand searches, and I would rather print both numbers side by side than invent a multiplier to make them agree.
 
-FIRST, it now covers the git commands. git reset --hard and --merge, git checkout -- ., git restore, git clean -f, git stash drop, git branch -D, git worktree remove --force, git push --delete, plus the database resets (prisma migrate reset, supabase db reset, rails db:drop, artisan migrate:fresh, manage.py flush, alembic downgrade base, dropdb, FLUSHALL) and the cloud teardowns (aws rds delete-db-instance, s3 rb --force, gcloud sql instances delete, az group delete, fly volumes destroy, wrangler d1 delete, terraform state rm, helm uninstall, kubectl delete pvc, docker compose down -v). git reflog expire and filter-branch are refused outright, because the reflog is what recovers a bad reset.
+It runs offline, needs no account, and reads nothing but files you already have. There is a --share flag that strips your paths and hashes your project names if you want to post yours, and every command is reduced to its verb and flags with the operands dropped.
 
-SECOND, and this is the part I care about more, it stopped screening the verb.
-
-Nobody has ever lost work to the letters rm -rf. They lost it to the target. rm -rf .next comes back in twelve seconds. rm -rf ~/ is the end of a laptop. Those are indistinguishable to a regex, because the difference is not in the text, it is in where the text points.
-
-I had a way to check that. I pulled every Bash command my own agents had run out of my local transcripts: 36,977 of them, across 1,247 sessions, replayed offline with the directory each one actually ran in. My shipped rules interrupted 923 and refused 305. Almost none were dangerous. rm -rf .next out before a build. rm -f coverage.xml. chmod +x on a script, denied because a UUID in the path happened to contain the digits 4732. wrangler deploy --dry-run. A Tailwind class reading "min-w-0 truncate text-sm", denied as a SQL TRUNCATE. That is a plugin you uninstall by lunchtime, and when you uninstall it you also lose the rules that were doing real work.
-
-Now the rules resolve the target. A delete inside your repo, under a temp directory, in a package cache or in a build directory runs without a word. A home directory, a whole disk, a two-segment system path, or an unset variable followed by a slash (the classic rm -rf $BUILD/ where BUILD is empty) is refused. A delete that merely leaves the project asks.
-
-The git rules do the same thing with a different question. git reset --hard on a tree with nothing uncommitted and nothing unpushed destroys nothing at all, so it says nothing. The rule runs git status --porcelain, checks for commits your remote has not seen, and asks only when there is work there that exists nowhere else.
-
-Same 36,977 commands after the rewrite: 222 interruptions, 16 refusals. Fifteen of those sixteen are my own repo's adversarial test fixtures, the ones that literally contain the string rm -rf / inside a test payload. On the 40 commands I took from the reports above: the old rules allowed all 40, the new ones allow none. On a list of 43 ordinary deletes and git operations: 21 interrupted before, 0 now.
-
-The script that does this is in the repo. python tools/measure_guard.py reads your own transcripts, replays them offline, and prints the counts and the samples. It makes no network call. Run it before you trust my numbers, and run it after a week to see what it costs you specifically.
-
-Install is two lines inside Claude Code, and there is nothing else:
-
-/plugin marketplace add pofky/provenrail
-/plugin install provenrail-guard@provenrail
-
-No pip install, no account, no server, no config file. The plugin carries its own stdlib-only engine, so 44 rules are armed on the next tool call. Nothing leaves your machine, and the verdict is computed locally, so it never waits on a network.
-
-/guard-status shows what it has actually stopped. /guard-card prints that in a form you can paste in a thread: every command is reduced to its verb and its flags and every operand is dropped, so git reset --hard origin/main shows as git reset --hard and an env assignment carrying an API key shows as export. I checked that reduction against all 36,977 commands in my corpus and no path, hostname, URL or key survives it.
-
-Three things I want to be honest about, because I would rather you hear them from me.
-
-It is a hook, so it only sees what goes through the tool boundary. A command written to defeat a pattern (V=-rf; rm $V, a script invoked by name, a delete inside a python one-liner) gets past it. That is true of every hook of this kind including mine, and #85274 documents it well. What the target resolution buys is precision on the commands agents actually emit, not immunity to one written to get around it.
-
-The path logic is POSIX, so a PowerShell recursive delete always asks rather than being classified.
-
-One more thing I found while writing this and fixed in the same release: my PreToolUse matcher listed the seven built-in tools by name. That meant an MCP server's deleteVolume, which is the exact shape of the incident my own homepage cites, was never handed to the hook at all, and neither was a Read of ~/.ssh/id_ed25519. Both had rules. Neither rule could fire. It is now wired to every tool, and scope is declared per rule instead, which is also how a rule about shell commands stops firing on a doc that explains one.
-
-And I have not tested whether plugin PreToolUse hooks fire inside Task subagents, which is exactly where #86872 and #87360 happened. #78797 suggests deny rules do not always propagate there. If someone knows, I would like to know too.
-
-MIT, source is at github.com/pofky/provenrail. Both corpora are in the test suite, the dangerous one and the ordinary one, so you can check both halves rather than take my word for either.
-
-If you can name a destructive command it misses, I will add it and ship the same day.
+If you run it, I would genuinely like to know what your number is and whether anything in the risk section surprised you. I would also like to know about any command it flags that it should not, because those become test cases.

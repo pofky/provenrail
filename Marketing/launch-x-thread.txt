@@ -1,0 +1,17 @@
+I had no idea what my coding agents were actually doing, so I read a month of my own transcripts.
+
+2,154 files. 3.78 GB. 124 seconds to parse.
+
+942 sessions. 79,782 tool calls. 51,443 shell commands. 7,009 files written or edited.
+
+$7,856.31.
+
+Every Claude Code session writes a transcript to ~/.claude/projects and most people never open one. The whole picture of what your agents did, and what they cost, is already on your disk.
+
+The part that got my attention was not the money. It replays your own commands back through a policy engine and tells you which ones would have been stopped. Mine: 29 refused, 483 that should have come to me first. Mostly deploy commands, deletes pointed outside the project, and 41 reads of .env.
+
+On the cost being honest: it is an estimate at list price and it is a floor. Across the 49 sessions where Claude Code kept its own total, mine came in 12 per cent under. Fast mode and web search are billed in ways a transcript does not show. So it prints both numbers next to each other instead of inventing a multiplier.
+
+Offline, no account, nothing leaves the machine. There is a --share mode that strips paths and hashes project names, and every command is reduced to verb and flags with the operands dropped, so you can post yours without leaking anything.
+
+Run it on yours. I want to know what the number is.

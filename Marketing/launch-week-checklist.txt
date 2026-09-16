@@ -1,52 +1,80 @@
-LAUNCH WEEK, 0.3.0
+Launch week. The plan has existed since 2026-08-05 and has never been executed. Nothing in the
+product matters until it is.
 
-Everything here is written and waiting. What is missing is one person with accounts posting it. Nothing on this list needs a decision, only an hour.
+BASELINES, read 2026-09-16, before anything is posted. Judge the launch against these.
 
-Before the first post, confirm these three in a browser, because every link below depends on them:
-  https://provenrail.com/ai-code-attribution loads
-  https://github.com/pofky/provenrail/releases/tag/v0.3.0 loads
-  pip install provenrail installs 0.3.0
+  GitHub stars                         0
+  Forks                                0
+  Unique repo views, 14 days           5    (9 total)
+  Unique cloners, 14 days              88   (348 total) - NOT a criterion, see below
+  Site pageviews, all time             2,618
+  Site pageviews, 30 days              311
+  Referred pageviews, 30 days          36, every one a search engine
+  Social referrals, ever               0
+  Paying customers                     0
+  Plugin directory installs            not listed yet
 
-DAY 1, MONDAY MORNING US TIME
+Cloners are not a criterion. The number reads 88 today with nothing posted, because cloners are
+package mirrors and CI rather than people. A criterion already passed on day zero cannot falsify
+anything and would later be read as evidence the launch worked. Judge on plugin directory
+installs, which no mirror inflates, and on unique repo views, which need a browser.
 
-Post Marketing/launch-reddit-claudeai.txt to r/ClaudeAI. This is the one that matters most, because it is the only post whose audience already has the pain and can act on it in one command. Do not touch anything else for two hours. Answer every comment. If someone names a destructive command the rules miss, add it to src/provenrail/rulesets.py the same day, cut a release, and reply saying it now blocks. That reply is worth more than the post.
+BEFORE POSTING ANYTHING
 
-DAY 2
+  1. Run the Polar migration in Marketing/polar-migration-operator-steps.txt. The pricing page
+     says $9 and checkout still sells the retired $29 product until that secret moves.
+  2. Submit the plugin at https://clau.de/plugin-directory-submission. We are not in the
+     directory at all, and it is the only ranked discovery surface in the ecosystem: it sorts
+     by install count and publishes the count per plugin. 2,282 plugins are listed there and
+     none of them is ours.
+  3. Run `pr report --share` on your own machine and keep the output. It is the launch artefact.
+     Check it yourself for anything you would not want public before it goes anywhere.
+  4. Re-read every number in the three drafts against a fresh run. They were written against
+     942 sessions, 79,782 tool calls, $7,856.31, 29 refused and 483 asked, on 2026-09-16. If
+     the corpus has moved, the copy moves with it. Every number in these drafts is either a
+     test in this repository or a line `pr report` prints.
 
-Post the same story rewritten, not copied, to r/AI_Agents. The opening should be about running agents unattended rather than about Claude Code specifically. Link to the guardrails page, not the homepage.
+THE ORDER
 
-DAY 3
+  Day 1   Plugin directory submission and the Polar steps. No posting.
+  Day 2   Hacker News, Tuesday or Wednesday, 08:00 to 09:00 ET.
+          Title: Marketing/launch-show-hn.txt line 1, 74 characters, under the 80 limit.
+          Post the body as the first comment, not as the submission text.
+          Then stay in the thread for six hours. This is the whole job that day.
+  Day 3   r/ClaudeCode, with the "Built with Claude" flair, which is a sanctioned lane rather
+          than a grey one. Marketing/launch-reddit-claudeai.txt. Link in the first comment.
+          Read the subreddit's own rules page first; they change.
+  Day 4   X, Marketing/launch-x-thread.txt, as one post rather than a thread of fragments.
+  Day 5   Answer everything. Every bypass someone names becomes a row in
+          tests/test_predicates.py and a release the same day. That loop is the product.
 
-Post Marketing/launch-indie-hackers.txt. Honest numbers, including the zero. Include the pageview figures from docs/repositioning-research-2026-09-07.md; a launch post with real numbers in it outperforms one without on that site.
+WHAT THE AUDIENCE PUNISHES, so do not do it
 
-DAY 4, TUESDAY TO THURSDAY, 8 TO 10AM ET
+  Do not open by arguing that Claude Code cannot stop destructive commands. It can, auto mode
+  is the default on Pro, Max and Team, and the first reply will say so. Every draft here
+  concedes that in its first paragraph on purpose.
+  Do not claim the guard is a security boundary. It is a guardrail for a trusted agent that
+  makes mistakes, and saying otherwise invites the bypasses that killed similar launches.
+  Do not post a landing page. Show HN requires something people can run.
+  Do not defend. A named bypass is a gift; take it, test it, ship it, say thank you.
+  Do not mention Codex, Gemini CLI, Copilot or Cursor as supported. They are not driven.
 
-Post Marketing/launch-show-hn.txt as Show HN with the URL field pointing at https://provenrail.com. Post the prepared first comment yourself immediately after submitting. Stay on it for four hours. Expect the threat model to be attacked, which is the point; the honest limits are already in the post so nobody can catch you hiding one.
+WHAT WOULD FALSIFY THIS, fixed in advance
 
-DAY 5
+  By 2026-10-31, with all four posts actually made and the plugin listed:
+    fewer than 200 plugin directory installs AND fewer than 70 unique 14-day repo views
+    (the views baseline is 5, so 70 is a fourteenfold rise and a real signal)
+  Either number met keeps the thesis alive. Both missed kills it. Then: tag the release final,
+  put "maintained, not marketed" in the README, stop building, and spend the time elsewhere.
+  No further repositioning. A product repositioned into the same silence produces the same
+  silence.
 
-Send ten messages from Marketing/outreach-ai-disclosure.txt. Ten, by hand, one per person, to companies that ship software to enterprise customers. This is the only item on the list that answers a question rather than making noise, and the question decides whether pr attest gets more work or goes in a drawer. Record every reply verbatim.
+  By 2026-10-31, zero unprompted mentions of the spend cap, the report, CI or headless use in
+  any inbound message means the framing is wrong even if installs are fine. Same outcome.
 
-THROUGHOUT
+WHAT WOULD STRENGTHEN IT, worth more than the launch itself
 
-Directory profiles from Marketing/directory-profiles.txt, if they are still not done. They are slow to propagate, so late is worse than early.
-
-WHAT SUCCESS LOOKS LIKE, DECIDED BEFORE THE FACT SO IT CANNOT BE MOVED AFTERWARDS
-
-The tool sends no telemetry and never will, so there is no install counter and any threshold written in installs would be one nobody can evaluate. These four numbers are the ones that actually exist, with today's baseline beside each so the comparison is real rather than remembered.
-
-Unique cloners of the GitHub repo, 14 day window. Baseline 2026-09-07: 23. This is the closest proxy there is for plugin installs, because /plugin marketplace add clones the repo. Read it with: gh api repos/pofky/provenrail/traffic/clones
-
-Unique repo views, 14 day window. Baseline 2026-09-07: 5. Read it with: gh api repos/pofky/provenrail/traffic/views
-
-Referred pageviews on the site. Baseline: 14 in the 17 days to 2026-09-07, from the pageviews table in Supabase. Filter on ref_host not null; the rest is bots and our own checks.
-
-GitHub stars. Baseline: 0. A weak signal on its own and a fast one, which is what makes it useful in week one.
-
-The kill criterion, decided now: if every post above is actually made and, 30 days later, unique cloners have not roughly tripled off a baseline of 23, the distribution thesis is wrong and no further repositioning fixes it. The next move at that point is not another rewrite, it is talking to people one at a time.
-
-For pr attest, the number is ten conversations. Ten people who ship to enterprise customers, asked whether the AI disclosure clause is real yet. Zero contracts naming AI authorship means the trigger is not here and the feature waits.
-
-WHAT NOT TO DO
-
-Do not post to more than one subreddit on the same day. Do not post the same text twice. Do not argue with a sceptical comment; agree with the accurate part first. Do not add features during launch week: the thing that gets a paying customer is a reply to a stranger, not another commit.
+  One stranger posting their own `pr report --share` output.
+  One `/guard-card` from someone we have never met.
+  One CI run using the guard in a public workflow file.
+  Record any of these in WORKLOG.md verbatim, with the date, the day it appears.

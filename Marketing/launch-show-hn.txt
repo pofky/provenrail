@@ -1,39 +1,15 @@
-TITLE (80 char limit, currently 76)
+Show HN: I read 2,154 of my own Claude Code transcripts. $7,856 in 31 days
 
-Show HN: I measured my agent guardrail against 36,977 real commands
+I have been running coding agents hard for a month and had no idea what they were actually doing, so I wrote a tool that reads the transcripts that are already sitting in ~/.claude/projects and tells you.
 
+One command, no setup, no account, no network. It found 942 sessions across 23 projects, 79,782 tool calls, 51,443 shell commands, 7,009 distinct files written or edited, and an estimated $7,856.31 of model spend. Then it replays every command I ran back through a policy engine and tells me which ones would have been stopped: 29 refused outright and 483 that should have come to me first. Top offenders were deploy commands, recursive deletes pointed outside the project, and reads of .env files.
 
-BODY (paste into the text field, leave the URL field pointing at https://provenrail.com/claude-code-guardrails)
+The number I care about most is the one it is honest about. The cost is an estimate at API list price and it is a floor, measured about 12 per cent below Claude Code's own recorded total across the 49 sessions where both figures exist. Two causes I can name and cannot detect from a transcript: fast mode bills Opus 5 at $10/$50 per million tokens against the standard $5/$25, and web search is $10 per 1,000 searches. I did not invent a multiplier to close the gap, so the two numbers are printed side by side and you can see the disagreement.
 
-I have been maintaining a guardrail plugin for coding agents. It blocked rm -rf, terraform destroy, force pushes, DROP TABLE, committed keys. The usual list. I had never checked whether that list was the right one, or what it cost.
+There is a `--share` mode that strips the root path and hashes project names, and every command is reduced to its verb and flags with all operands dropped, so the output is safe to post. A test asserts no path, hostname, URL or key survives that reduction, over two corpora.
 
-So I checked both halves.
+The same engine also enforces a spend cap. `pr guard budget 25` and the tool hook refuses the next tool call once the day's estimated spend crosses it, which is a turn late by construction so it never claims to stop you at an exact dollar.
 
-For the false positives I pulled every Bash command my own agents had actually run out of my local transcripts. 36,977 of them, across 1,247 sessions, replayed offline with the working directory each one ran in. My shipped rules interrupted 923 and refused 305. Reading the samples was unpleasant. rm -rf .next out before a build, denied. rm -f coverage.xml, escalated. chmod +x on a script, denied because a UUID in the path contained the digits 4732 and the pattern was scanning the whole line for three octal digits. wrangler deploy --dry-run, escalated. A Tailwind class reading "min-w-0 truncate text-sm", denied as a SQL TRUNCATE. Two rules, both about rm, accounted for 687 of the 923.
+Four objections I expect, answered up front. First, Claude Code already blocks destructive commands: yes, and it does it well. Auto mode is the built-in starting mode on Pro, Max and Team, it runs git status before a command that would discard uncommitted work, and it refuses a critical-path rm even when a hook says allow. If interactive work is all you run, you already have most of that for free. What it does not do is stop spending, leave an artefact you can show anyone, or run at all in `claude -p`, the Agent SDK, Bedrock, Google Cloud's Agent Platform or Microsoft Foundry, which all start in Manual on every plan. Second, a hook is the wrong layer and you should containerise: correct, for a hostile agent. This is for a trusted agent that makes mistakes, and it is honest about that on the page. Third, you can defeat a pattern: yes, `V=-rf; rm $V`, a delete inside a python -c, a script invoked by name. Target resolution buys precision on what agents actually emit, not immunity to someone working around it. Fourth, false positives: that is why the rules screen where a command points rather than what it says. Over 36,977 real commands, verb matching interrupted 923 and target resolution interrupts 222, and on 40 commands taken from public Claude Code data-loss issues verb matching caught none of them.
 
-For the false negatives I read the data-loss issues people file against Claude Code. That was worse. The command in those reports is almost never rm -rf. It is git reset --hard (#34327, #7232, #17190), git checkout -- . (#81508), git clean -fd (#45974, #87360), git stash (#85879), git worktree remove --force (#46444), prisma migrate reset and artisan migrate:fresh against a live database (#80868, #90808). I ran all of them through my own default rules and every single one was allowed. A guard that stops your build directory and waves through the thing that eats your afternoon is worse than no guard, because you believe it.
-
-The fix for the false positives turned out to be one idea. I was screening the verb. Nobody has ever lost work to the letters rm -rf; they lost it to the target. rm -rf .next regenerates in twelve seconds and rm -rf ~/ ends a laptop, and no pattern can separate those, because the difference is not in the text, it is in where the text points. That needs the working directory, which a hook has and a regex does not.
-
-So rules can now carry a predicate: a named function that sees the same single command the regex matched, plus the call's context, and gets the last word. The delete predicate resolves every target against the repository root. Inside the repo, under a temp root, in a package cache, or in a directory named node_modules/dist/.next/target: allowed silently. A home directory, a whole disk, a two-segment system path, --no-preserve-root, or an unset variable followed by a slash (rm -rf $BUILD/ with BUILD empty is rm -rf /): refused. Leaves the project but is none of those: asks.
-
-The git predicate asks a different question and I think it is the better example. git reset --hard on a tree with nothing uncommitted and nothing unpushed destroys nothing, so the rule should not fire. It runs git status --porcelain, checks git rev-list @{upstream}..HEAD, and asks only when there is work there that exists nowhere else. Eight milliseconds, and only on commands that already matched. Anything it cannot determine counts as at risk, because a guard that could not look has not checked.
-
-Three more things were pure noise and are now gone. Rules about shell commands were reading the content of files being written, so an agent could not write docs/security.md explaining what rm -rf / does, or a migration containing DROP TABLE. A --dry-run and a wrangler d1 execute --local were treated as the act rather than the rehearsal. And the segmenter split commands on operators without tracking quotes, so a newline inside --command "DELETE FROM ... WHERE ..." separated the --local flag that made the call harmless from the statement it qualified, and a local test database got refused five separate times in the corpus.
-
-Same corpus afterwards: 222 interruptions, 16 refusals, and fifteen of the sixteen refusals are my own repo's adversarial test fixtures, files that literally contain rm -rf / as a test payload. On 40 commands taken from those public reports the old rules allowed 40 of 40 and the new ones allow 0 of 40. On 43 ordinary deletes and git operations, 21 were interrupted before and 0 are now. Both corpora are in the test suite, so each claim is a test rather than a sentence in a README, and tools/measure_guard.py runs the same measurement over your own transcripts with no network call in it.
-
-The install is two lines inside Claude Code and there is nothing else to set up:
-
-  /plugin marketplace add pofky/provenrail
-  /plugin install provenrail-guard@provenrail
-
-No package, no account, no server, no config file. The plugin carries a stdlib-only copy of the engine so 44 rules are armed on the next tool call, and the decision is computed locally so it never waits on a network. Installing the CLI on top signs the same local history into an Ed25519-chained record that a second, independently written verifier checks in your browser, which is the part I built first and now think of as the second reason to install it rather than the first.
-
-What I would like picked apart:
-
-The predicate is a real widening of what a rule can do, and I have tried to make it only ever narrow a rule: an unknown predicate name evaluates to true, and one that raises evaluates to true, so a bug in that file cannot open a hole that was previously closed. I would like someone to tell me that reasoning is wrong.
-
-And the limitation I would rather say than have found: this is a hook, so a command written to defeat a pattern still defeats it. V=-rf; rm $V, a script invoked by name, a delete inside a python -c. That is true of every hook of this kind and it is documented on the page rather than in a footnote. What target resolution buys is precision on the commands agents actually emit, not immunity to one written to get around it.
-
-MIT. Source, both corpora and the measurement scripts: https://github.com/pofky/provenrail
+MIT, Python, runs offline. The report is the part I would use even if I never installed the guard.
