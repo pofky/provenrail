@@ -226,3 +226,33 @@ document.querySelectorAll('.tour-card .tour-play').forEach(btn => {
     t = setTimeout(markScrollable, 150);
   });
 })();
+
+/* Countdown to a regulatory date.
+   Two pages carried their own copy of this, and when 2 August 2026 passed both kept an
+   eyebrow reading "applies in" above a clock reading "is now in force", because only the
+   clock was written to. The label is part of the countdown, so it moves with it.
+   Markup supplies the date and both labels; no date is written in this file. */
+(function () {
+  document.querySelectorAll('.countdown[data-target]').forEach(function (box) {
+    var clock = box.querySelector('.cd-clock');
+    var label = box.querySelector('.cd-label');
+    var target = Date.parse(box.getAttribute('data-target'));
+    var passed = box.getAttribute('data-elapsed') || '';
+    var passedLabel = box.getAttribute('data-elapsed-label') || '';
+    if (!clock || isNaN(target)) return;
+    var tick = function () {
+      var ms = target - Date.now();
+      if (ms <= 0) {
+        clock.textContent = passed;
+        if (label && passedLabel) label.textContent = passedLabel;
+        return true;
+      }
+      var d = Math.floor(ms / 86400000);
+      var h = Math.floor((ms % 86400000) / 3600000);
+      var m = Math.floor((ms % 3600000) / 60000);
+      clock.innerHTML = '<b>' + d + '</b> days <b>' + h + '</b> hrs <b>' + m + '</b> min';
+      return false;
+    };
+    if (!tick()) setInterval(tick, 60000);
+  });
+})();

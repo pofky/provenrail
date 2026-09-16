@@ -62,7 +62,7 @@
     .toc a{font-family:var(--font-mono);font-size:.78rem;background:var(--bg-2);border:1px solid var(--border);border-radius:999px;padding:.35rem .8rem;text-decoration:none;color:var(--text-mid)}
     .toc a:hover{border-color:var(--accent);color:var(--accent)}
     .cta{display:flex;flex-wrap:wrap;gap:.7rem;margin:1.6rem 0}
-    .cta a{font-family:var(--font-mono);font-size:.85rem;text-decoration:none;border-radius:10px;padding:.7rem 1.1rem}
+    .cta a{font-family:var(--font-mono);font-size:.95rem;text-decoration:none;border-radius:10px;padding:.7rem 1.1rem}
     .cta a.primary{background:var(--accent);color:var(--accent-ink);font-weight:600}
     .cta a.ghost{border:1px solid var(--border);color:var(--text-hi)}
     .cta a.ghost:hover{border-color:var(--accent)}
@@ -120,14 +120,14 @@
   <div class="wrap">
     <p style="background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:.8rem 1rem;margin:0 0 1.6rem;font-size:.93rem;color:var(--text-mid)">This page describes the record layer. Start at the <a href="/" style="color:var(--accent)">front page</a> for the guard and the spend cap.</p>
 
-    <p class="eyebrow">EU AI Act compliance, updated 30 July 2026</p>
+    <p class="eyebrow">EU AI Act compliance</p>
     <h1>EU AI Act Article 12: the deadline moved to December 2027. Here is what did not move.</h1>
     <p class="lede">The Digital Omnibus on AI, <strong>Regulation (EU) 2026/1744</strong>, was published in the Official Journal on 24 July 2026 and entered into force on 27 July. It defers the high-risk obligations, Article 12 record-keeping among them, from 2 August 2026 to <strong>2 December 2027</strong> for standalone Annex III systems and <strong>2 August 2028</strong> for AI embedded in Annex I regulated products. The Article 50 transparency obligations were not deferred and have applied since 2 August 2026. This page explains what changed, what Article 50 requires now, and what a defensible log looks like whichever date reaches you.</p>
-    <p class="updated">Last updated <time datetime="2026-08-05">5 August 2026</time></p>
+    <p class="updated">Last updated <time datetime="2026-09-16">16 September 2026</time></p>
 
     <div class="note"><strong>What changed on 27 July 2026.</strong> Parliament endorsed the Omnibus on 16 June 2026 (423-57), the Council gave final approval on 29 June, and it entered into force on 27 July. The Commission's originally proposed conditional trigger, which would have tied the new dates to the availability of harmonised standards, was dropped in favour of <strong>fixed dates</strong>. There is no stop-the-clock mechanism: 2 December 2027 and 2 August 2028 are firm. <a href="/eu-ai-act-deadline-moved">Read the full date-by-date diff &rarr;</a></div>
 
-    <div class="countdown" role="group" aria-label="Article 50 transparency obligations apply from 2 August 2026">
+    <div class="countdown" data-target="2026-08-02T00:00:00Z" data-elapsed="In force since 2 August 2026" data-elapsed-label="Article 50 transparency" role="group" aria-label="Article 50 transparency obligations apply from 2 August 2026">
       <span class="cd-label">Article 50 transparency applies in</span>
       <span class="cd-clock" id="cd-clock" aria-atomic="true">2 August 2026</span>
       <span class="cd-note">The transparency duties were <strong>not</strong> deferred. Article 12 record-keeping now applies from 2 December 2027.</span>
@@ -333,22 +333,6 @@
   </footer>
   <script>
   (function(){
-    // Live countdown to the Article 50 transparency obligations (2 Aug 2026, 00:00 UTC).
-    // Article 12 record-keeping was deferred to 2 Dec 2027 by Regulation (EU) 2026/1744.
-    var clock = document.getElementById('cd-clock');
-    if (clock) {
-      var target = Date.UTC(2026, 7, 2, 0, 0, 0); // month is 0-indexed: 7 = August
-      var tick = function(){
-        var ms = target - Date.now();
-        if (ms <= 0) { clock.textContent = 'Article 50 is now in force.'; return; }
-        var d = Math.floor(ms / 86400000);
-        var h = Math.floor((ms % 86400000) / 3600000);
-        var m = Math.floor((ms % 3600000) / 60000);
-        clock.innerHTML = '<b>' + d + '</b> days <b>' + h + '</b> hrs <b>' + m + '</b> min';
-      };
-      tick();
-      setInterval(tick, 60000);
-    }
     // Self-check: surface a scope-aware result as boxes are ticked. No data leaves the page.
     var boxes = Array.prototype.slice.call(document.querySelectorAll('.selfcheck .sc'));
     var result = document.getElementById('sc-result');
@@ -376,7 +360,7 @@
     "headline": "EU AI Act Article 12 logging: the deadline moved to December 2027",
     "description": "Regulation (EU) 2026/1744 defers EU AI Act Article 12 record-keeping from 2 August 2026 to 2 December 2027 for standalone Annex III systems and 2 August 2028 for Annex I embedded systems. Article 50 transparency obligations were not deferred. What changed, and how to produce independently verifiable technical evidence.",
     "datePublished": "2026-06-12",
-    "dateModified": "2026-07-30",
+    "dateModified": "2026-09-16",
     "author": { "@type": "Organization", "name": "Provenrail" },
     "publisher": { "@type": "Organization", "name": "Provenrail", "url": "https://provenrail.com" },
     "mainEntityOfPage": "https://provenrail.com/eu-ai-act"

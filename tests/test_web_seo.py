@@ -432,3 +432,52 @@ def test_no_page_ships_typography_the_house_style_forbids(path):
                  "&rsquo;": "smart quote entity", "&ldquo;": "smart quote entity"}
     found = [name for token, name in forbidden.items() if token in text]
     assert not found, f"{path.name} contains {sorted(set(found))}"
+
+
+# A countdown is a dated claim that keeps making itself after the author has stopped
+# looking. On 2026-09-16 both AI Act pages showed the eyebrow "Article 50 transparency
+# applies in" above a clock reading "Article 50 is now in force", because the page-local
+# script wrote the clock and never the label. The fix put one implementation in main.js
+# and moved the date and both labels into the markup, so these pin the shape that makes
+# the elapsed state reachable at all.
+COUNTDOWN_ATTRS = ("data-target", "data-elapsed", "data-elapsed-label")
+
+
+@pytest.mark.parametrize("path", sorted(WEB.glob("*.html")), ids=lambda p: p.name)
+def test_a_countdown_declares_its_date_and_both_of_its_labels(path):
+    html = path.read_text(encoding="utf-8")
+    for tag in re.findall(r'<div class="countdown"[^>]*>', html):
+        missing = [a for a in COUNTDOWN_ATTRS if f"{a}=" not in tag]
+        assert not missing, f"{path.name}: countdown is missing {missing}"
+
+
+@pytest.mark.parametrize("path", sorted(WEB.glob("*.html")), ids=lambda p: p.name)
+def test_no_page_carries_its_own_copy_of_the_countdown(path):
+    html = path.read_text(encoding="utf-8")
+    inline = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S)
+    for body in inline:
+        assert "cd-clock" not in body, (
+            f"{path.name} drives a countdown inline; main.js drives every countdown, and a "
+            "second copy is how the label got left behind the clock"
+        )
+
+
+def test_a_page_states_its_last_updated_date_once():
+    """Three dates for one page is two chances to be wrong. The visible `<time>` is the
+    source; the JSON-LD dateModified must agree with it, and no eyebrow may carry a third."""
+    for path in sorted(WEB.glob("*.html")):
+        html = path.read_text(encoding="utf-8")
+        shown = re.search(r'<p class="updated">Last updated <time datetime="([\d-]+)"', html)
+        if not shown:
+            continue
+        for modified in re.findall(r'"dateModified":\s*"([\d-]+)"', html):
+            assert modified == shown.group(1), (
+                f"{path.name}: dateModified {modified} contradicts the visible date "
+                f"{shown.group(1)}"
+            )
+        eyebrow = re.search(r'<p class="eyebrow">([^<]*)</p>', html)
+        if eyebrow:
+            assert not re.search(r"\d{1,2} \w+ 20\d\d", eyebrow.group(1)), (
+                f"{path.name}: eyebrow carries its own date, which will drift from the "
+                f"<time> element: {eyebrow.group(1)!r}"
+            )

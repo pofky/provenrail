@@ -62,7 +62,7 @@
     .toc a{font-family:var(--font-mono);font-size:.78rem;background:var(--bg-2);border:1px solid var(--border);border-radius:999px;padding:.35rem .8rem;text-decoration:none;color:var(--text-mid)}
     .toc a:hover{border-color:var(--accent);color:var(--accent)}
     .cta{display:flex;flex-wrap:wrap;gap:.7rem;margin:1.6rem 0}
-    .cta a{font-family:var(--font-mono);font-size:.85rem;text-decoration:none;border-radius:10px;padding:.7rem 1.1rem}
+    .cta a{font-family:var(--font-mono);font-size:.95rem;text-decoration:none;border-radius:10px;padding:.7rem 1.1rem}
     .cta a.primary{background:var(--accent);color:var(--accent-ink);font-weight:600}
     .cta a.ghost{border:1px solid var(--border);color:var(--text-hi)}
     .cta a.ghost:hover{border-color:var(--accent)}
@@ -121,12 +121,12 @@
   <div class="wrap">
     <p style="background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:.8rem 1rem;margin:0 0 1.6rem;font-size:.93rem;color:var(--text-mid)">This page describes the record layer. Start at the <a href="/" style="color:var(--accent)">front page</a> for the guard and the spend cap.</p>
 
-    <p class="eyebrow">Regulatory update, 30 July 2026</p>
+    <p class="eyebrow">Regulatory update</p>
     <h1>The EU AI Act's 2 August 2026 deadline moved. Here is the exact diff.</h1>
     <p class="lede">The Digital Omnibus on AI, <strong>Regulation (EU) 2026/1744</strong>, was published in the Official Journal on 24 July 2026 and entered into force on 27 July. It defers the high-risk AI obligations by 16 months for standalone systems and 12 months for embedded ones. It does <strong>not</strong> defer everything, and the parts it left alone start applying this Sunday. This page is the date-by-date diff for engineers and compliance owners, with no vendor panic attached.</p>
-    <p class="updated">Last updated <time datetime="2026-08-05">5 August 2026</time></p>
+    <p class="updated">Last updated <time datetime="2026-09-16">16 September 2026</time></p>
 
-    <div class="countdown" role="group" aria-label="Article 50 transparency obligations apply from 2 August 2026">
+    <div class="countdown" data-target="2026-08-02T00:00:00Z" data-elapsed="In force since 2 August 2026" data-elapsed-label="Article 50 transparency" role="group" aria-label="Article 50 transparency obligations apply from 2 August 2026">
       <span class="cd-label">Still landing, in</span>
       <span class="cd-clock" id="cd-clock" aria-atomic="true">2 August 2026</span>
       <span class="cd-note">Article 50 transparency obligations. Not deferred, not amended in substance.</span>
@@ -280,25 +280,6 @@
     </div>
   </footer>
   <script src="/main.js" defer></script>
-  <script>
-  (function(){
-    // Countdown to the Article 50 transparency obligations (2 Aug 2026, 00:00 UTC),
-    // the only AI Act date the Digital Omnibus left in place.
-    var clock = document.getElementById('cd-clock');
-    if (!clock) return;
-    var target = Date.UTC(2026, 7, 2, 0, 0, 0); // month is 0-indexed: 7 = August
-    var tick = function(){
-      var ms = target - Date.now();
-      if (ms <= 0) { clock.textContent = 'Article 50 is now in force.'; return; }
-      var d = Math.floor(ms / 86400000);
-      var h = Math.floor((ms % 86400000) / 3600000);
-      var m = Math.floor((ms % 3600000) / 60000);
-      clock.innerHTML = '<b>' + d + '</b> days <b>' + h + '</b> hrs <b>' + m + '</b> min';
-    };
-    tick();
-    setInterval(tick, 60000);
-  })();
-  </script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -306,7 +287,7 @@
     "headline": "EU AI Act deadline moved to December 2027: the Digital Omnibus diff",
     "description": "Regulation (EU) 2026/1744 defers EU AI Act high-risk obligations from 2 August 2026 to 2 December 2027. Article 50 was not deferred. The date-by-date diff.",
     "datePublished": "2026-07-30",
-    "dateModified": "2026-07-30",
+    "dateModified": "2026-09-16",
     "author": { "@type": "Organization", "name": "Provenrail" },
     "publisher": { "@type": "Organization", "name": "Provenrail", "url": "https://provenrail.com" },
     "mainEntityOfPage": "https://provenrail.com/eu-ai-act-deadline-moved",
