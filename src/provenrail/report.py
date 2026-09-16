@@ -23,9 +23,24 @@ reported on authority is acted on, so it has to say where it stops.
 Where the host left its own total on a `cost-state` line, both figures are printed side by
 side over exactly the sessions that have both, rather than one being reconciled into the other.
 Adopting the host's number would hide a disagreement and dropping it would hide that a second
-opinion existed. On the corpus this was written against the estimates here come out about 8 per
-cent BELOW what Claude Code recorded for the same sessions, never above, which is the direction
-a floor is supposed to miss in.
+opinion existed. Both sides of that line are WHOLE-session figures, which is the only way the
+two are comparable: the host writes one running total per session and it covers the session end
+to end, so it is checked against `SessionStats.own_cost_usd`, which is this session's own spend
+deduplicated inside this session and measured over the whole of it, and never against the
+windowed, corpus-deduplicated figure the rest of the report is built from.
+
+Measured on the corpus this was written against, on 2026-09-16 and after three wrong rates were
+corrected in `pricing.py`, the estimates here come out about 12 per cent BELOW what Claude Code
+recorded for the same 49 sessions ($5,015.01 against $5,704.12), never above, which is the
+direction a floor is supposed to miss in. Two known reasons for the gap, both read off
+platform.claude.com/docs/en/about-claude/pricing on that date, and neither of them modelled
+here: fast mode, which Claude Code offers and which bills Claude Opus 5 at $10/$50 per million
+tokens against the standard $5/$25, and web search at $10 per 1,000 searches. Neither is
+visible in `message.model` or anywhere else in a transcript, so no multiplier is applied for
+either. They are named as the reason the number is a floor rather than guessed at. The long
+context window is NOT one of the reasons: Claude 4.6 and later include the full 1M token
+context at standard per-token pricing, so a 900k-token request bills at the same rate as a 9k
+one.
 
 **Shareable is a separate thing from readable.** The plain report prints the user's own paths
 and project names on the user's own screen, which is fine. `--share` produces the version that
@@ -152,6 +167,16 @@ class SessionStats:
     first: str = ""
     last: str = ""
     cost_usd: float = 0.0
+    #: The same session priced on its own: deduplicated inside this session rather than across
+    #: the corpus, and over the whole of the session rather than over the part `--since` asked
+    #: for. It exists for one comparison, the host's `cost-state` line, which is a whole-session
+    #: running total. Checked against `cost_usd` it read $359.62 against $4.52 on
+    #: `--since 2026-09-16`, which is one session's whole life against sixteen lines of it.
+    own_cost_usd: float = 0.0
+    #: Message ids already charged to `own_cost_usd`, with the largest usage seen for each, the
+    #: same rule the corpus-wide map holds. Per session because a figure a shared id had moved
+    #: to whichever file was read first is not comparable to the host's total for this one.
+    charged: dict[str, float] = field(default_factory=dict)
     tool_calls: int = 0
     bash_commands: int = 0
     deny: int = 0
@@ -259,8 +284,8 @@ def _usage_of(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]] |
     return message, usage
 
 
-def _transcripts(root: Path, since: str) -> tuple[list[Path], int]:
-    """The files to read, and how many `--since` let us skip without opening them.
+def _transcripts(root: Path, since: str) -> tuple[list[Path], list[Path]]:
+    """The files to read, and the ones `--since` let us skip without opening them.
 
     A transcript is appended to, so its mtime is the time of its LAST line: one last written
     before the cutoff cannot hold a line after it. A file copied onto the machine gets a newer
@@ -268,7 +293,7 @@ def _transcripts(root: Path, since: str) -> tuple[list[Path], int]:
     only ever skip files that had nothing to contribute.
     """
     keep: list[Path] = []
-    skipped = 0
+    skipped: list[Path] = []
     cutoff = 0.0
     if since:
         try:
@@ -279,7 +304,10 @@ def _transcripts(root: Path, since: str) -> tuple[list[Path], int]:
         if cutoff:
             try:
                 if path.stat().st_mtime < cutoff:
-                    skipped += 1
+                    # Kept rather than counted, because one of them may still turn out to belong
+                    # to a session the host wrote a whole-session total for, and that comparison
+                    # needs the whole session.
+                    skipped.append(path)
                     continue
             except OSError:
                 pass       # unreadable stat is not evidence of age; open it and find out
@@ -300,7 +328,8 @@ def scan(root: Path, policy: Any, since: str = "", project: str = "") -> Report:
 
     started = time.time()
     report = Report(root=str(root), since=since, project_filter=project)
-    paths, report.skipped_by_since = _transcripts(root, since)
+    paths, skipped = _transcripts(root, since)
+    report.skipped_by_since = len(skipped)
 
     # Charged across the whole corpus, not per file, because a forked session is a second file
     # holding a copy of the first one's model calls. Per-file totals would bill them twice.
@@ -359,18 +388,83 @@ def scan(root: Path, policy: Any, since: str = "", project: str = "") -> Report:
                 elif cwd and not session.project:
                     session.project = Path(cwd).name or cwd
                 stamp = str(record.get("timestamp") or "")
-                if since and stamp and stamp[:10] < since[:10]:
-                    continue
-                session.see(stamp)
+                in_window = not (since and stamp and stamp[:10] < since[:10])
 
                 if record.get("type") == "assistant":
-                    _price(report, session, record, charged)
+                    # Priced even outside the window, and there only into the session's own
+                    # total. The host's `cost-state` line covers the session end to end and is
+                    # written whatever `--since` says, so a cross-check that priced only the
+                    # filtered part of the same session compared a whole life against a day of
+                    # it and printed the two as a disagreement.
+                    _price(report, session, record, charged, in_window)
+                if not in_window:
+                    continue
+                session.see(stamp)
                 _tools(report, session, record, policy, cwd, guard)
         if not readable:
             report.unreadable_transcripts += 1
 
+    _finish_shared_sessions(report, skipped, charged)
     report.seconds = round(time.time() - started, 3)
     return report
+
+
+def _finish_shared_sessions(report: Report, skipped: list[Path],
+                            charged: dict[str, float]) -> None:
+    """Price the rest of every session the host left a total for, whatever `--since` said.
+
+    A session is more than one file. Claude Code writes each subagent's turns to
+    `<session id>/subagents/agent-*.jsonl` beside the session's own transcript, and every line
+    in there carries the parent's `sessionId`, so the grouping is the host's own and not a guess
+    from the directory name. Their mtimes are the subagent's, not the session's, so on
+    `--since 2026-09-16` the twenty-eight subagent files of one session were all skipped as
+    older and it was compared against the host's whole-session figure as though its subagents
+    had cost nothing: $55.06 of a $162.99 session.
+
+    Only the session's own total is touched here. These lines are outside the window the user
+    asked for and must stay out of the report's own figures, which is why they are read back
+    into the accounting: a file this opens is one it read, and the line above it saying how many
+    were skipped as older has to keep being true.
+    """
+    wanted = {sid for sid in report.host_cost if sid in report.sessions}
+    if not wanted:
+        return
+    for path in skipped:
+        names = {path.stem} | {parent.name for parent in path.parents}
+        owner = next((sid for sid in wanted if sid in names), None)
+        if owner is None:
+            continue
+        report.skipped_by_since -= 1
+        session = report.sessions[owner]
+        try:
+            handle = path.open(encoding="utf-8", errors="replace")
+        except OSError:
+            report.unreadable_transcripts += 1
+            continue
+        readable = True
+        with handle:
+            report.transcripts += 1
+            try:
+                report.bytes_read += path.stat().st_size
+            except OSError:
+                pass
+            for line in handle:
+                if '"assistant"' not in line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    report.unreadable_lines += 1
+                    readable = False
+                    continue
+                if not isinstance(record, dict):
+                    report.unreadable_lines += 1
+                    readable = False
+                    continue
+                if record.get("type") == "assistant":
+                    _price(report, session, record, charged, in_window=False)
+        if not readable:
+            report.unreadable_transcripts += 1
 
 
 def _host_cost(report: Report, record: dict[str, Any]) -> None:
@@ -387,6 +481,13 @@ def _host_cost(report: Report, record: dict[str, Any]) -> None:
 def _crosscheck(report: Report) -> dict[str, Any] | None:
     """What the host said, and what this said, over exactly the sessions both have a figure for.
 
+    Both sides are whole-session totals, which is why this reads `own_cost_usd` and not the
+    figure that feeds the report above. That one is what `--since` asked for, a window, and it
+    is deduplicated across the whole corpus so a message id appearing in two sessions is charged
+    to whichever file was read first. Either difference compares two different spans of work:
+    `--since 2026-09-16` printed the host's $359.62 for two sessions against $4.52, which was
+    those sessions' whole life against the sixteen lines of them inside the window.
+
     Comparing a subset total against the whole-corpus total would manufacture a disagreement out
     of the sessions that simply predate the host writing the line.
     """
@@ -395,7 +496,8 @@ def _crosscheck(report: Report) -> dict[str, Any] | None:
         return None
     return {"sessions": len(shared),
             "host_recorded_usd": round(sum(report.host_cost[sid] for sid in shared), 2),
-            "estimated_here_usd": round(sum(report.sessions[sid].cost_usd for sid in shared), 2)}
+            "estimated_here_usd": round(
+                sum(report.sessions[sid].own_cost_usd for sid in shared), 2)}
 
 
 def _session_for(report: Report, record: dict[str, Any], path: Path, cwd: str) -> SessionStats:
@@ -416,13 +518,18 @@ def _session_for(report: Report, record: dict[str, Any], path: Path, cwd: str) -
 
 
 def _price(report: Report, session: SessionStats, record: dict[str, Any],
-           charged: dict[str, float]) -> None:
+           charged: dict[str, float], in_window: bool = True) -> None:
     """Add one assistant line's cost, charging each model call exactly once.
 
     A streamed message is written to the transcript several times as it grows, each copy sharing
     `message.id` and the last one carrying the final usage, so the largest figure seen for an id
     wins and only the increase is added. The same rule deduplicates the copy of a call that a
     forked session carries into a second file.
+
+    The same line is charged twice over, to two figures that answer two different questions. The
+    corpus total is deduplicated across every file and cut down to what `--since` asked for. The
+    session's own total is deduplicated inside the session and spans the whole session, because
+    the only thing it is ever compared against is the host's own whole-session figure.
     """
     found = _usage_of(record)
     if found is None:
@@ -433,6 +540,17 @@ def _price(report: Report, session: SessionStats, record: dict[str, Any],
     cost = float(priced.get("cost_usd", 0.0) or 0.0)
     report.priced_lines += 1
     key = _message_id(record, message, report.priced_lines)
+
+    seen = session.charged.get(key)
+    session.charged[key] = max(seen or 0.0, cost)
+    session.own_cost_usd = round(
+        session.own_cost_usd + (cost if seen is None else max(0.0, cost - seen)), 6)
+    if not in_window:
+        # A line the date filter excluded is not part of the report's own total, and the counts
+        # below it describe that total. Only the session's own figure, which the cross-check
+        # needs over the whole session, may include it.
+        return
+
     already = charged.get(key)
     if already is None:
         report.model_calls += 1
@@ -755,6 +873,12 @@ def render_text(report: Report, share: bool = False) -> str:
                      f"sessions: {_money(cross['host_recorded_usd'])}, against "
                      f"{_money(cross['estimated_here_usd'])} estimated here for the same ones.",
                      indent="    ")
+        if report.since:
+            # Without this the line reads as a figure about the window above it, and the two
+            # numbers in it are not: the host writes one total per session, covering the whole
+            # of it, so both sides here have to cover the whole of it too.
+            out += _wrap("Both of those cover those sessions end to end, including the part of "
+                         "them before the date filter above.", indent="    ")
     out += _wrap(f"Spend is {ESTIMATE_CAVEAT}.", indent="    ")
     out.append("")
 

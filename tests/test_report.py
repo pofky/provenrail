@@ -18,9 +18,11 @@ deliberately identifying, so that the share test has something real to fail on.
 from __future__ import annotations
 
 import json
+import os
 import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -133,6 +135,109 @@ def test_the_hosts_own_total_is_printed_beside_ours_rather_than_reconciled_away(
     cross = report_mod.as_json(built)["cost"]["host_crosscheck"]
     assert cross == {"sessions": 1, "host_recorded_usd": 1.0, "estimated_here_usd": 0.9}
     assert "Claude Code recorded its own total" in report_mod.render_text(built)
+
+
+#: What one line built by `_call` is worth: 100,000 input tokens at the published
+#: claude-sonnet-4-5 input rate of $3.00/M. Written out rather than read from the price table so
+#: the tests below check the report against arithmetic and not against itself.
+CALL_USD = 0.30
+
+
+def _call(session: str, msg_id: str, stamp: str) -> str:
+    """One assistant line of the shape verified on 2026-09-16, worth `CALL_USD`.
+
+    The same `msg_id` under two session ids is what a fork's copied history looks like on disk.
+    """
+    return json.dumps({
+        "type": "assistant", "uuid": f"u-{session}-{msg_id}", "sessionId": session,
+        "timestamp": stamp, "cwd": "/Users/dana/Projects/acme-billing",
+        "message": {"id": msg_id, "role": "assistant", "model": "claude-sonnet-4-5",
+                    "usage": {"input_tokens": 100_000, "output_tokens": 0,
+                              "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0},
+                    "content": [{"type": "text", "text": "(elided)"}]}})
+
+
+def _host_total(session: str, usd: float) -> str:
+    return json.dumps({"type": "cost-state", "sessionId": session, "totalCostUSD": usd})
+
+
+def _transcript(path: Path, lines: list[str], mtime: str = "") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if mtime:
+        stamp = time.mktime(time.strptime(mtime, "%Y-%m-%d"))
+        os.utime(path, (stamp, stamp))
+
+
+def test_a_model_call_that_two_sessions_both_hold_is_credited_to_each_of_their_own_totals(
+        tmp_path):
+    """The host writes one running total per session, and a session that shares a message id
+    with another one, as a fork's copied history does, still spent that money. Deduplicating
+    across the corpus charges the call to whichever file was read first, which is right for the
+    corpus total and leaves the other session cross-checked against a figure with a hole in it.
+    So the cross-check deduplicates inside one session and the total keeps deduplicating across
+    all of them."""
+    root = tmp_path / "projects" / "-Users-dana-Projects-acme-billing"
+    _transcript(root / "s-first.jsonl",
+                [_call("s-first", "msg_shared", "2026-09-14T10:00:00.000Z"),
+                 _call("s-first", "msg_first", "2026-09-14T10:01:00.000Z"),
+                 _host_total("s-first", 0.60)])
+    _transcript(root / "s-second.jsonl",
+                [_call("s-second", "msg_shared", "2026-09-14T11:00:00.000Z"),
+                 _call("s-second", "msg_second", "2026-09-14T11:01:00.000Z"),
+                 _host_total("s-second", 0.60)])
+
+    built = report_mod.build(tmp_path / "projects")
+    cross = report_mod.as_json(built)["cost"]["host_crosscheck"]
+    assert cross["sessions"] == 2
+    assert cross["estimated_here_usd"] == pytest.approx(4 * CALL_USD, abs=0.005)
+    # And the shared call is still charged to the corpus exactly once, which is the whole reason
+    # the dedupe is corpus-wide in the first place.
+    assert built.estimated_usd == pytest.approx(3 * CALL_USD, abs=0.005)
+
+
+def test_a_session_the_date_filter_cut_in_half_is_cross_checked_over_the_whole_of_it(tmp_path):
+    """`--since` narrows the report, and the host's `cost-state` line is written whatever the
+    report was asked for: it totals the session end to end. Comparing the two printed a
+    session's whole life against one day of it as though the numbers disagreed, and on the
+    corpus this was written against that read as $359.62 against $4.52."""
+    root = tmp_path / "projects" / "-Users-dana-Projects-acme-billing"
+    _transcript(root / "s-long.jsonl",
+                [_call("s-long", "msg_old_1", "2026-09-14T10:00:00.000Z"),
+                 _call("s-long", "msg_old_2", "2026-09-14T10:01:00.000Z"),
+                 _call("s-long", "msg_new", "2026-09-16T10:00:00.000Z"),
+                 _host_total("s-long", 0.90)])
+
+    built = report_mod.build(tmp_path / "projects", since="2026-09-16")
+    # The report itself still answers the question that was asked: one day of that session.
+    assert built.estimated_usd == pytest.approx(CALL_USD, abs=0.005)
+    cross = report_mod.as_json(built)["cost"]["host_crosscheck"]
+    assert cross["estimated_here_usd"] == pytest.approx(3 * CALL_USD, abs=0.005)
+    assert "end to end" in report_mod.render_text(built)
+
+
+def test_a_subagent_transcript_older_than_the_cutoff_still_counts_against_the_hosts_total(
+        tmp_path):
+    """A session is more than one file. Claude Code writes each subagent's turns to
+    `<session id>/subagents/agent-*.jsonl`, stamped with the subagent's own mtime, so `--since`
+    skipped all twenty-eight of one session's subagent files on the corpus this was written
+    against and cross-checked it as though its subagents had cost nothing."""
+    root = tmp_path / "projects" / "-Users-dana-Projects-acme-billing"
+    _transcript(root / "s-parent.jsonl",
+                [_call("s-parent", "msg_new", "2026-09-16T10:00:00.000Z"),
+                 _host_total("s-parent", 0.60)])
+    _transcript(root / "s-parent" / "subagents" / "agent-a1.jsonl",
+                [_call("s-parent", "msg_agent", "2026-09-14T09:00:00.000Z")],
+                mtime="2026-09-14")
+
+    built = report_mod.build(tmp_path / "projects", since="2026-09-16")
+    assert built.estimated_usd == pytest.approx(CALL_USD, abs=0.005)
+    cross = report_mod.as_json(built)["cost"]["host_crosscheck"]
+    assert cross["estimated_here_usd"] == pytest.approx(2 * CALL_USD, abs=0.005)
+    # A file this opened is one it read, so the count of transcripts read and the count skipped
+    # as older both have to move. Printing "1 skipped as older" over a file that was opened
+    # anyway is the same class of untrue as the figure this test exists for.
+    assert (built.transcripts, built.skipped_by_since) == (2, 0)
 
 
 # ---------------------------------------------------------------- shareable
