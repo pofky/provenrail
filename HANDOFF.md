@@ -102,9 +102,17 @@ action rather than on work: the community plugin marketplace submission
    in advance.
 4. **Answer the bypass replies the same day.** Each named command becomes a row in
    `tests/test_predicates.py` and a release. That is the measurement loop.
-5. **Test whether plugin PreToolUse hooks fire inside `Task` subagents.** #86872 and #87360 both
-   happened in subagents and #78797 says deny rules do not always propagate there. If they do
-   not fire, the pack does not cover the case it was written for and the page has to say so.
+5. **Arm the blast-radius pack by default, and cap subagent fan-out.** Hooks DO fire inside
+   `Task` subagents: verified 2026-09-16 with `claude -p --plugin-dir` under
+   `bypassPermissions`, where a subagent's `chmod 777` was refused by
+   `access.world-writable-chmod`, the file's mode was unchanged, and the journal line carried
+   the subagent's own session id. That matters because uncontrolled fan-out is one of the two
+   loudest pains in the public issue tracker and it is unfixed: #68619 (open, CRITICAL, 33
+   comments) reports 1.2M tokens in 30 minutes, recursion 50+ levels deep, and
+   `CLAUDE_CODE_FORK_SUBAGENT=0` ignored; #68110 reports exponential fan-out. Our blast-radius
+   pack is the right shape for it and is currently opt out, so it protects nobody by default.
+   `--max-budget-usd` caps dollars in print mode; it does not cap depth or breadth, and on a
+   subscription the dollars are notional.
 6. **Watch plugin installs and unique repo views, not stars.** The old kill criterion (fewer
    than 70 unique 14-day cloners) read 88 on day zero with nothing posted, so it measured
    nothing.
