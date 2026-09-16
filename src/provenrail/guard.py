@@ -582,6 +582,29 @@ def _no_policy_notice() -> str:
             "to see what is (and is not) in force.\n")
 
 
+def _first_run_notice(policy: Any) -> str:
+    """The same first-run notice the zero-install plugin prints, from the same module.
+
+    Rendered only when the defaults armed themselves, and only once a day, on the same stamp
+    file the plugin uses so switching engines does not re-announce.
+    """
+    import time
+
+    from . import rulesets, welcome
+
+    try:
+        path = _journal_path().with_name(".provenrail-guard-notice-armed")
+        now = time.time()
+        if path.is_file() and now - path.stat().st_mtime < _NOTICE_INTERVAL_S:
+            return ""
+        path.write_text(str(int(now)), encoding="utf-8")
+    except OSError:
+        return ""
+    armed = [{"id": r.id, "effect": r.effect} for r in getattr(policy, "rules", [])]
+    packs = {name: {"title": spec["title"]} for name, spec in rulesets.CATALOG.items()}
+    return welcome.first_run_notice(armed, packs, ".provenrail.json", signed=True)
+
+
 # ---------------------------------------------------------------- the hook itself
 
 
@@ -601,6 +624,7 @@ def run_hook(raw: str, default_event: str = "pre",
         return 0, "", "provenrail: unexpected hook input; allowing and not recording\n"
 
     hook = parse_hook_input(data, default_event=default_event)
+    armed_defaults = False
     try:
         from .easy import _load_config_file, find_config_file, load_policy
         # `--use` on the hook arms those packs for this invocation, without a config file. It
@@ -622,6 +646,7 @@ def run_hook(raw: str, default_event: str = "pre",
                 # A config file, once present, still wins completely, including an explicit
                 # empty `use` that arms nothing: whoever wrote it outranks our defaults.
                 policy = load_policy({"use": list(DEFAULT_PACKS)})
+                armed_defaults = True
             else:
                 policy = load_policy(config.get("policy"))
     except Exception as exc:  # a broken policy config must be loud, not silently permissive
@@ -632,6 +657,11 @@ def run_hook(raw: str, default_event: str = "pre",
         # believing they are guarded for weeks while nothing is being checked, so say it,
         # rarely enough not to become noise the user tunes out.
         return 0, "", _no_policy_notice()
+
+    # Installing the CLI used to make the plugin's first-run notice disappear, because the CLI
+    # answers the hook and had no notice of its own. So the user who followed the upgrade path
+    # got LESS explanation than the user who did nothing.
+    notice = _first_run_notice(policy) if armed_defaults else ""
 
     decision = (decide(policy, hook["tool"], hook["input"], hook.get("session_id") or None,
                        hook.get("cwd") or None)
@@ -657,7 +687,7 @@ def run_hook(raw: str, default_event: str = "pre",
                  "reason": (decision or {}).get("reason", "")})
 
     if decision is None or decision["verdict"] == "allow":
-        return 0, "", ""
+        return 0, "", notice
 
     reason = f"Provenrail guardrail {decision['rule']}: {decision['reason']}"
     if decision["verdict"] == "ask":
@@ -669,7 +699,7 @@ def run_hook(raw: str, default_event: str = "pre",
         "permissionDecision": decision["verdict"],
         "permissionDecisionReason": reason,
     }}
-    return 0, json.dumps(out), ""
+    return 0, json.dumps(out), notice
 
 
 # ---------------------------------------------------------------- install

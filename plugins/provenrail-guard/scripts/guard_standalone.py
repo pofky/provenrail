@@ -45,6 +45,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from predicates import evaluate as predicate_ok   # noqa: E402
 from shell import command_shape, segments         # noqa: E402
+from welcome import first_run_notice             # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 RULES_FILE = HERE / "rules.json"
@@ -464,18 +465,14 @@ def decide(rules, tool, tool_input, counts, cwd=""):
 
 
 def welcome(config_path, catalog, rules, source):
+    """The first-run notice, once a day, and only when the defaults armed themselves.
+
+    A project with its own .provenrail.json chose what it wants and does not need telling.
+    """
     if source != "defaults":
         return ""
-    return once_a_day(config_path, "armed", lambda: (
-        "provenrail-guard: armed with %d rules (packs: %s) because this project has no "
-        "%s.\n"
-        "  Blocking now: rm -rf, dd of=/dev/, terraform destroy, git push --force, DROP/TRUNCATE, "
-        "chmod 777, committed API keys.\n"
-        "  Asking first: .env reads, deploys, migrations, DNS and IAM changes.\n"
-        "  Change or switch off:  echo '{\"policy\": {\"use\": []}}' > %s\n"
-        "  Signed receipts anyone can verify:  uv tool install provenrail && pr guard receipt\n"
-        % (len(rules), ", ".join(catalog["default_packs"]), CONFIG_FILENAME,
-           CONFIG_FILENAME)))
+    return once_a_day(config_path, "armed", lambda: first_run_notice(
+        rules, catalog.get("packs", {}), CONFIG_FILENAME, signed=False))
 
 
 def run(raw, default_event="pre"):
