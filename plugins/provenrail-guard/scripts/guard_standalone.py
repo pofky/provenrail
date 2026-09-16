@@ -387,8 +387,12 @@ def load_counts(config_path, session_id):
     return {}
 
 
-def load_spend_state(config_path, session_id):
-    """How far this session's transcript has already been priced."""
+def load_spend_state(config_path, session_id, transcript_path):
+    """How far this transcript has already been priced, and what this session has spent.
+
+    Keyed as `transcript.find_state` describes: the read cursor on the transcript, the session
+    figure on the session.
+    """
     if not session_id:
         return transcript.TranscriptState()
     try:
@@ -396,7 +400,7 @@ def load_spend_state(config_path, session_id):
             data = json.load(fh)
     except (OSError, ValueError):
         return transcript.TranscriptState()
-    return transcript.find_state(data, session_id)
+    return transcript.find_state(data, transcript.state_key(transcript_path), session_id)
 
 
 def save_session_entry(config_path, session_id, **fields):
@@ -575,12 +579,15 @@ def decide(rules, tool, tool_input, counts, cwd=""):
 def welcome(config_path, catalog, rules, source):
     """The first-run notice, once a day, and only when the defaults armed themselves.
 
-    A project with its own .provenrail.json chose what it wants and does not need telling.
+    A project with its own .provenrail.json that names rules chose what it wants and does not
+    need telling. A file that names no rules did NOT choose, so the defaults arm and the notice
+    is shown, saying that second reason rather than claiming the file is missing.
     """
     if source != "defaults":
         return ""
     return once_a_day(config_path, "armed", lambda: first_run_notice(
-        rules, catalog.get("packs", {}), CONFIG_FILENAME, signed=False))
+        rules, catalog.get("packs", {}), CONFIG_FILENAME, signed=False,
+        config_exists=config_path is not None))
 
 
 # ---------------------------------------------------------------- spend
@@ -610,18 +617,20 @@ def apply_spend(config_path, budgets, on_unpriced, hook):
             "here. The cap in the policy is not enforcing anything.\n"))
     session_id = hook.get("session_id") or ""
     if not session_id:
-        # Without a session key there is nowhere to persist the read offset, so the next call
-        # would re-price the whole transcript and charge it again. Counting the same tokens once
-        # per tool call would deny a correct cap within minutes, which is a worse failure than
-        # not counting at all, and the notice says which one happened.
+        # The read cursor is keyed on the transcript and survives this, but a `session`-scope
+        # figure has nowhere to live without a session key, and answering a session cap from a
+        # total that restarts at zero every tool call would report a cap as binding while it
+        # never fired. Not counting is the honest answer, and the notice says so.
         return None, once_a_day(config_path, "spend-no-session", CANNOT_BIND + (
-            "this hook payload carried no session_id, so the transcript read offset cannot be "
-            "kept between tool calls and spend is not being counted.\n"))
+            "this hook payload carried no session_id, so this session's own spend total cannot "
+            "be kept between tool calls and spend is not being counted.\n"))
 
-    state = load_spend_state(config_path, session_id)
+    state = load_spend_state(config_path, session_id, transcript_path)
     resumed_known = state.known
     new_cost, _unpriced, state = transcript.accrue(transcript_path, state)
-    save_session_entry(config_path, session_id, spend=state.to_dict())
+    save_session_entry(config_path, transcript.state_key(transcript_path),
+                       spend=state.cursor_dict())
+    save_session_entry(config_path, session_id, spend=state.session_dict())
     agent_id = spend_agent_id(config_path)
     if new_cost > 0:
         spend_ledger.add_spend(new_cost, agent_id)

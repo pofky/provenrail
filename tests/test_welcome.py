@@ -56,16 +56,18 @@ def _refused_line(notice):
 def test_the_notice_names_the_packs_that_are_armed_and_not_a_fixed_list():
     """The regression that motivated this module: arm a different pack, get a different notice."""
     git_only = _refused_line(welcome.first_run_notice(
-        _armed(("git.reset_hard", "deny")), PACKS, ".provenrail.json", signed=False))
+        _armed(("git.reset_hard", "deny")), PACKS, ".provenrail.json", signed=False,
+        config_exists=False))
     delete_only = _refused_line(welcome.first_run_notice(
-        _armed(("delete.catastrophic", "deny")), PACKS, ".provenrail.json", signed=False))
+        _armed(("delete.catastrophic", "deny")), PACKS, ".provenrail.json", signed=False,
+        config_exists=False))
     assert "git" in git_only.lower()
     assert "git" not in delete_only.lower()
     assert "delete" in delete_only.lower()
 
 
 def test_nothing_armed_says_nothing_rather_than_claiming_an_empty_protection():
-    assert welcome.first_run_notice([], PACKS, ".provenrail.json", signed=False) == ""
+    assert welcome.first_run_notice([], PACKS, ".provenrail.json", signed=False, config_exists=False) == ""
 
 
 def test_the_notice_states_the_false_positive_claim_because_that_is_why_guards_get_uninstalled():
@@ -76,7 +78,7 @@ def test_the_notice_states_the_false_positive_claim_because_that_is_why_guards_g
     actually has.
     """
     notice = welcome.first_run_notice(
-        _armed(("git.reset_hard", "deny")), PACKS, ".provenrail.json", signed=False)
+        _armed(("git.reset_hard", "deny")), PACKS, ".provenrail.json", signed=False, config_exists=False)
     assert "rm -rf ./build" in notice
     assert "git reset --hard" in notice
     assert "clean, pushed tree" in notice
@@ -89,9 +91,10 @@ def test_the_unsigned_notice_offers_the_cli_and_the_signed_one_does_not():
     instruction this module exists to prevent.
     """
     plugin = welcome.first_run_notice(
-        _armed(("git.reset_hard", "deny")), PACKS, ".provenrail.json", signed=False)
+        _armed(("git.reset_hard", "deny")), PACKS, ".provenrail.json", signed=False, config_exists=False)
     cli = welcome.first_run_notice(
-        _armed(("git.reset_hard", "deny")), PACKS, ".provenrail.json", signed=True)
+        _armed(("git.reset_hard", "deny")), PACKS, ".provenrail.json", signed=True,
+        config_exists=False)
     assert "uv tool install provenrail" in plugin
     assert "/guard-card" in plugin
     assert "uv tool install provenrail" not in cli
@@ -122,8 +125,34 @@ def test_the_vendored_module_imports_with_no_provenrail_on_the_path():
         [sys.executable, "-c",
          f"import sys; sys.path.insert(0, {str(VENDORED.parent)!r}); import welcome; "
          "print(welcome.first_run_notice([{'id':'git.x','effect':'deny'}], "
-         "{'git':{'title':'Git'}}, '.provenrail.json', False))"],
+         "{'git':{'title':'Git'}}, '.provenrail.json', False, False))"],
         capture_output=True, text=True, cwd=str(Path(VENDORED.parent)))
     assert proc.returncode == 0, proc.stderr
     # `_phrase` lower-cases titles so they read as part of a sentence, so match accordingly.
     assert "git (1)" in proc.stdout
+
+
+def test_the_notice_says_which_of_the_two_situations_actually_armed_the_defaults():
+    """The regression: `pr guard budget 1` writes a .provenrail.json with a cap and no rules, the
+    defaults arm because it named no rules, and the notice told the user the file it had just
+    written did not exist. The clause is derived from the measured situation, so it cannot say
+    the file is missing while the caller is holding it."""
+    armed = _armed(("git.reset_hard", "deny"))
+    missing = welcome.first_run_notice(armed, PACKS, ".provenrail.json", signed=True,
+                                       config_exists=False).splitlines()[0]
+    present = welcome.first_run_notice(armed, PACKS, ".provenrail.json", signed=True,
+                                       config_exists=True).splitlines()[0]
+    assert "has no .provenrail.json" in missing
+    assert "has no .provenrail.json" not in present
+    assert "sets no rules" in present
+
+
+def test_a_project_that_already_has_a_config_file_is_not_told_to_overwrite_it():
+    """The disarm instruction is part of the same situation. `echo ... > .provenrail.json` is
+    correct only when there is no file to clobber; printing it at the user whose file holds a
+    spend cap tells them to delete the cap they just set."""
+    armed = _armed(("git.reset_hard", "deny"))
+    present = welcome.first_run_notice(armed, PACKS, ".provenrail.json", signed=True,
+                                       config_exists=True)
+    assert "> .provenrail.json" not in present
+    assert 'add "use": [] to "policy" in .provenrail.json' in present

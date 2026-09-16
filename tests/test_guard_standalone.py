@@ -417,3 +417,56 @@ def test_a_config_that_only_sets_a_spend_cap_does_not_disarm_the_rules(tmp_path,
     assert standalone == installed
     assert standalone[0] == "deny"
     assert standalone[1] == "destructive.recursive-force-remove"
+
+
+def test_neither_engine_tells_a_project_with_a_config_file_that_it_has_none(tmp_path,
+                                                                            monkeypatch):
+    """`pr guard budget 1` writes a .provenrail.json holding a cap and no rules. The defaults arm
+    because it named no rules, and the first line both engines printed was "because this project
+    has no .provenrail.json", at a user whose file the same command had just written. The clause
+    is derived from the situation now, so both engines say the same true thing."""
+    one, two = tmp_path / "standalone", tmp_path / "installed"
+    for workdir in (one, two):
+        workdir.mkdir()
+        (workdir / ".provenrail.json").write_text(
+            json.dumps({"policy": {"budgets": [{"scope": "day", "limit_usd": 100.0}]}}),
+            encoding="utf-8")
+        (workdir / "transcript.jsonl").write_text("", encoding="utf-8")
+    payload = dict(_spend_payload(one), tool_input={"command": "echo hi"})
+    standalone = _standalone_run(one, payload)[1]
+    installed = _installed_run(two, dict(payload, cwd=str(two),
+                                         transcript_path=str(two / "transcript.jsonl")),
+                               monkeypatch)[1]
+    armed = [text.splitlines()[0] for text in (standalone, installed)]
+    assert armed[0] == armed[1]
+    assert "armed with" in armed[0]
+    assert "has no .provenrail.json" not in armed[0]
+    assert "sets no rules" in armed[0]
+
+
+def test_neither_engine_charges_one_transcript_twice_for_two_session_ids(tmp_path, monkeypatch):
+    """A forked or re-identified session reads the same transcript under a new session id. Keyed
+    on the session, the read cursor started at zero for the second one and charged the parent's
+    entire history to the shared day ledger a second time: $0.90 became $1.80, over a $1.00 cap,
+    and the agent was refused work that had already been paid for. Failing in the direction that
+    stops work is the worse direction, so both engines key the cursor on the transcript."""
+    from provenrail import spend
+
+    one, two = tmp_path / "standalone", tmp_path / "installed"
+    for workdir in (one, two):
+        workdir.mkdir()
+        _lay_out(workdir, SPLIT_AT)
+
+    def payload_for(workdir, session):
+        return dict(_spend_payload(workdir), session_id=session, cwd=str(workdir),
+                    transcript_path=str(workdir / "transcript.jsonl"))
+
+    answers = []
+    for session in ("parent", "fork"):
+        answers.append(_answer(_standalone_run(one, payload_for(one, session))[0]))
+        answers.append(_answer(_installed_run(two, payload_for(two, session), monkeypatch)[0]))
+    assert [a[0] for a in answers] == ["allow"] * 4
+    ledgers = [json.loads((w / spend.LEDGER_FILENAME).read_text(encoding="utf-8"))
+               for w in (one, two)]
+    assert ledgers[0]["agents"]["default"]["total_usd"] == pytest.approx(0.90)
+    assert ledgers[1]["agents"]["default"]["total_usd"] == pytest.approx(0.90)

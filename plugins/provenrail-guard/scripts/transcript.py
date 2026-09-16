@@ -39,6 +39,7 @@ Stdlib only, apart from `pricing`, because it is vendored.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -95,9 +96,11 @@ def spent_by_scope(session_usd: float, prior_day_usd: float,
 class TranscriptState:
     """Where the last read stopped, and what it had already charged.
 
-    Held per host session in `.provenrail-guard-counts.json`, because every hook invocation is
-    its own process: a state kept in memory would restart at offset zero on every tool call and
-    charge the whole transcript again each time.
+    Persisted in `.provenrail-guard-counts.json`, because every hook invocation is its own
+    process: a state kept in memory would restart at offset zero on every tool call and charge
+    the whole transcript again each time. It is persisted as two halves under two keys, see
+    `state_key` and `find_state`, because the read cursor belongs to the transcript while the
+    session total belongs to the session.
     """
 
     offset: int = 0
@@ -111,10 +114,18 @@ class TranscriptState:
     #: floor rather than a total.
     known: bool = True
 
-    def to_dict(self) -> dict[str, Any]:
+    def cursor_dict(self) -> dict[str, Any]:
+        """The half that belongs to the transcript: how far it was read, and what it charged."""
         return {"offset": self.offset, "charged": dict(self.charged),
-                "session_usd": round(self.session_usd, 6),
                 "unpriced_calls": self.unpriced_calls}
+
+    def session_dict(self) -> dict[str, Any]:
+        """The half that belongs to the host session, which is what a `session` cap counts."""
+        return {"session_usd": round(self.session_usd, 6)}
+
+    def to_dict(self) -> dict[str, Any]:
+        """Both halves, for a reader that holds them together rather than persisting them."""
+        return {**self.cursor_dict(), **self.session_dict()}
 
     @classmethod
     def from_dict(cls, data: Any) -> TranscriptState:
@@ -313,9 +324,64 @@ def verdict_for(budgets: list[tuple[str, str, float, float]], spent_by_scope: di
     return "allow", "", warning
 
 
-def find_state(data: Any, session_id: str) -> TranscriptState:
-    """Pull this session's transcript state out of the guard's per-session state file."""
-    entry = data.get(session_id) if isinstance(data, dict) else None
+#: Prefix on the state-file key that holds a transcript's read cursor. A host session id can
+#: never start with it, so the two kinds of entry share one file without colliding.
+STATE_PREFIX = "transcript:"
+
+
+def state_key(path: str | Path) -> str:
+    """The key the read offset and the charged-message map are held under.
+
+    They belong to the TRANSCRIPT, because the transcript is the thing being read. Held per
+    session instead, two session ids pointed at one transcript file each charged its entire
+    history to the shared day ledger: a forked or re-identified session billed its parent's
+    whole spend a second time, and the cap then refused work the user had already paid for.
+    A cap that fails by stopping work is the worse direction to fail in.
+
+    The identity is the resolved path plus the file's device and inode, so a rotated transcript
+    that reuses the same path gets a fresh cursor rather than seeking into the middle of a
+    different file. A transcript that shrinks in place is still caught by `accrue`.
+    """
+    target = Path(path)
+    try:
+        identity = str(target.resolve())
+    except OSError:
+        identity = str(target)
+    try:
+        stat = target.stat()
+        if stat.st_ino:
+            identity = f"{identity}|{stat.st_dev}|{stat.st_ino}"
+    except OSError:
+        # No stat means no rotation evidence, so the path alone identifies it. Refusing to
+        # produce a key here would drop the cursor and recharge the transcript instead.
+        pass
+    digest = hashlib.sha256(identity.encode("utf-8", "replace")).hexdigest()
+    return STATE_PREFIX + digest[:32]
+
+
+def _entry_spend(data: Any, key: str) -> Any:
+    entry = data.get(key) if isinstance(data, dict) else None
     if not isinstance(entry, dict) or "spend" not in entry:
-        return TranscriptState()
-    return TranscriptState.from_dict(entry.get("spend"))
+        return None
+    return entry.get("spend")
+
+
+def find_state(data: Any, transcript_key: str, session_id: str) -> TranscriptState:
+    """Assemble the spend cursor out of the two things it is actually keyed on.
+
+    The offset, the charged-message map and the unpriced count come from the transcript entry,
+    because they describe bytes already read. `session_usd` comes from the session entry,
+    because a `session`-scope budget caps a session and not a file.
+    """
+    cursor_raw = _entry_spend(data, transcript_key)
+    if cursor_raw is None:
+        # Before this was keyed on the transcript the cursor lived under the session id, so a
+        # session upgrading mid-flight would otherwise find no cursor and charge everything it
+        # had already paid for. Adopt its own old one; it describes this same transcript.
+        cursor_raw = _entry_spend(data, session_id)
+    cursor = TranscriptState() if cursor_raw is None else TranscriptState.from_dict(cursor_raw)
+    session_raw = _entry_spend(data, session_id)
+    session = TranscriptState() if session_raw is None else TranscriptState.from_dict(session_raw)
+    cursor.session_usd = session.session_usd
+    cursor.known = cursor.known and session.known
+    return cursor

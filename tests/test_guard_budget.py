@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from provenrail import guard, spend
+from provenrail import transcript as transcript_mod
 from provenrail.easy import load_policy
 
 FIXTURE = Path(__file__).parent / "fixtures" / "transcripts" / "claude-code-spend.jsonl"
@@ -270,7 +271,49 @@ def test_the_counters_and_the_spend_cursor_share_a_file_without_erasing_each_oth
     transcript = write_transcript(workdir, SPLIT_AT)
     guard.run_hook(hook_payload(transcript, command="echo hi"))
     guard.run_hook(hook_payload(transcript, command="echo hi"))
-    entry = json.loads((workdir / guard.COUNTS_FILENAME).read_text())["s1"]
+    data = json.loads((workdir / guard.COUNTS_FILENAME).read_text())
+    entry = data["s1"]
     assert entry["counts"]["cap.bash"] == 2
-    assert entry["spend"]["offset"] > 0
+    # The session keeps what a `session` cap counts; the read cursor lives under the transcript
+    # it describes, which is why the key is looked up rather than assumed to be the session.
     assert entry["spend"]["session_usd"] == pytest.approx(0.90)
+    cursor = data[transcript_mod.state_key(transcript)]
+    assert cursor["spend"]["offset"] > 0
+
+
+def test_two_sessions_reading_one_transcript_charge_the_day_ledger_once(workdir):
+    """The read cursor belongs to the transcript, not to the session id reading it.
+
+    Keyed on the session, a forked or re-identified session pointed at its parent's transcript
+    found no cursor, started at offset zero, and charged the whole history to the shared day
+    ledger a second time. The cap then refused work the user had already paid for, which is the
+    direction a spend cap must never fail in.
+    """
+    write_config(workdir, DAY_CAP)
+    transcript = write_transcript(workdir, SPLIT_AT)
+
+    first = guard.run_hook(hook_payload(transcript, session="parent"))
+    second = guard.run_hook(hook_payload(transcript, session="fork"))
+    assert verdict_of(first[1]) == "allow"
+    assert verdict_of(second[1]) == "allow", "the fork was charged its parent's spend again"
+    today, _total, _known = spend.prior_spend(guard.spend_agent_id())
+    assert today == pytest.approx(0.90)
+
+
+def test_a_cursor_written_under_the_old_session_key_is_adopted_rather_than_recharged(workdir):
+    """Upgrading mid-session must not recharge what the session already paid for.
+
+    Before the cursor moved to the transcript it lived under the session id. Reading only the
+    new key would have made the first tool call after the upgrade re-price the whole transcript.
+    """
+    write_config(workdir, DAY_CAP)
+    transcript = write_transcript(workdir, SPLIT_AT)
+    guard.run_hook(hook_payload(transcript))
+    data = json.loads((workdir / guard.COUNTS_FILENAME).read_text())
+    cursor = data.pop(transcript_mod.state_key(transcript))
+    data["s1"]["spend"].update(cursor["spend"])
+    (workdir / guard.COUNTS_FILENAME).write_text(json.dumps(data), encoding="utf-8")
+
+    guard.run_hook(hook_payload(transcript))
+    today, _total, _known = spend.prior_spend(guard.spend_agent_id())
+    assert today == pytest.approx(0.90)

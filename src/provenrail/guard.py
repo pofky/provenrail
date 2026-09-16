@@ -238,18 +238,18 @@ def _apply_transcript_spend(policy: Any, state: Any, transcript_path: str | None
             "this hook payload carried no transcript_path, so no model spend can be seen from "
             "here. The cap in the policy is not enforcing anything.\n"))
     if not session_id:
-        # Without a session key there is nowhere to persist the read offset, so the next call
-        # would re-price the whole transcript and charge it again. Counting the same tokens
-        # once per tool call would deny a correct cap within minutes, which is a worse failure
-        # than not counting at all, and the notice says which one happened.
+        # The read cursor is keyed on the transcript and survives this, but a `session`-scope
+        # figure has nowhere to live without a session key, and answering a session cap from a
+        # total that restarts at zero every tool call would report a cap as binding while it
+        # never fired. Not counting is the honest answer, and the notice says so.
         return _once_a_day("spend-no-session", CANNOT_BIND + (
-            "this hook payload carried no session_id, so the transcript read offset cannot be "
-            "kept between tool calls and spend is not being counted.\n"))
+            "this hook payload carried no session_id, so this session's own spend total cannot "
+            "be kept between tool calls and spend is not being counted.\n"))
 
-    st = load_spend_state(session_id)
+    st = load_spend_state(session_id, transcript_path)
     resumed_known = st.known
     new_cost, _unpriced, st = transcript_mod.accrue(transcript_path, st)
-    save_spend_state(session_id, st)
+    save_spend_state(session_id, transcript_path, st)
     if new_cost > 0:
         spend_ledger.add_spend(new_cost, spend_agent_id())
 
@@ -614,14 +614,18 @@ def save_counts(session_id: str, counts: dict[str, int]) -> None:
     _save_session_entry(session_id, counts=dict(counts))
 
 
-def load_spend_state(session_id: str) -> Any:
-    """This session's transcript cursor: how far the transcript has been priced already."""
+def load_spend_state(session_id: str, transcript_path: str) -> Any:
+    """The transcript cursor, plus this session's own total. Keyed as `transcript.find_state`
+    describes: the cursor on the transcript, the session figure on the session."""
     from . import transcript
-    return transcript.find_state(_read_counts_file(), session_id)
+    return transcript.find_state(_read_counts_file(), transcript.state_key(transcript_path),
+                                 session_id)
 
 
-def save_spend_state(session_id: str, state: Any) -> None:
-    _save_session_entry(session_id, spend=state.to_dict())
+def save_spend_state(session_id: str, transcript_path: str, state: Any) -> None:
+    from . import transcript
+    _save_session_entry(transcript.state_key(transcript_path), spend=state.cursor_dict())
+    _save_session_entry(session_id, spend=state.session_dict())
 
 
 def reset_counts(session_id: str | None = None) -> None:
@@ -747,7 +751,7 @@ def _no_policy_notice() -> str:
             "to see what is (and is not) in force.\n")
 
 
-def _first_run_notice(policy: Any) -> str:
+def _first_run_notice(policy: Any, config_exists: bool) -> str:
     """The same first-run notice the zero-install plugin prints, from the same module.
 
     Rendered only when the defaults armed themselves, and only once a day, on the same stamp
@@ -767,7 +771,8 @@ def _first_run_notice(policy: Any) -> str:
         return ""
     armed = [{"id": r.id, "effect": r.effect} for r in getattr(policy, "rules", [])]
     packs = {name: {"title": spec["title"]} for name, spec in rulesets.CATALOG.items()}
-    return welcome.first_run_notice(armed, packs, ".provenrail.json", signed=True)
+    return welcome.first_run_notice(armed, packs, ".provenrail.json", signed=True,
+                                    config_exists=config_exists)
 
 
 # ---------------------------------------------------------------- the hook itself
@@ -790,6 +795,9 @@ def run_hook(raw: str, default_event: str = "pre",
 
     hook = parse_hook_input(data, default_event=default_event)
     armed_defaults = False
+    # The notice says WHY the defaults armed, so the branch that knows records which of the two
+    # reasons is true rather than leaving the notice to assume one of them.
+    config_exists = False
     try:
         from .easy import _load_config_file, find_config_file, load_policy
         # `--use` on the hook arms those packs for this invocation, without a config file. It
@@ -813,6 +821,7 @@ def run_hook(raw: str, default_event: str = "pre",
                 policy = load_policy({"use": list(DEFAULT_PACKS)})
                 armed_defaults = True
             else:
+                config_exists = True
                 spec = policy_spec(config)
                 armed_defaults = spec is not config.get("policy")
                 policy = load_policy(spec)
@@ -832,7 +841,7 @@ def run_hook(raw: str, default_event: str = "pre",
     # Installing the CLI used to make the plugin's first-run notice disappear, because the CLI
     # answers the hook and had no notice of its own. So the user who followed the upgrade path
     # got LESS explanation than the user who did nothing.
-    notice = _first_run_notice(policy) if armed_defaults else ""
+    notice = _first_run_notice(policy, config_exists) if armed_defaults else ""
 
     decision = (decide(policy, hook["tool"], hook["input"], hook.get("session_id") or None,
                        hook.get("cwd") or None, hook.get("transcript_path") or None)
