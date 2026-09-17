@@ -105,8 +105,13 @@ action rather than on work: the community plugin marketplace submission
 5. **Arm the blast-radius pack by default, and cap subagent fan-out.** Hooks DO fire inside
    `Task` subagents: verified 2026-09-16 with `claude -p --plugin-dir` under
    `bypassPermissions`, where a subagent's `chmod 777` was refused by
-   `access.world-writable-chmod`, the file's mode was unchanged, and the journal line carried
-   the subagent's own session id. That matters because uncontrolled fan-out is one of the two
+   `access.world-writable-chmod` and the file's mode was unchanged. Correcting what this
+   entry said first: parent and subagent share ONE `session_id`. The field that marks a call
+   as coming from inside a subagent is `agent_id`, which is absent on the parent's own calls,
+   and `agent_type` names the subagent. So an `Agent` tool call that itself carries `agent_id`
+   is a subagent spawning a subagent, which is the #68619 recursion signature in one field.
+   Captured from real payloads, which also carry `transcript_path`, `cwd`, `permission_mode`
+   and `tool_use_id`. That matters because uncontrolled fan-out is one of the two
    loudest pains in the public issue tracker and it is unfixed: #68619 (open, CRITICAL, 33
    comments) reports 1.2M tokens in 30 minutes, recursion 50+ levels deep, and
    `CLAUDE_CODE_FORK_SUBAGENT=0` ignored; #68110 reports exponential fan-out. Our blast-radius
