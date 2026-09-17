@@ -1,18 +1,28 @@
-Polar migration to the single $9 SKU. Run these in order. Order matters: the secret must move
-before the old products are archived, or live checkout breaks between the two steps.
+POLAR MIGRATION TO THE SINGLE $9 SKU
 
-The new product already exists in the production Polar organisation:
+Nothing is wrong in Polar and nothing needs creating there. Verified against the live API on
+2026-09-17: the organisation is Provenrail (its own org, not the shared one), the webhook points
+at https://jzgamrptvsdxnwtuascx.supabase.co/functions/v1/polar-webhook in raw format with all
+eight subscription and order events, and the $9 product already exists, is live, and is priced
+at 900 usd per month recurring.
 
-  Anchored statements    $9/month    cdb2b700-95c4-4660-9840-74c258abf80e
+The mismatch is in one Supabase secret. POLAR_PRODUCT_BUILDER still points at the retired $29
+Builder product, and all three edge functions resolve the product from it, so the pricing page
+says $9 while the account page and live checkout say and charge $29.
 
-Step 1. Point the edge functions at it. Both polar-checkout and polar-webhook resolve the
-product from this secret, so this one change moves checkout, the webhook and the live prices on
-the account page together.
+Two of the four steps below are blocked for the agent: writing a Supabase secret is refused by
+the permission classifier, and writing to the live Polar API is refused by the autopilot extreme
+gate. Both refusals are correct, so all four are written for you to run.
+
+Order matters. Archiving before the secret moves breaks checkout between the two steps.
+
+Step 1. Point the edge functions at the $9 product. This one change moves checkout, the webhook
+and the account page's live price together.
 
 supabase secrets set POLAR_PRODUCT_BUILDER=cdb2b700-95c4-4660-9840-74c258abf80e --project-ref jzgamrptvsdxnwtuascx
 
-Step 2. Remove the retired Team product from the plan map, so a request for it returns
-unknown_plan rather than opening a checkout for a tier that is no longer sold.
+Step 2. Remove the retired Team plan, so a request for it returns unknown_plan rather than
+opening a checkout for a tier that is no longer sold.
 
 supabase secrets unset POLAR_PRODUCT_TEAM --project-ref jzgamrptvsdxnwtuascx
 
@@ -20,15 +30,31 @@ Step 3. Confirm the live prices endpoint now serves one product at nine dollars 
 
 curl -s https://jzgamrptvsdxnwtuascx.supabase.co/functions/v1/polar-prices
 
-Expected: a products object containing only builder, with display "$9/mo".
+Expected: a products object containing only builder, with display "$9/mo". If it still says
+2900, the secret did not take; edge functions pick up a changed secret on their next cold start,
+so give it a minute and try again before changing anything else.
 
-Step 4. Only after step 3 looks right, archive the two retired products in the Polar dashboard:
+Step 4. Only after step 3 looks right, archive the two retired products at
+polar.sh/dashboard/provenrail/products. Toggle each one to archived:
 
   Builder   $29/month   0b5e05d4-e2cc-4a3e-8000-8e098115e6f4
   Team      $99/month   c70fdf7a-e089-4466-84ba-82647c273e3b
 
-There are no subscribers on either, so nothing migrates and nobody is interrupted.
+A correction to what this file said before. It claimed there are no subscribers on either
+product. There is one subscription on Builder, and it does not change anything, but the earlier
+sentence was wrong and a wrong sentence about billing is worth fixing. It is the operator's own
+billing-proof run: customer billing-proof+delete-me@provenrail.com, amount 0 usd, created
+2026-08-05 at 17:10 and canceled at 17:14 the same day, with its period already ended on
+2026-09-05. Status is canceled, so archiving interrupts nobody and no money is involved. There
+are no subscriptions at all on Team or on the $9 product, and exactly one order ever, the $0 one
+belonging to that same test.
 
 Note on the name "builder". It stays as the internal plan id in the database, the webhook, the
 account page and server/plans.py. It is not shown to anyone. Renaming it would mean a schema
 change and a webhook change to buy nothing, and the entitlement it grants is unchanged.
+
+Note on why the id is not simply hardcoded in the edge function. It was, once, during a period
+when this secret pointed at a $1 live-test SKU and the secret was believed to be uneditable.
+The pinned id belonged to the old shared organisation, so after the move to Provenrail's own org
+it silently dropped Builder from the pricing API while leaving Team correct. The comment left in
+polar-prices/index.ts puts it well: a pinned id in code always outlives the reason for it.
