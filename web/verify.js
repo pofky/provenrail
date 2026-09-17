@@ -861,8 +861,17 @@ function policyDecide(policy, eventType, ctx, state) {
       return { effect: "deny", ruleId: rule.id, reason: rule.reason || "requires recorded human oversight" };
     if (rule.effect === "limit") {
       state.counts[rule.id] = (state.counts[rule.id] || 0) + 1;
-      if (rule.max_per_session !== null && rule.max_per_session !== undefined && state.counts[rule.id] > rule.max_per_session)
-        return { effect: "deny", ruleId: rule.id, reason: rule.reason || "per-session limit exceeded" };
+      if (rule.max_per_session !== null && rule.max_per_session !== undefined && state.counts[rule.id] > rule.max_per_session) {
+        const over = rule.reason || "per-session limit exceeded";
+        // `on_exceed: require_oversight` makes the cap a question, so a recorded oversight
+        // satisfies it exactly as it does for a require_oversight rule. Without this branch
+        // the browser called a correctly-approved wide fan-out a policy violation.
+        if (rule.on_exceed === "require_oversight")
+          return (state.oversightRules.has(rule.id) || state.oversight)
+            ? { effect: "allow", ruleId: rule.id, reason: "over the cap, oversight present" }
+            : { effect: "deny", ruleId: rule.id, reason: over };
+        return { effect: "deny", ruleId: rule.id, reason: over };
+      }
       return { effect: "allow", ruleId: rule.id, reason: "within the per-session limit" };
     }
     if (rule.effect === "require_oversight") return { effect: "allow", ruleId: rule.id, reason: "oversight present" };
@@ -877,10 +886,10 @@ function policyDecide(policy, eventType, ctx, state) {
 // the browser hashed them literally and called a genuine bundle tampered. This mirrors
 // `Policy.to_dict()` field for field so both sides hash the same bytes.
 const _RULE_FIELDS = ["id", "effect", "event_type", "tool", "not_tool", "resource", "provider",
-                      "arg_contains", "predicate", "max_per_session", "reason"];
+                      "arg_contains", "predicate", "max_per_session", "on_exceed", "reason"];
 const _RULE_DEFAULTS = { effect: "", event_type: "*", tool: "*", not_tool: "", resource: "*",
                          provider: "*", arg_contains: "", predicate: "", max_per_session: null,
-                         reason: "", id: "" };
+                         on_exceed: "deny", reason: "", id: "" };
 
 export function policyCanonicalForm(dict) {
   const d = dict && typeof dict === "object" ? dict : {};
@@ -927,7 +936,7 @@ function normalizePolicy(dict) {
     not_tool: r.not_tool ?? "", resource: r.resource ?? "*", provider: r.provider ?? "*",
     arg_contains: r.arg_contains ?? "",
     predicate: r.predicate ?? "", max_per_session: r.max_per_session ?? null,
-    reason: r.reason ?? "",
+    on_exceed: r.on_exceed ?? "deny", reason: r.reason ?? "",
   }));
   const budgets = (dict.budgets || []).map(b => ({
     id: b.id || `budget.${b.scope || "session"}`, scope: (b.scope || "session").toLowerCase(),

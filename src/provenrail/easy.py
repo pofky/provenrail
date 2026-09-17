@@ -181,6 +181,12 @@ def load_policy(spec: Any) -> Any:
             raise PolicyConfigError(
                 f'policy rule "{rid}" has effect "limit" but no integer "max_per_session", '
                 "so it would never actually limit anything")
+        on_exceed = rule.get("on_exceed")
+        if on_exceed is not None and on_exceed not in (DENY, REQUIRE_OVERSIGHT):
+            raise PolicyConfigError(
+                f'policy rule "{rid}" has on_exceed {on_exceed!r}; expected "{DENY}" or '
+                f'"{REQUIRE_OVERSIGHT}". A misspelled value would fall back to a wall where '
+                "the rule asked for a question, so it is rejected rather than ignored.")
         if rule.get("arg_contains"):
             import re as _re
             try:

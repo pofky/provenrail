@@ -154,6 +154,11 @@ def share_label(name: str) -> str:
     return "project-" + hashlib.sha256(name.encode("utf-8", "replace")).hexdigest()[:8]
 
 
+#: Claude Code renamed the subagent tool from Task to Agent. Both names are counted, because a
+#: corpus spans the rename and a list naming one of them reports a silent zero for the other.
+SPAWN_TOOLS = ("Task", "Agent")
+
+
 @dataclass
 class SessionStats:
     """One host session. Keyed on the id the transcript reports, not on the file.
@@ -166,6 +171,15 @@ class SessionStats:
     project: str = ""
     first: str = ""
     last: str = ""
+    #: Subagent spawns. Claude Code renamed this tool from Task to Agent, so both names count
+    #: or the number is silently zero on whichever half of the corpus is newer.
+    spawns: int = 0
+    #: Spawns made from inside a subagent, which is a subagent spawning a subagent. Claude Code
+    #: refuses at depth 3 of 3 itself, so this is recorded to show what the host already stopped
+    #: rather than claimed as something Provenrail caps.
+    nested_spawns: int = 0
+    #: Cost incurred on sidechains: the part of the bill the spawns are responsible for.
+    sidechain_usd: float = 0.0
     cost_usd: float = 0.0
     #: The same session priced on its own: deduplicated inside this session rather than across
     #: the corpus, and over the whole of the session rather than over the part `--since` asked
@@ -572,6 +586,8 @@ def _price(report: Report, session: SessionStats, record: dict[str, Any],
     report.model_cost[model or "(no model reported)"] = round(
         report.model_cost.get(model or "(no model reported)", 0.0) + delta, 6)
     session.cost_usd = round(session.cost_usd + delta, 6)
+    if record.get("isSidechain"):
+        session.sidechain_usd = round(session.sidechain_usd + delta, 6)
 
 
 def _tools(report: Report, session: SessionStats, record: dict[str, Any], policy: Any,
@@ -597,6 +613,10 @@ def _tools(report: Report, session: SessionStats, record: dict[str, Any], policy
         session.pending.add(str(block.get("id") or ""))
         session.tool_calls += 1
         report.by_tool[tool or "(unnamed tool)"] += 1
+        if tool in SPAWN_TOOLS:
+            session.spawns += 1
+            if record.get("isSidechain"):
+                session.nested_spawns += 1
         command = args.get("command")
         if tool == "Bash" and isinstance(command, str):
             session.bash_commands += 1
@@ -978,3 +998,60 @@ def build(root: str | Path | None = None, since: str = "", project: str = "",
             f"pass the directory as an argument if yours are somewhere else.")
     policy = load_policy({"use": list(packs or guard.DEFAULT_PACKS)})
     return scan(target, policy, since=since, project=project)
+
+
+def render_fanout(report: Report, share: bool = False) -> str:
+    """The fan-out view: how wide this machine's sessions spread, and what it cost.
+
+    Its own view rather than a section of the main report, because it is the number a person
+    is asked to post, and a number you are asked to post has to fit in a screenshot.
+    """
+    hide = hides_names(report, share)
+    name = share_label if hide else (lambda value: value)
+    cap = _spawn_cap()
+    spawning = sorted((s for s in report.sessions.values() if s.spawns),
+                      key=lambda s: -s.spawns)
+    total = len(report.sessions)
+    out: list[str] = ["", "PROVENRAIL FAN-OUT", ""]
+    if not total:
+        out += ["  No transcripts read, so there is nothing to say about fan-out.", ""]
+        return "\n".join(out)
+    if not spawning:
+        out += [f"  {total:,} sessions, none of which spawned a subagent.", ""]
+        return "\n".join(out)
+
+    counts = sorted(s.spawns for s in spawning)
+    over = [s for s in spawning if s.spawns > cap]
+    sidechain = sum(s.sidechain_usd for s in spawning)
+    nested = sum(s.nested_spawns for s in spawning)
+    out += _table([
+        ("sessions read", f"{total:,}"),
+        ("of them spawned a subagent", f"{len(spawning):,} ({len(spawning) / total:.0%})"),
+        ("widest session", f"{counts[-1]:,} spawns"),
+        ("median, among those that spawned", f"{counts[len(counts) // 2]:,}"),
+        ("spawns from inside a subagent", f"{nested:,}"),
+        ("estimated cost on subagents", _money(sidechain)),
+    ])
+    out += ["", f"  Against the shipped cap of {cap} spawns per session:", ""]
+    out += _table([
+        ("sessions that would be asked", f"{len(over):,} ({len(over) / total:.1%} of all)"),
+        ("spawns past the cap", f"{sum(s.spawns - cap for s in over):,}"),
+    ])
+    if over:
+        out += ["", "  The widest sessions:", ""]
+        for session in over[:8]:
+            out.append(f"    {session.spawns:4,} spawns  {_money(session.sidechain_usd):>10} "
+                       f"on subagents  {name(session.project)[:34]}")
+    out += ["",
+            "  The cap asks, it does not block, and it asks once per session. Where the host",
+            "  has no permission prompt, an unattended run, the question becomes a refusal.",
+            "", f"  Spend is {ESTIMATE_CAVEAT}.", ""]
+    return "\n".join(out)
+
+
+def _spawn_cap() -> int:
+    """The shipped cap, read from the catalogue rather than repeated here."""
+    from . import rulesets
+
+    rule = rulesets.rule_by_id("fan-out.subagent-spawn-cap")
+    return int(rule["max_per_session"]) if rule else 0

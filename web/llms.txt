@@ -52,7 +52,7 @@ Claude Code plugin, nothing else to install:
 /plugin install provenrail-guard@provenrail
 ```
 
-The plugin carries its own dependency-free engine, so 44 rules are armed on the next tool call with no package, no account and no config file. `/guard-status` reports what it has actually stopped, `/guard-rules` lists every rule, `/guard-budget` sets a cap.
+The plugin carries its own dependency-free engine, so 45 rules are armed on the next tool call with no package, no account and no config file. `/guard-status` reports what it has actually stopped, `/guard-rules` lists every rule, `/guard-budget` sets a cap.
 
 Headless and CI, which is the case the classifier is absent from:
 
@@ -93,7 +93,7 @@ The tool recomputes the hash chain, every Ed25519 signature, the independent ser
 
 ## Pricing
 
-- Free, MIT, no account: the whole policy engine with 44 rules armed by default, day/session/total spend caps, the local journal, `/guard-status` and `/guard-card`, signed hash-chained receipts, `pr spend`, `pr reconcile` against a provider invoice, `pr attest`, both verifiers, and one independent RFC 3161 timestamp.
+- Free, MIT, no account: the whole policy engine with 45 rules armed by default, day/session/total spend caps, the local journal, `/guard-status` and `/guard-card`, signed hash-chained receipts, `pr spend`, `pr reconcile` against a provider invoice, `pr attest`, both verifiers, and one independent RFC 3161 timestamp.
 - Anchored statements, $9 a month: unlimited `pr anchor-push`, an RFC 3161 timestamp from a public authority on every anchor, and a public receipt page a third party can open with no account. You send a 32-byte fingerprint of your records and nothing else; you keep every record and the endpoint has no field one could arrive in.
 - Nothing is metered and nothing that refuses a tool call is behind a payment. 14-day refund. The AGPL server is self-hostable and is not sold.
 

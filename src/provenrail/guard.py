@@ -87,8 +87,8 @@ HOOK_TIMEOUT_S = 15
 # The packs a fresh install arms. `git-worktree` is first because it is the incident class
 # people actually report: uncommitted work destroyed by `git reset --hard` or `git checkout --`,
 # not by anything containing `rm`.
-DEFAULT_PACKS = ["git-worktree", "destructive", "database", "cloud", "secrets", "production",
-                 "access"]
+DEFAULT_PACKS = ["fan-out", "git-worktree", "destructive", "database", "cloud", "secrets",
+                 "production", "access"]
 
 # Every tool. A named list looks careful and was a hole: it covered the built-in tools and
 # nothing else, so an MCP server's `deleteVolume` (the exact shape of the PocketOS incident this
@@ -332,10 +332,15 @@ def decide(policy: Any, tool: str, tool_input: Any,
     effect = _rule_effect(policy, decision.rule_id)
     if decision.effect == ALLOW:
         verdict = "allow"
-    elif effect == REQUIRE_OVERSIGHT:
+    elif decision.effect == REQUIRE_OVERSIGHT or effect == REQUIRE_OVERSIGHT:
         # The human answering the Claude Code permission prompt IS the oversight this rule
         # asked for, so hand them the decision instead of hard-blocking work they would have
         # approved. Recorded either way.
+        #
+        # The decision's own effect is checked first because a `limit` rule with
+        # `on_exceed: require_oversight` asks while its declared effect is still `limit`.
+        # Reading only the rule's effect sent those to the `deny` branch, which is a wall
+        # where the rule asked for a question.
         verdict = "ask"
     else:
         verdict = "deny"

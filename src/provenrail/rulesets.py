@@ -586,6 +586,37 @@ CATALOG: dict[str, dict[str, Any]] = {
              "note": "A classic exfiltration destination. Blocks legitimate gist use too."},
         ],
     },
+    # Subagent fan-out. The one runaway a coding agent produces that no vendor caps, and the
+    # loudest unfixed report in the public tracker: anthropics/claude-code #68619 (open,
+    # critical) records 1.2M tokens in 30 minutes with recursion 50+ levels deep and
+    # `CLAUDE_CODE_FORK_SUBAGENT=0` ignored, and #68110 records unbounded recursive spawning.
+    #
+    # DEPTH is deliberately not capped here. Claude Code already refuses at depth 3 of 3
+    # ("Subagent nesting limit reached"), measured in 30 real occurrences, so a depth rule
+    # would claim credit for the host's own limit. BREADTH is uncapped everywhere, and breadth
+    # is what the reports describe: one session spawning 171 subagents to check one thing.
+    #
+    # The cap comes from the distribution of 915 real sessions, not from a round number.
+    # 12% of sessions spawn at all; among those the median is 4 and the 90th percentile is 35,
+    # so the shape is bimodal and a low cap would punish the ordinary case. At 20 the rule
+    # reaches 18% of spawning sessions, which is 2.3% of all sessions, while still catching
+    # every runaway in the corpus (max observed 93). Re-measure with `pr report --fanout`
+    # before changing it.
+    "fan-out": {
+        "title": "Subagent fan-out",
+        "description": "A per-session cap on how many subagents one session may spawn.",
+        "rules": [
+            {"id": "fan-out.subagent-spawn-cap", "effect": "limit", "event_type": "tool_call",
+             "tool": "Task|Agent", "max_per_session": 20, "on_exceed": "require_oversight",
+             "reason": "this session has already spawned 20 subagents; each one starts a fresh "
+                       "context that is billed and metered on top of this one",
+             "note": "Asks rather than blocks, because wide fan-out is often exactly what you "
+                     "wanted. On a host with no permission prompt the question becomes a "
+                     "refusal, which is the right answer when nobody is there to say yes. "
+                     "Both tool names are matched: Claude Code renamed Task to Agent, and a "
+                     "rule naming only one of them silently never fires."},
+        ],
+    },
     "blast-radius": {
         "title": "Blast radius limits",
         "description": "Per-session caps, so a loop cannot do unlimited damage.",
@@ -611,7 +642,7 @@ CATALOG: dict[str, dict[str, Any]] = {
 # Fields the policy engine understands. `note` is catalogue metadata for humans and is
 # stripped before the rule reaches the engine.
 _ENGINE_FIELDS = ("id", "effect", "event_type", "tool", "not_tool", "resource", "provider",
-                  "arg_contains", "predicate", "max_per_session", "reason")
+                  "arg_contains", "predicate", "max_per_session", "on_exceed", "reason")
 
 
 

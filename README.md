@@ -86,7 +86,7 @@ Inside Claude Code:
 ```
 
 That is the whole setup. No `pip install`, no account, no server, nothing leaves your
-machine, and the next tool call your agent makes is already being checked. 44 rules are
+machine, and the next tool call your agent makes is already being checked. 45 rules are
 armed with no config file, because installing a plugin called "guard" is the opt-in and a
 guard that waits for configuration protects nobody.
 
@@ -604,7 +604,7 @@ over across timestampers for availability.
 
 Guardrails are configurable without touching agent code and alert in real time: enable
 prebuilt rule packs by name (`{"policy": {"use": ["destructive", "secrets", "money"]}}`,
-seven packs (35 rules) covering destructive tools, leaked credentials, money movement, production
+eight packs (35 rules) covering destructive tools, leaked credentials, money movement, production
 changes, privilege escalation, exfiltration shapes, and per-session blast-radius caps; list
 them with `pr rules`, check which would match your actual tool names with
 `pr rules --check bundle.json`), or declare a

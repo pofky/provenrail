@@ -131,11 +131,18 @@ class Rule:
     provider: str = "*"             # glob over a model provider
     arg_contains: str = ""           # regex over the call's argument/request text (content gate)
     predicate: str = ""              # named check in predicates.REGISTRY, ANDed with arg_contains
-    max_per_session: int | None = None  # for LIMIT: deny once this many matches occur in a session
+    max_per_session: int | None = None  # for LIMIT: act once this many matches occur in a session
+    # What a LIMIT does once the cap is passed. DENY is the default and the original behaviour.
+    # REQUIRE_OVERSIGHT makes the cap a question instead of a wall, which is the right shape
+    # for a cap on something legitimate-but-runaway: a human can wave through a wide fan-out,
+    # and on a host with no "ask" verdict the question degrades to a refusal, so an unattended
+    # run is still bounded. It never loosens anything, because a cap that is not reached
+    # decides nothing either way.
+    on_exceed: str = DENY
     reason: str = ""
 
     _FIELDS = ("id", "effect", "event_type", "tool", "not_tool", "resource", "provider",
-               "arg_contains", "predicate", "max_per_session", "reason")
+               "arg_contains", "predicate", "max_per_session", "on_exceed", "reason")
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Rule:
@@ -418,8 +425,11 @@ class Policy:
             if rule.effect == LIMIT:
                 session.counts[rule.id] = session.counts.get(rule.id, 0) + 1
                 if rule.max_per_session is not None and session.counts[rule.id] > rule.max_per_session:
-                    return Decision(DENY, rule.id, rule.reason or
-                                    f"exceeds the {rule.max_per_session}-per-session limit")
+                    over = rule.reason or f"exceeds the {rule.max_per_session}-per-session limit"
+                    if rule.on_exceed == REQUIRE_OVERSIGHT and not session.satisfied(rule.id):
+                        return Decision(REQUIRE_OVERSIGHT, rule.id, over)
+                    if rule.on_exceed != REQUIRE_OVERSIGHT:
+                        return Decision(DENY, rule.id, over)
                 if provisional is None:
                     provisional = Decision(ALLOW, rule.id, f"within the per-session limit "
                                            f"({session.counts[rule.id]}/{rule.max_per_session})",

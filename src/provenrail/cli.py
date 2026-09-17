@@ -1434,7 +1434,9 @@ def _cmd_transcript_report(args) -> int:
     except (FileNotFoundError, ValueError) as e:
         print(str(e), file=sys.stderr)
         return 2
-    if args.as_json:
+    if getattr(args, "fanout", False) and not args.as_json:
+        print(report_mod.render_fanout(built, share=args.share), end="")
+    elif args.as_json:
         print(json.dumps(report_mod.as_json(built, share=args.share), indent=2))
     else:
         print(report_mod.render_text(built, share=args.share), end="")
@@ -2003,6 +2005,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="the version that is safe to post: no paths, no names, no operands")
     r.add_argument("--json", action="store_true", dest="as_json",
                    help="machine-readable output")
+    r.add_argument("--fanout", action="store_true",
+                   help="how wide your sessions spread, and what the subagents cost")
     r.add_argument("--regime", choices=["eu-ai-act", "hipaa", "generic"], default="generic")
     r.add_argument("--pin")
     r.add_argument("--md", action="store_true", help="render human-readable Markdown")

@@ -21,8 +21,9 @@ from pathlib import Path
 
 import pytest
 
-from provenrail import guard
+from provenrail import guard, rulesets
 from provenrail.easy import PolicyConfigError, load_policy
+from provenrail.policy import ALLOW, REQUIRE_OVERSIGHT, SessionState
 
 ROOT = Path(__file__).resolve().parent.parent
 STANDALONE = ROOT / "plugins" / "provenrail-guard" / "scripts" / "guard_standalone.py"
@@ -94,7 +95,7 @@ def test_both_engines_agree_on_every_case(tmp_path, tool, tool_input):
 
 
 @pytest.mark.parametrize("pack", ["destructive", "secrets", "production", "access",
-                                  "money", "exfiltration"])
+                                  "money", "exfiltration", "fan-out"])
 def test_both_engines_agree_pack_by_pack(tmp_path, pack):
     """Not just the default set: a user who arms one pack must get the same answer too."""
     for tool, tool_input in CASES:
@@ -562,3 +563,44 @@ def test_an_unarmed_project_still_tells_cursor_to_carry_on(tmp_path):
     assert proc.returncode == 0
     assert json.loads(proc.stdout) == {"permission": "allow"}
     assert "NO guardrails are armed" in proc.stderr
+
+
+def test_both_engines_count_subagent_spawns_the_same_way(tmp_path):
+    """The fan-out cap is the first rule whose verdict depends on how many times it has
+    already fired, so the two engines have to agree about the count as well as the rule.
+
+    The counts live in a state file shared across hook processes, which is the only way a cap
+    can hold at all: a hook fires in its own process, so an in-memory counter would reset on
+    every single tool call and the cap would never be reached.
+    """
+    cap = rulesets.rule_by_id("fan-out.subagent-spawn-cap")["max_per_session"]
+    for i in range(cap):
+        assert _standalone_verdict(tmp_path, ["fan-out"], "Agent", {"prompt": "x"}) == "allow", i
+    assert _standalone_verdict(tmp_path, ["fan-out"], "Agent", {"prompt": "x"}) == "ask"
+
+    state = SessionState()
+    policy = load_policy({"use": ["fan-out"]})
+    ctx = {"tool": "Agent", "match_text": "", "cwd": str(tmp_path)}
+    for _ in range(cap):
+        assert policy.decide("tool_call", ctx, state).effect == ALLOW
+    assert policy.decide("tool_call", ctx, state).effect == REQUIRE_OVERSIGHT
+
+
+def test_the_zero_install_engine_refuses_a_wide_fan_out_where_nobody_can_be_asked(tmp_path):
+    """Cursor's shell event has no "ask" verdict, so the question has to become a refusal.
+    An unattended run is the one that most needs the cap to hold."""
+    cap = rulesets.rule_by_id("fan-out.subagent-spawn-cap")["max_per_session"]
+    (tmp_path / ".provenrail.json").write_text(
+        json.dumps({"policy": {"use": ["fan-out"]}}), encoding="utf-8")
+    verdicts = []
+    for _ in range(cap + 1):
+        proc = subprocess.run(
+            [sys.executable, str(STANDALONE), "--host", "cursor", "--event", "pre"],
+            input=json.dumps({"hook_event_name": "beforeShellExecution", "command": "x",
+                              "conversation_id": "c1", "workspace_roots": [str(tmp_path)]}),
+            capture_output=True, text=True, cwd=str(tmp_path),
+            env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path)},
+        )
+        assert proc.returncode == 0, proc.stderr
+        verdicts.append(json.loads(proc.stdout)["permission"] if proc.stdout.strip() else "allow")
+    assert "ask" not in verdicts, "Cursor has no ask verdict; the cap must refuse instead"

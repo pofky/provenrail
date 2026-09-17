@@ -77,7 +77,7 @@ REQUIRE_OVERSIGHT = "require_oversight"
 LIMIT = "limit"
 ALLOW = "allow"
 ENGINE_FIELDS = ("id", "effect", "event_type", "tool", "not_tool", "resource", "provider",
-                 "predicate", "arg_contains", "max_per_session", "reason")
+                 "predicate", "arg_contains", "max_per_session", "on_exceed", "reason")
 
 
 # ---------------------------------------------------------------- rules
@@ -532,8 +532,13 @@ def decide(rules, tool, tool_input, counts, cwd=""):
             cap = rule.get("max_per_session")
             counts[rule["id"]] = counts.get(rule["id"], 0) + 1
             if isinstance(cap, int) and counts[rule["id"]] > cap:
-                return "deny", rule["id"], rule.get("reason") or (
-                    f"exceeds the {cap}-per-session limit")
+                over = rule.get("reason") or f"exceeds the {cap}-per-session limit"
+                # A cap on something legitimate-but-runaway asks instead of walling, and the
+                # question degrades to a refusal on a host with no prompt. Held against
+                # `provenrail.policy` case by case in tests/test_guard_standalone.py.
+                if rule.get("on_exceed") == REQUIRE_OVERSIGHT:
+                    return "ask", rule["id"], over
+                return "deny", rule["id"], over
             if provisional is None:
                 provisional = ("allow", rule["id"],
                                f"within the per-session limit ({counts[rule['id']]}/{cap})")

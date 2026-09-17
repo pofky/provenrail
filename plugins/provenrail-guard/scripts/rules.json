@@ -2,6 +2,7 @@
   "generated_by": "tools/vendor_guard_rules.py",
   "schema": 1,
   "default_packs": [
+    "fan-out",
     "git-worktree",
     "destructive",
     "database",
@@ -465,6 +466,21 @@
           "not_tool": "Write|Edit|MultiEdit|NotebookEdit|Task|Agent|WebFetch|WebSearch|AskUserQuestion|TodoWrite|str_replace*|create_file|*write_file|Read|Glob|Grep",
           "arg_contains": "\\b(pastebin\\.com|gist\\.github\\.com|transfer\\.sh|file\\.io|0x0\\.st|ix\\.io|dpaste\\.(com|org)|hastebin\\.com|sprunge\\.us|termbin\\.com|paste\\.rs|bashupload\\.com|oshi\\.at|catbox\\.moe|litterbox\\.catbox\\.moe|anonfiles\\.com|gofile\\.io|tmpfiles\\.org|ttm\\.sh|clbin\\.com|envs\\.sh|paste\\.ee|controlc\\.com)\\b",
           "reason": "argument references a public paste or file-drop site"
+        }
+      ]
+    },
+    "fan-out": {
+      "title": "Subagent fan-out",
+      "description": "A per-session cap on how many subagents one session may spawn.",
+      "rules": [
+        {
+          "id": "fan-out.subagent-spawn-cap",
+          "effect": "limit",
+          "event_type": "tool_call",
+          "tool": "Task|Agent",
+          "max_per_session": 20,
+          "on_exceed": "require_oversight",
+          "reason": "this session has already spawned 20 subagents; each one starts a fresh context that is billed and metered on top of this one"
         }
       ]
     },
