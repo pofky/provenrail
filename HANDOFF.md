@@ -88,9 +88,9 @@ the sitemap. Every direction above is unfalsifiable until something is posted.
 
 ## Next in order
 
-1. **Run the two blocked commands.** `Marketing/polar-migration-operator-steps.txt` FIRST: the
-   pricing page says $9 and live checkout still charges $29. Then
-   `Marketing/release-0.5.0-operator-steps.txt` for the PyPI upload.
+1. **Publish 0.5.0.** `Marketing/release-0.5.0-operator-steps.txt`. The wheel is built from
+   `main`, checked, and proven both to verify a real bundle and to exit 1 on a tampered one.
+   The upload is refused for the agent by the classifier, so it is an operator command.
 2. **Submit the plugin.** `Marketing/plugin-directory-submission.txt`, Console form at
    platform.claude.com/plugins/submit. `claude plugin validate` passes and is a test.
 3. **Post, leading with fan-out.** Comment the working cap and the measured numbers into #68619
@@ -168,9 +168,19 @@ the sitemap. Every direction above is unfalsifiable until something is posted.
 - **The tag `v0.5.0` points one commit behind `main`.** Moving a pushed tag needs a force push,
   which is gated. The only difference inside the package is a docstring in `server/plans.py`;
   the wheel in `dist/` is built from `main` and is the one to upload.
-- **The site says $9 and checkout charges $29** until step 1 of the Polar file is run. Confirmed
-  live: `/pricing` renders $9, `polar-prices` returns 2900 and 9900, and the account page paints
-  `$29/mo` from it.
+- **Billing is consistent as of 2026-09-17 and was verified live.** The operator ran both
+  Supabase secret commands; `polar-prices` now returns exactly one product, `builder` =
+  "Anchored statements" at 900 usd/month, and the account page paints `$9/mo` from it with a
+  clean console. Nothing in Polar itself needed changing: own org, webhook correct in raw format
+  with all eight events, $9 product already live. One optional step remains, deliberately last
+  because archiving before the secret moved would have broken checkout: archive Builder
+  (`0b5e05d4-...`, $29) and Team (`c70fdf7a-...`, $99) in the Polar dashboard. Both agent paths
+  to that are gated, the classifier on secret writes and autopilot's extreme gate on live Polar
+  writes, and both gates are right.
+- **The only subscription that has ever existed is the operator's own $0 billing-proof run**
+  (`billing-proof+delete-me@provenrail.com`, created and canceled within four minutes on
+  2026-08-05, period ended 2026-09-05). An earlier note claiming there were none at all was
+  wrong and is corrected in `Marketing/polar-migration-operator-steps.txt`.
 - **Nobody has installed the plugin except us.** Everything in the funnel is a claim about a path
   no stranger has walked.
 - **Whether plugin hooks fire inside `Task` subagents is untested**, and it is where two of the
