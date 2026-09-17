@@ -1,43 +1,43 @@
 # HANDOFF
 
-Last updated 2026-09-16. Branch `main`, tag `v0.5.0` (one commit behind `main`, see below).
+Last updated 2026-09-17. Branch `main`, tag `v0.5.0` (one commit behind `main`, see below).
 **0.5.0 is built, proven and NOT on PyPI.** The upload is blocked for the agent and is written
 up in `Marketing/release-0.5.0-operator-steps.txt`. The site is deployed and current. Read this
 first, then `WORKLOG.md` for history.
 
 ## Where things stand
 
-The wedge the 0.4.x guard was aimed at closed underneath it. Auto mode is now the default
-permission mode for interactive sessions on Pro, Max and Team, it runs `git status` before a
-command that would discard uncommitted work, and it refuses a critical-path `rm` even when a
-hook says allow. That is most of what the destructive pack sold, given away free by the vendor,
-and no amount of rule quality wins it back.
+**The product was pointed at the wrong half of itself, and 2026-09-17 turned it.** Research
+across three source bases said the same thing independently: on the same audience in the same
+window, a security firewall for agents took 112 points on HN while every tamper-evident
+audit-trail and cost-ledger tool took 2 to 5. Blocking outranks recording by 25 to 50 times.
+Corroborated by KPMG Q2 2026 (66% of orgs have AI cost dashboards, 36% can control anything)
+and by 13 observability products of which zero block anything.
 
-Two things auto mode does not do, and 0.5.0 is built on exactly those two.
+**The new lead is the subagent fan-out cap, because it is the one control no vendor can ship.**
+Claude Code refuses a subagent at depth 3 of 3, which bounds how DEEP the tree goes; nothing
+anywhere bounds how WIDE it goes, and width is what the public reports describe. #68619 is open
+and critical: 1.2M tokens in about 30 minutes with `CLAUDE_CODE_FORK_SUBAGENT=0` ignored.
+#68110 is unbounded recursive spawning. A vendor will not ship "refuse the 21st subagent",
+because every refused spawn is refused revenue or a paying customer told to use less.
 
-**There is no dollar cap anywhere in the permission system.** `/guard-budget 25` prices the
-agent's own transcript and refuses the next tool call once the day's estimate crosses the
-number. Estimated, and the word appears wherever the figure does, because a transcript carries
-tokens, not prices.
+**What was killed, on evidence.** "Prove to a client what your agent did" is dead: agency and
+studio owners have the lowest AI disclosure rate of any group measured (Envato, n=1,780, 28%),
+the ACM CHI 2026 freelancer study is titled "Better Ask for Forgiveness than Permission", and
+no procurement questionnaire found anywhere asks whether delivered code was AI-generated. The
+44 git and delete rules target a pain that mostly is not happening: across 39,000 claude-code
+issues in 4.5 months, 154 mention `git reset`, 133 `force push`, and 5 mention a dropped
+database, while auto mode has covered the interactive case free since 2026-08-14.
 
-**The classifier is simply absent outside an interactive paid session.** `claude -p` and the
-Agent SDK start in Manual on every plan, and so do Bedrock, Google Cloud's Agent Platform,
-Microsoft Foundry and Claude Platform on AWS. Hooks fire in all of them. That is where the same
-policy still buys something, and it is CI, schedules and unattended runs, where nobody approves
-a prompt.
+**What the vendor already took since the last handoff.** `claude -p --max-budget-usd` has
+enforced a per-run dollar cap since v2.1.217, counting subagent spend and killing background
+subagents at the cap. `/usage` has a 7-day toggle, per-subagent attribution and behaviour flags
+for long context and cache misses. So the spend cap and the weekly meter are both the vendor's
+now. Do not re-enter either lane.
 
-**The thing that pays out on day one is `pr report`.** It reads the Claude Code transcripts
-already on the machine, prices them per project and per day, and replays every tool call through
-the rules to say how many would have been stopped. On this laptop: 942 sessions, 23 projects,
-31 days, 79,883 tool calls, an estimated $7,863.51, and 517 calls the armed rules would have
-refused. It needs no install into the user's project, makes no network call, and is the honest
-answer to "why would I believe your numbers". It leads the homepage and the launch drafts.
-
-**Distribution is still the binding constraint and still has not been tested.** Nothing has ever
-been posted. The launch drafts in `Marketing/` are rewritten around the $7,863.51 number and
-every claim in them is a test in this repo. Two listings are now blocked only on an operator
-action rather than on work: the community plugin marketplace submission
-(`Marketing/plugin-directory-submission.txt`) and the PyPI upload.
+**Distribution is unchanged and is still the only thing that matters.** Nothing has ever been
+posted. The analytics show no human traffic at all: the per-page counts are a crawler walking
+the sitemap. Every direction above is unfalsifiable until something is posted.
 
 ## Done and verified
 
@@ -89,38 +89,29 @@ action rather than on work: the community plugin marketplace submission
 ## Next in order
 
 1. **Run the two blocked commands.** `Marketing/polar-migration-operator-steps.txt` FIRST: the
-   pricing page says $9 and the account page and live checkout still say and charge $29,
-   because the product id is in a Supabase secret the agent may not write. That is a visible
-   contradiction on the one surface where money changes hands. Then
+   pricing page says $9 and live checkout still charges $29. Then
    `Marketing/release-0.5.0-operator-steps.txt` for the PyPI upload.
-2. **Submit the plugin.** `Marketing/plugin-directory-submission.txt` is paste-ready for the
-   Console form at platform.claude.com/plugins/submit (the claude.ai form needs a Team or
-   Enterprise org this account does not have). Validation already passes.
-3. **Post. Nothing above item 1 and nothing below this line matters until this happens.**
-   `Marketing/launch-show-hn.txt` leads with the $7,863.51 figure;
-   `Marketing/launch-week-checklist.txt` has the day-by-day plan and the success numbers fixed
-   in advance.
-4. **Answer the bypass replies the same day.** Each named command becomes a row in
-   `tests/test_predicates.py` and a release. That is the measurement loop.
-5. **Arm the blast-radius pack by default, and cap subagent fan-out.** Hooks DO fire inside
-   `Task` subagents: verified 2026-09-16 with `claude -p --plugin-dir` under
-   `bypassPermissions`, where a subagent's `chmod 777` was refused by
-   `access.world-writable-chmod` and the file's mode was unchanged. Correcting what this
-   entry said first: parent and subagent share ONE `session_id`. The field that marks a call
-   as coming from inside a subagent is `agent_id`, which is absent on the parent's own calls,
-   and `agent_type` names the subagent. So an `Agent` tool call that itself carries `agent_id`
-   is a subagent spawning a subagent, which is the #68619 recursion signature in one field.
-   Captured from real payloads, which also carry `transcript_path`, `cwd`, `permission_mode`
-   and `tool_use_id`. That matters because uncontrolled fan-out is one of the two
-   loudest pains in the public issue tracker and it is unfixed: #68619 (open, CRITICAL, 33
-   comments) reports 1.2M tokens in 30 minutes, recursion 50+ levels deep, and
-   `CLAUDE_CODE_FORK_SUBAGENT=0` ignored; #68110 reports exponential fan-out. Our blast-radius
-   pack is the right shape for it and is currently opt out, so it protects nobody by default.
-   `--max-budget-usd` caps dollars in print mode; it does not cap depth or breadth, and on a
-   subscription the dollars are notional.
-6. **Watch plugin installs and unique repo views, not stars.** The old kill criterion (fewer
-   than 70 unique 14-day cloners) read 88 on day zero with nothing posted, so it measured
-   nothing.
+2. **Submit the plugin.** `Marketing/plugin-directory-submission.txt`, Console form at
+   platform.claude.com/plugins/submit. `claude plugin validate` passes and is a test.
+3. **Post, leading with fan-out.** Comment the working cap and the measured numbers into #68619
+   and #68110, then Show HN around the 171-spawn line. Every number in the copy is a test here.
+4. **The 30-day falsifier, which needs no telemetry and no users to start.** Within 30 days of
+   that post, at least 20 people who are not the operator publicly post their own
+   `pr report --fanout` number, and at least one asks how to enforce the cap on someone else's
+   machine. Under 20 means the fan-out pain is loud on GitHub but not felt widely enough to
+   drive installs, and the governor thesis is wrong. 20 or more with nobody asking about a
+   second machine means the free product is right and the paid shape is wrong: re-price, do not
+   re-aim.
+5. **Pricing is an open operator decision, deliberately not taken here.** $9 is in a dead zone:
+   the only priced self-serve comparable for tamper-evidence is TestifySec at $65/user/month,
+   and $30/seat killed Vibe Kanban with 28,100 stars and thousands of daily engineers. Fable's
+   recommendation is a flat team price ($29/month up to 10 seats, $99 up to 50) on the grounds
+   that the unit of value is a shared quota and a shared config, not a person. Not implemented:
+   it is a commercial decision, the operator already chose the single $9 SKU once, and the Polar
+   side is blocked anyway.
+6. **Capture a real payload for one more host.** `hosts.CAPTURED_PAYLOAD` now contains
+   `claude-code` and nothing else, and the homepage says so in words. `codex login` is the
+   cheapest next one, and the claims test relaxes by itself the moment the fixture lands.
 
 ## Traps
 

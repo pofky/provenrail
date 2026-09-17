@@ -26,8 +26,7 @@ provenrail-guard
 
 === DESCRIPTION ===
 
-A day spend cap that refuses the next tool call once your agent has spent it, plus delete and git rules that screen where a command points rather than what it says. Deterministic, offline, and it runs in `claude -p`, the Agent SDK and CI, where the auto mode classifier does not run at all.
-
+Counts your agent's subagent spawns and asks before the twenty-first, because nothing else limits how wide a session fans out. Plus a day spend cap and delete rules that screen where a command points rather than what it is called. Deterministic, offline, and it runs in `claude -p` and CI where the auto mode classifier does not.
 
 === CATEGORY ===
 
@@ -36,16 +35,17 @@ security
 
 === IF THERE IS A LONGER "WHAT IT DOES" FIELD ===
 
-Auto mode already covers a lot of this for interactive sessions on a paid plan, and it is good. Two things it does not do. It has no dollar limit anywhere in the permission system, and it is simply absent from claude -p, the Agent SDK, Bedrock, Google Cloud's Agent Platform, Microsoft Foundry and Claude Platform on AWS, which all start in Manual. Hooks fire in all of those, so the same policy applies unattended and in CI where nobody is there to approve a prompt.
+Claude Code refuses a subagent at depth 3 of 3. That bounds how deep the tree goes. Nothing anywhere bounds how wide it goes, and width is what the reports are about: issue #68619 is open and records 1.2 million tokens consumed in roughly 30 minutes with CLAUDE_CODE_FORK_SUBAGENT=0 ignored, and #68110 records general-purpose subagents recursively spawning unbounded children. Every subagent starts a fresh context that is billed and metered on top of the one it came from.
 
-44 rules are armed by default out of 54, from seven packs: git-worktree, destructive, database, cloud, secrets, production and access. The rules come from public incident reports filed against coding agents rather than from a list of scary-looking verbs, so they cover git reset --hard, git checkout -- ., git clean -fd, git stash, a framework database reset pointed at a live database, terraform destroy, DROP TABLE, a DELETE with no WHERE, kubectl delete namespace and a credential about to be committed. The git rules read the repository first and stay quiet when there is nothing uncommitted and nothing unpushed, because a prompt about nothing is how people learn to click through prompts. rm is screened by where it points: a delete inside your repository, a temp directory, a package cache or a build directory runs without a word, and a home directory, a whole disk or an unset variable followed by a slash is refused.
+This counts the spawns and asks you before the twenty-first. The cap of 20 comes from a measured distribution rather than from a round number: over 915 real sessions, 12 percent spawn a subagent at all, and among those the median is 4 and the 90th percentile is 35, so a low cap would interrupt ordinary work. At 20 the rule reaches 1.6 percent of all sessions and still catches every runaway in that corpus, the widest of which spawned 93 times and spent 253 dollars on subagents alone. It asks rather than blocks, because wide fan-out is often exactly what you wanted, and where there is no permission prompt to answer, unattended or in CI, the question becomes a refusal.
 
-/guard-budget 25 prices the session's own transcript and refuses the next tool call once the day's estimated cost crosses the number. Estimated, and the word appears wherever the figure does, because a transcript does not carry a price.
+45 more rules are armed by default across eight packs, screening where a delete or a git command actually points rather than what it is called, so rm -rf ./build runs silently and rm -rf ~ is refused. The git rules read the repository first and stay quiet when the tree is clean and pushed.
 
-Nothing is installed and nothing leaves the machine. No account, no pip install, no server, no network call. Every block and every prompt is written to a local journal that /guard-status reports, and installing the Provenrail CLI upgrades that journal in place into an Ed25519 signed, hash-chained receipt that a second implementation verifies in a browser. That part is optional and the guard is complete without it.
+Auto mode already covers a lot of the destructive-command case for interactive sessions on a paid plan, and it is good. Two things it does not do: there is no dollar cap on an interactive session, and it is simply absent from claude -p, the Agent SDK, Bedrock, Google Cloud's Agent Platform, Microsoft Foundry and Claude Platform on AWS, which all start in Manual. Hooks fire in all of those, including inside subagents, which was verified rather than assumed.
 
-If anything at all goes wrong the tool call proceeds: the hook exits with no opinion rather than failing, and says so once a day rather than on every call. A guardrail that bricks your agent is worse than no guardrail.
+Nothing is installed and nothing leaves the machine. No account, no pip install, no server, no network call. pr report --fanout reads transcripts you already have and tells you how wide your own sessions spread, offline.
 
+If anything at all goes wrong the tool call proceeds: the hook exits with no opinion rather than failing. A guardrail that bricks your agent is worse than no guardrail.
 
 === IF THERE IS AN "INSTALL" OR "USAGE" FIELD ===
 
