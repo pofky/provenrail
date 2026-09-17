@@ -42,11 +42,14 @@ from typing import Any
 DEFAULT_HOST = "claude-code"
 
 #: Hosts for which a REAL payload, emitted by the vendor's own CLI, is checked in under
-#: `tests/fixtures/hosts/`. Empty, deliberately. Claude Code could not be captured on this
-#: machine either (the nested CLI is not logged in), and Codex CLI is installed but its stored
-#: token is expired. Every fixture in that directory is synthetic and says so in the file.
-#: Nothing in `src/` may call a host outside this tuple verified, driven or tested.
-CAPTURED_PAYLOAD: tuple[str, ...] = ()
+#: `tests/fixtures/hosts/`. Claude Code was captured on 2026-09-17 from a live `claude -p`
+#: session. The other four are still synthetic, hand-written from each vendor's published hook
+#: reference, and say so in the file: Codex CLI's stored token is expired and the rest are not
+#: installed here. Documentation is evidence about a vendor's intent, not evidence that our
+#: adapter parses what the vendor actually sends, and the gap between those two is a guard that
+#: silently stops guarding. Nothing in `src/` may call a host outside this tuple verified,
+#: driven or tested.
+CAPTURED_PAYLOAD: tuple[str, ...] = ("claude-code",)
 
 
 class UnknownHost(ValueError):

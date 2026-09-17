@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Spend Cap and Delete Policy for Coding Agents | Provenrail</title>
+  <title>Cap Subagent Fan-Out in Coding Agents | Provenrail</title>
   <meta name="description" content="A day dollar cap that refuses your coding agent's next tool call, and delete rules that resolve where a command points. Runs in claude -p, the SDK and CI.">
   <link rel="canonical" href="https://provenrail.com/">
   <meta name="robots" content="index,follow">
@@ -162,20 +162,27 @@
     <section class="hero" aria-labelledby="hero-h1">
       <div class="hero-glow" aria-hidden="true"></div>
       <div class="container">
-        <p class="hero-eyebrow">Deterministic policy for coding agents</p>
+        <p class="hero-eyebrow">A hard limit on what coding agents may spawn</p>
 
         <h1 class="hero-title" id="hero-h1">
-          Give your coding agent a spend cap. <br class="wide-only"><em>And a policy that holds where nobody is watching.</em>
+          One session spawned 171 subagents to check one thing. <br class="wide-only"><em>Provenrail asks you at the 21st.</em>
         </h1>
 
         <p class="hero-claim">
-          Claude Code's auto mode is a good default, and it is an interactive-session default.
-          Start the same agent with <code>claude -p</code>, through the Agent SDK, or on Bedrock,
-          Google Cloud's Agent Platform or Microsoft Foundry, and it starts in the permissive
-          <code>default</code> mode with no classifier in front of it. Hooks still run in all of
-          them. Provenrail is a deterministic policy inside that hook: it prices the agent's own
-          transcript and refuses the next tool call once your day cap is over, and it resolves
-          where a delete or a git command actually points before letting it through.
+          Every subagent starts a fresh context that is billed and metered on top of the one you
+          are already in, and nothing anywhere caps how many of them a session may start. Claude
+          Code refuses at three levels <em>deep</em>; it has no opinion about width. Provenrail
+          counts the spawns and asks you before the twenty-first, from one policy file that is
+          enforced identically in Claude Code, Codex, Gemini CLI, Copilot and Cursor. Where there
+          is no permission prompt to answer, an unattended run or CI, the question becomes a
+          refusal.
+        </p>
+        <p class="hero-claim" style="font-size:.95rem;color:var(--text-lo)">
+          Said plainly, because you are going to install this: only the Claude Code adapter is
+          driven with a payload captured from the running CLI. The other four are written from
+          each vendor's published hook contract and are <strong>not yet driven against a live
+          install</strong>. The fixture for every host is in the repository and each one says
+          which it is.
         </p>
 
         <div class="hero-ctas">
@@ -189,14 +196,15 @@
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M2 8a6 6 0 1 0 12 0A6 6 0 0 0 2 8Zm4-1.5 4 1.5-4 1.5V6.5Z" fill="currentColor"/>
             </svg>
-            See what your agents already did
+            See your own fan-out number
           </a>
         </div>
 
         <p class="hero-lead-report" style="margin-top:1.1rem;color:var(--text-mid);max-width:62ch">
-          It starts by reading, not by blocking. <code>pr report</code> goes over the Claude Code
-          transcripts already on your disk and tells you what your agents spent, what they ran and
-          which of their commands these rules would have stopped, before you arm anything.
+          It starts by reading, not by blocking. <code>pr report --fanout</code> goes over the
+          transcripts already on your disk and tells you how wide your own sessions spread and
+          what their subagents cost, before you arm anything. Measured on the 915 sessions it was
+          built against: the widest spawned 93 times and spent $253 on subagents alone.
         </p>
 
         <p class="hero-risk">Free and MIT. No account, no server, and no network call in the decision path. <a href="/claude-code-guardrails" style="color:var(--accent)">Read every rule</a>.</p>
@@ -234,7 +242,7 @@
         <div class="split">
           <div>
             <div class="section-eyebrow">Before you change anything</div>
-            <h2 class="section-title" id="report-heading">One command tells you<br>what your agents already did.</h2>
+            <h2 class="section-title" id="report-heading">One command tells you<br>how wide your own sessions spread.</h2>
             <p class="lead">
               A guard only pays out on a day that has not happened yet. The transcripts of the
               work your agents already did are sitting in <code>~/.claude/projects</code> right
@@ -894,9 +902,6 @@
           <div class="footer-nav-label">Resources</div>
           <div class="footer-nav-links">
             <a href="/compare">Compare</a>
-            <a href="/vs-microsoft-agt">vs Microsoft AGT</a>
-            <a href="/for-agencies">For freelancers and agencies</a>
-            <a href="/ai-code-attribution">AI code attribution</a>
             <a href="/eu-ai-act">EU AI Act logging</a>
             <a href="/ai-agent-incidents">Agent incidents</a>
             <a href="/security">Security</a>

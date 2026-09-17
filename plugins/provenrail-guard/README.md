@@ -11,6 +11,30 @@ A spend cap your coding agent cannot talk its way past, and a delete policy that
 That is the whole setup. There is no second step, no `pip install`, no account, no server, and
 nothing leaves your machine. The next tool call your agent makes is already being checked.
 
+## The one control nothing else has: subagent fan-out
+
+Claude Code refuses a subagent at depth 3 of 3. That limits how **deep** the tree goes. Nothing
+anywhere limits how **wide** it goes, and width is what the reports are about:
+[#68619](https://github.com/anthropics/claude-code/issues/68619) (open, critical) records 1.2
+million tokens in roughly 30 minutes with `CLAUDE_CODE_FORK_SUBAGENT=0` ignored, and
+[#68110](https://github.com/anthropics/claude-code/issues/68110) records unbounded recursive
+spawning. Every subagent starts a fresh context that is billed and metered on top of the one it
+came from.
+
+This counts the spawns and asks you before the twenty-first.
+
+The cap is 20 because of a measured distribution, not because it is a round number. Over 915
+real sessions, 12% spawn a subagent at all; among those the median is 4 and the 90th percentile
+is 35. At 20 the rule reaches 1.6% of all sessions and still catches every runaway in that
+corpus, the widest of which spawned 93 times and spent $253 on subagents alone.
+
+It asks rather than blocks, because wide fan-out is often exactly what you wanted. Where there
+is no permission prompt to answer, unattended or in CI, the question becomes a refusal.
+
+```
+pr report --fanout    how wide your own sessions spread, read off transcripts you already have
+```
+
 ## Why this exists, given auto mode
 
 If every session you run is interactive on Pro, Max or Team, you already have most of the

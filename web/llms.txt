@@ -1,12 +1,24 @@
 # Provenrail
 
-Last updated: 2026-09-16.
+Last updated: 2026-09-17.
 
-> A deterministic policy layer for coding agents running where nobody is watching. It stops an agent at the tool boundary when it is about to spend past a dollar cap or destroy work no remote has a copy of, and it signs every decision into a hash-chained record anyone can verify with an open-source tool.
+> A deterministic policy layer for coding agents. Its distinctive control is a cap on subagent fan-out: nothing in any vendor's tooling limits how many subagents one session may spawn, and a runaway session spawns dozens, each starting a fresh context that is billed and metered on top of the one it came from. Provenrail counts the spawns and asks before the twenty-first. It also stops an agent that is about to spend past a dollar cap or destroy work no remote has a copy of, and it signs every decision into a hash-chained record anyone can verify with an open-source tool.
+
+## The subagent fan-out cap
+
+This is the part with no equivalent anywhere else, so it is stated precisely.
+
+Claude Code refuses a subagent at depth 3 of 3, which is a limit on how DEEP the tree goes. Nothing limits how WIDE it goes. The public reports are about width: anthropics/claude-code issue #68619 (open, critical) records 1.2 million tokens consumed in about 30 minutes with the documented off switch `CLAUDE_CODE_FORK_SUBAGENT=0` ignored, and issue #68110 records general-purpose subagents recursively spawning unbounded children.
+
+Provenrail ships a rule, armed by default, that counts subagent spawns per session and asks the user before the twenty-first. The cap of 20 was chosen from a measured distribution of 915 real sessions rather than picked as a round number: 12% of sessions spawn a subagent at all, and among those the median is 4 and the 90th percentile is 35, so a low cap would interrupt ordinary work. At 20 the rule reaches 1.6% of all sessions while still catching every runaway in that corpus, the widest of which spawned 93 times.
+
+It asks rather than blocks, because wide fan-out is often exactly what the user wanted. On a host with no permission prompt, which includes unattended and CI runs, the question becomes a refusal.
+
+`pr report --fanout` reads the transcripts already on disk and reports the same numbers for the reader's own machine, offline, with no network call and nothing installed into their project.
 
 ## What it is
 
-Provenrail is a hook, a CLI and a pair of SDKs. The hook sits at the agent's tool boundary. Before a tool call runs it does two things: it prices the agent's own transcript against a spend cap you set, and it resolves where a destructive command actually points. The verdict is computed locally with no network call, and the decision is Ed25519 signed and hash-chained so a third party can check it later.
+Provenrail is a hook, a CLI and a pair of SDKs. The hook sits at the agent's tool boundary. Before a tool call runs it does three things: it counts subagent spawns against the fan-out cap, it prices the agent's own transcript against a spend cap you set, and it resolves where a destructive command actually points. The verdict is computed locally with no network call, and the decision is Ed25519 signed and hash-chained so a third party can check it later.
 
 ## Why it exists, stated against the vendor's own defaults
 
@@ -108,7 +120,6 @@ The tool recomputes the hash chain, every Ed25519 signature, the independent ser
 - Conformance vectors both verifiers must agree on: https://provenrail.com/conformance
 - In-browser verifier: https://provenrail.com/verify
 - Changelog: https://provenrail.com/changelog
-- Record-layer background (second-page material, not the front of the product): https://provenrail.com/compare, https://provenrail.com/vs-microsoft-agt, https://provenrail.com/for-agencies, https://provenrail.com/ai-code-attribution, https://provenrail.com/eu-ai-act, https://provenrail.com/eu-ai-act-deadline-moved, https://provenrail.com/ai-agent-incidents
 
 ## Citation-friendly Q&A
 

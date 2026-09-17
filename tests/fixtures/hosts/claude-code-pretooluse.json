@@ -1,19 +1,66 @@
 {
-  "_synthetic": true,
-  "_why": "SYNTHETIC. Hand-written from the vendor's documentation, NOT captured from a running CLI. Nobody here has driven this host: Claude Code could not be captured on this machine (the nested CLI is not logged in) and Codex CLI is installed but its stored token is expired. Replace this file with a real payload the day one is captured, drop the synthetic flag, and add the host to hosts.CAPTURED_PAYLOAD. Until then nothing in src/ and nothing on the site may call this host verified.",
+  "_synthetic": false,
+  "_why": "CAPTURED on 2026-09-17 from a real `claude -p` session on the operator's machine, by replacing the plugin's hook script with one that appended its stdin and exited 0. Only the session id, prompt id, tool use id, agent id and the two paths are replaced, with values of the same shape; every field name, every nesting level and every other value is exactly what the CLI sent.",
   "_source": "https://code.claude.com/docs/en/hooks",
-  "_checked": "2026-09-16",
+  "_checked": "2026-09-17",
   "_note": "The command is the literal placeholder \"COMMAND\"; the test substitutes the command under test so one fixture carries the field names for every case rather than one fixture per command.",
+  "_capture_notes": [
+    "Parent and subagent share ONE session_id. The field that marks a call as coming from inside a subagent is agent_id, absent on the parent's own calls, and agent_type names the subagent. So an Agent spawn that itself carries agent_id is a subagent spawning a subagent.",
+    "The spawn tool is named Agent, not Task. A rule matching only the canonical name Task never fires here.",
+    "effort, prompt_id and tool_use_id are not in the published hook reference and were discovered by capture. Nothing here reads them; they are recorded so the next person knows the payload is wider than the docs."
+  ],
   "payload": {
-    "session_id": "1f0a5a2e-0000-4000-8000-000000000001",
-    "transcript_path": "/home/u/.claude/projects/demo/1f0a5a2e.jsonl",
+    "session_id": "17f00a4f-0000-4000-8000-000000000001",
+    "transcript_path": "/home/u/.claude/projects/demo/17f00a4f.jsonl",
     "cwd": "/home/u/demo",
+    "prompt_id": "61d0cabe-0000-4000-8000-000000000002",
+    "permission_mode": "bypassPermissions",
+    "effort": {
+      "level": "medium"
+    },
     "hook_event_name": "PreToolUse",
-    "permission_mode": "default",
     "tool_name": "Bash",
     "tool_input": {
-      "command": "COMMAND",
-      "description": "remove a directory"
-    }
+      "command": "COMMAND"
+    },
+    "tool_use_id": "toolu_00000000000000000000000001"
+  },
+  "_subagent_payload": {
+    "session_id": "17f00a4f-0000-4000-8000-000000000001",
+    "transcript_path": "/home/u/.claude/projects/demo/17f00a4f.jsonl",
+    "cwd": "/home/u/demo",
+    "prompt_id": "61d0cabe-0000-4000-8000-000000000002",
+    "permission_mode": "bypassPermissions",
+    "agent_id": "a62c12d50000000000000000000000",
+    "agent_type": "general-purpose",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "echo hello-from-subagent",
+      "description": "Print hello-from-subagent"
+    },
+    "tool_use_id": "toolu_00000000000000000000000001"
+  },
+  "_spawn_payload": {
+    "session_id": "17f00a4f-0000-4000-8000-000000000001",
+    "transcript_path": "/home/u/.claude/projects/demo/17f00a4f.jsonl",
+    "cwd": "/home/u/demo",
+    "prompt_id": "61d0cabe-0000-4000-8000-000000000002",
+    "permission_mode": "bypassPermissions",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Agent",
+    "tool_input": {
+      "description": "Run echo command",
+      "prompt": "Run the shell command `echo hello-from-subagent` and report its exact output.",
+      "subagent_type": "general-purpose",
+      "run_in_background": false
+    },
+    "tool_use_id": "toolu_00000000000000000000000001"
   }
 }

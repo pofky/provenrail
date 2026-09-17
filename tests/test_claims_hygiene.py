@@ -522,21 +522,34 @@ def test_the_homepage_does_not_sell_a_regime_with_no_dated_obligation():
             f"{phrase!r} is back above the footer on the homepage")
 
 
-def test_no_selling_page_names_an_agent_host_we_have_no_fixture_for():
-    """`hosts.py` does not exist yet and no captured payload exists for any agent other than
-    Claude Code. Naming one would be a promise the code breaks in silence: the reader installs
-    it, nothing is armed, and the first thing they learn about this product is that it lied.
+def test_no_selling_page_names_an_agent_host_without_saying_it_is_unproven():
+    """Naming a host we have never driven is a promise the code can break in silence: the
+    reader installs it, nothing is armed, and the first thing they learn about this product is
+    that it lied.
 
-    Scoped to the selling pages on purpose. `ai-code-attribution.html` names the same tools for
-    an unrelated reason, commit-trailer detection, and `test_the_advertised_detector_list_matches
-    _the_code` is what keeps that honest."""
-    unfixtured = ("Codex", "Gemini CLI", "Copilot", "Cursor")
+    The rule used to be "do not name them at all", written when `hosts.py` did not exist. It
+    does now, and cross-host is the one thing no vendor can ship, so never being able to write
+    the word "Cursor" was a self-inflicted wound. The rule is therefore the narrower and truer
+    one: a page may name an unfixtured host only if the same page says, in words, that the
+    adapter is written from that vendor's published hook contract and has not been driven
+    against a live install. `hosts.CAPTURED_PAYLOAD` is the source of which hosts those are, so
+    this test relaxes by itself the day a real payload is captured.
+    """
+    from provenrail import hosts as hosts_mod
+
+    labels = {"codex": "Codex", "gemini": "Gemini CLI", "copilot": "Copilot", "cursor": "Cursor"}
+    unfixtured = [labels[h] for h in labels if h not in hosts_mod.CAPTURED_PAYLOAD]
     offences = []
     for name in (*SELLING_PAGES, "web/claude-code-guardrails.html", "web/llms.txt"):
         text = (ROOT / name).read_text(encoding="utf-8")
-        for host in unfixtured:
-            if host in text:
-                offences.append(f"{name} names {host}, which has no captured payload fixture")
+        named = [h for h in unfixtured if h in text]
+        if not named:
+            continue
+        flat = " ".join(text.split())
+        hedged = ("not yet driven against a live install" in flat
+                  or "has not been driven against a live install" in flat)
+        if not hedged:
+            offences.append(f"{name} names {', '.join(named)} without saying they are unproven")
     assert not offences, "\n  ".join(offences)
 
 

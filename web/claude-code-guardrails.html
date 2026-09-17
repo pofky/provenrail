@@ -213,6 +213,17 @@ claude -p "run the migration" --allowedTools Bash --output-format json</code></p
     <p><code>--bare</code> skips settings discovery, and Anthropic says it "will become the default for <code>-p</code> in a future release". When that lands, pass the settings file explicitly with <code>--settings</code> rather than relying on discovery.</p>
 
     <h2 id="what-is-blocked">What is blocked</h2>
+    <div class="note" style="margin:0 0 1.4rem">
+      <strong>The pack that has no equivalent anywhere else: fan-out.</strong> Claude Code
+      refuses a subagent at depth 3 of 3, which limits how <em>deep</em> the tree goes. Nothing
+      limits how <em>wide</em> it goes, and width is what the public reports are about:
+      <a href="https://github.com/anthropics/claude-code/issues/68619">issue #68619</a> (open)
+      records 1.2 million tokens in about 30 minutes with
+      <code>CLAUDE_CODE_FORK_SUBAGENT=0</code> ignored. Provenrail counts the spawns and asks
+      you before the twenty-first. The cap comes from a measured distribution of 915 real
+      sessions, not from a round number: it reaches 1.6% of all sessions and still catches
+      every runaway in that corpus. Run <code>pr report --fanout</code> to see your own.
+    </div>
     <p>Eight rule packs are armed by default with no configuration (fan-out, git-worktree, destructive, database, cloud, secrets, production, access), which is 45 rules. 55 rules across eleven packs are available. Every row below is asserted in the test suite against the default install, so this table cannot drift away from what the code does:</p>
     <table>
       <thead><tr><th>Pack</th><th>Blocks</th><th>Example</th></tr></thead>
@@ -319,9 +330,6 @@ pr verify guard-receipt.json</code></pre>
           <div class="footer-nav-label">Resources</div>
           <div class="footer-nav-links">
             <a href="/compare">Compare</a>
-            <a href="/vs-microsoft-agt">vs Microsoft AGT</a>
-            <a href="/for-agencies">For freelancers and agencies</a>
-            <a href="/ai-code-attribution">AI code attribution</a>
             <a href="/eu-ai-act">EU AI Act logging</a>
             <a href="/ai-agent-incidents">Agent incidents</a>
             <a href="/security">Security</a>

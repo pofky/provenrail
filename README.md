@@ -1,17 +1,20 @@
 # Provenrail
 
-**Guardrails for AI agents, with a receipt.** Destructive tool calls are blocked before
-they run, and every decision is signed into an off-box, hash-chained record that anyone
-can verify, trusting neither the agent nor the sink.
+**A hard limit on what your coding agent may spawn, spend and touch.** The control with no
+equivalent anywhere else is the fan-out cap: Claude Code refuses a subagent at depth 3 of 3,
+nothing limits how many subagents one session may start, and a runaway spawns dozens, each a
+fresh context billed and metered on top of the one it came from. Provenrail counts them and asks
+you before the twenty-first. Every decision is also signed into a hash-chained record anyone can
+verify, trusting neither the agent nor the sink.
 
-### Start here: `pr report`, what your agents already did
+### Start here: `pr report --fanout`, how wide your own sessions spread
 
 You already have the data. Claude Code writes a transcript of every session it runs, and they
 pile up in `~/.claude/projects` whether or not you ever look at them. One command reads them:
 
 ```bash
 uv tool install provenrail   # or: pip install provenrail
-pr report
+pr report --fanout
 ```
 
 No setup, no config file, no account, and no network call. It reads transcripts that are already

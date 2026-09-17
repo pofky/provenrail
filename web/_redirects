@@ -10,3 +10,16 @@
 # preview URLs (<hash>.provenrail.pages.dev) are a different host and stay reachable.
 https://www.provenrail.com/* https://provenrail.com/:splat 301
 https://provenrail.pages.dev/* https://provenrail.com/:splat 301
+
+# Three pages retired 2026-09-17 on evidence, not on taste. Each sold "prove to someone else
+# what your AI did", and the research found the demand pointing the other way: agency and studio
+# owners have the LOWEST AI disclosure rate of any group (Envato, n=1,780, 28%), the ACM CHI 2026
+# study of freelancers is titled "Better Ask for Forgiveness than Permission", and no procurement
+# questionnaire found anywhere asks whether delivered code was AI-generated. 301 rather than 404
+# because a redirect costs nothing and a dead link costs a little.
+/for-agencies / 301
+/for-agencies.html / 301
+/ai-code-attribution / 301
+/ai-code-attribution.html / 301
+/vs-microsoft-agt /compare 301
+/vs-microsoft-agt.html /compare 301
