@@ -2,6 +2,12 @@
 
   cd /Volumes/T7/Projects/AgenticTools/flightrecorder
 
+Step 0. Deploy the site. It is committed and tested but NOT deployed, because this release rewrites three legal pages and that wording is yours to approve: privacy.html (what the phone remote sends, and a new anchoring paragraph), terms.html and disclaimer.html (undo is not a backup, stop only reaches agents running the hook, the remote depends on a service you choose). Read them, then deploy from the repo root. The live site still describes the old product until you do.
+
+git diff b61677c..HEAD -- web/privacy.html web/terms.html web/disclaimer.html
+
+npx wrangler pages deploy web --project-name=provenrail --branch=main
+
 Step 1. Publish 0.6.0 to PyPI. Until this runs, `uv tool install provenrail` gives 0.4.3, which has none of undo, stop, remote, scan or brief. The site and README tell people to install the CLI from GitHub for that reason, and they can go back to the short command once this is done. The token is in ~/.pypirc.
 
 .venv/bin/python -m twine upload dist/provenrail-0.6.0*

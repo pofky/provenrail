@@ -3,8 +3,8 @@
 ## Currently Active
 
 _No active work in the repo._ 0.6.0 is built and proven against the wheel, and NOT published:
-the PyPI upload is blocked for the agent and the Codex login has expired, so both are written
-up in `Marketing/release-0.6.0-operator-steps.txt`. The plugin already serves 0.6.0 from this
+the PyPI upload is blocked for the agent, the Codex login has expired, and the site deploy waits
+on the operator reading three rewritten legal pages, so all three are written up in `Marketing/release-0.6.0-operator-steps.txt`. The plugin already serves 0.6.0 from this
 repository. **After those, the one thing left is still posting**; the copy is in
 `Marketing/launch-0.6.0-*.txt`.
 

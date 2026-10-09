@@ -1,6 +1,6 @@
 # HANDOFF
 
-Last updated 2026-10-09. Branch `main`. **0.6.0 is built, proven against the wheel and NOT on
+Last updated 2026-10-09. Branch `main`. **0.6.0 is built, proven against the wheel, tagged `v0.6.0`, and NOT on
 PyPI** (PyPI serves 0.4.3; the upload is refused for the agent). The plugin serves 0.6.0 from
 this repository as soon as it is pushed, so the zero-install path is live. Read this first,
 then `WORKLOG.md` for history.
@@ -79,6 +79,9 @@ posted. The copy for this release is written, one file per field, in
 
 ## Next in order
 
+0. **Deploy the site.** Committed, tested, swept at 320 and 375 px, and NOT deployed: the
+   release rewrites `privacy.html`, `terms.html` and `disclaimer.html`, and legal wording is
+   the operator's to approve. Step 0 of the operator file has the diff command and the deploy.
 1. **Publish 0.6.0 and prove Codex.** `Marketing/release-0.6.0-operator-steps.txt`. The Codex
    login on this machine has expired, so `tools/prove_codex.sh` could not run; it is one
    command after `codex login` and prints PASS or FAIL.
