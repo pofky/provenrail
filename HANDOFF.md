@@ -5,6 +5,11 @@ Last updated 2026-09-17. Branch `main`, tag `v0.5.0` (one commit behind `main`, 
 up in `Marketing/release-0.5.0-operator-steps.txt`. The site is deployed and current. Read this
 first, then `WORKLOG.md` for history.
 
+**2026-10-09: direction review, no code changed.** A full review of where this project
+should go ran this day and ended in a decision not to build. The memo and its evidence are in
+the private repo: `provenrail-internal/docs/direction-2026-10-09.md`. Read it before starting
+any new feature here.
+
 ## Where things stand
 
 **The product was pointed at the wrong half of itself, and 2026-09-17 turned it.** Research
