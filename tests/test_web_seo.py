@@ -282,7 +282,7 @@ def test_every_sitemap_entry_carries_a_lastmod():
 #: The primary nav, in order. Ten pages were still shipping the pre-repositioning nav on
 #: 2026-09-16 ("How it works", "Compare"), which sent a reader from a legal page to a page the
 #: direction memo moved to the footer. One nav or the site is telling two stories.
-PRIMARY_NAV = [("/#spend-cap", "Spend cap"),
+PRIMARY_NAV = [("/#undo", "Undo and stop"),
                ("/claude-code-guardrails", "Guardrails"),
                ("/pricing", "Pricing"),
                ("/docs", "Docs"),
@@ -345,8 +345,8 @@ def test_privacy_terms_and_pricing_are_reachable_from_every_page(path):
 #: Legal pages print a date the reader is entitled to rely on. Its schema twin has to say the
 #: same thing: a dateModified of today on a policy last written in June tells a machine the
 #: document changed when it did not.
-LEGAL_DATES = {"privacy.html": "2026-06-10", "terms.html": "2026-06-08",
-               "disclaimer.html": "2026-06-08"}
+LEGAL_DATES = {"privacy.html": "2026-10-09", "terms.html": "2026-10-09",
+               "disclaimer.html": "2026-10-09"}
 
 
 @pytest.mark.parametrize(("page", "expected"), sorted(LEGAL_DATES.items()))

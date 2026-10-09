@@ -79,7 +79,7 @@
     {"@type":"ListItem","position":2,"name":"Docs","item":"https://provenrail.com/docs"}]}
   </script>
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"TechArticle","headline":"Quickstart and docs | Provenrail","url":"https://provenrail.com/docs","description":"Install Provenrail, record your first agent run, and verify it. Python and TypeScript quickstart, CLI reference, self-hosting, and licensing.","dateModified":"2026-09-16","author":{"@type":"Organization","name":"Provenrail"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
+  {"@context":"https://schema.org","@type":"TechArticle","headline":"Quickstart and docs | Provenrail","url":"https://provenrail.com/docs","description":"Install Provenrail, record your first agent run, and verify it. Python and TypeScript quickstart, CLI reference, self-hosting, and licensing.","dateModified":"2026-10-09","author":{"@type":"Organization","name":"Provenrail"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
   </script>
   <script type="application/ld+json">
   {"@context": "https://schema.org", "@type": "HowTo", "name": "Install Provenrail and record your first verifiable agent run", "description": "Install the CLI, record an agent run from Python or TypeScript, and verify the record with the open-source verifier. No account and no server of ours in the path.", "totalTime": "PT5M", "tool": [{"@type": "HowToTool", "name": "A terminal"}, {"@type": "HowToTool", "name": "Python 3 or Node 20+"}], "step": [{"@type": "HowToStep", "position": 1, "name": "Install the CLI", "text": "Run uv tool install provenrail. uv brings its own pinned Python, so a later system Python change cannot orphan the install. pip install provenrail works too, inside a virtualenv rather than a system or Homebrew Python.", "url": "https://provenrail.com/docs#install"}, {"@type": "HowToStep", "position": 2, "name": "Record a run", "text": "Wrap the agent in provenrail.record(\"my-agent\") in Python, or the equivalent record() call in the TypeScript SDK. Model and tool calls are captured automatically, each one Ed25519 signed and hash-chained to the one before it.", "url": "https://provenrail.com/docs#python"}, {"@type": "HowToStep", "position": 3, "name": "Verify the record", "text": "Run pr verify on the exported bundle. The verifier recomputes the hash chain, every signature, the server receipt chain and each RFC 3161 timestamp locally, trusting neither the agent nor the sink. A second verifier written in JavaScript runs the same algorithm in the browser at provenrail.com/verify.", "url": "https://provenrail.com/docs#verify"}, {"@type": "HowToStep", "position": 4, "name": "Cap what the agent can spend", "text": "Run pr guard budget 25 to write a $25 day cap. The PreToolUse hook prices the agent's own transcript and refuses the next tool call once the day is over the cap. The figure is estimated at API list price and is notional on flat-rate plans.", "url": "https://provenrail.com/docs#spend"}]}
@@ -98,7 +98,7 @@
         </svg>
       </button>
       <div id="nav-links" class="nav-links" role="navigation">
-        <a href="/#spend-cap">Spend cap</a>
+        <a href="/#undo">Undo and stop</a>
         <a href="/claude-code-guardrails">Guardrails</a>
         <a href="/pricing">Pricing</a>
         <a href="/docs">Docs</a>
@@ -116,12 +116,21 @@
     <p class="eyebrow">Quickstart</p>
     <h1>Record your first run in 60 seconds</h1>
     <p class="lede">Install the SDK, wrap your agent, and verify the result yourself. No account is required to use the open-source software. Python and TypeScript are byte-for-byte compatible.</p>
-    <p class="updated">Last updated <time datetime="2026-09-16">16 September 2026</time></p>
+    <p class="updated">Last updated <time datetime="2026-10-09">9 October 2026</time></p>
 
     <div class="note"><strong>New to the terminal?</strong> If you vibe-coded your way here and have never run a command line, start with <a href="/start">Provenrail from zero</a> instead. It spells out every keystroke, from opening the terminal to your first verified proof. This page is the faster reference once you are comfortable.</div>
 
+    <div class="note"><strong>Supervising a coding agent?</strong> Undo, stop, the loop breaker, file lanes, the phone remote, scan and brief are documented right after Install: <a href="#undo">undo</a>, <a href="#stop">stop</a>, <a href="#loop">loop breaker</a>, <a href="#lanes">lanes</a>, <a href="#remote">remote</a>, <a href="#scan">scan</a>, <a href="#brief">brief</a>. The sections further down cover recording and verifying a run.</div>
+
     <div class="toc">
       <a href="#install">Install</a>
+      <a href="#undo">Undo</a>
+      <a href="#stop">Stop</a>
+      <a href="#loop">Loop breaker</a>
+      <a href="#lanes">Lanes</a>
+      <a href="#remote">Phone remote</a>
+      <a href="#scan">Scan</a>
+      <a href="#brief">Brief</a>
       <a href="#report">What your agents already did</a>
       <a href="#guard">Guard a coding agent</a>
       <a href="#python">Python</a>
@@ -155,6 +164,159 @@
     <pre><code><span class="g">uv add provenrail</span>   <span class="c"># or: pip install provenrail (venv active)</span></code></pre>
     <p>TypeScript / Node 20+ (recording SDK):</p>
     <pre><code><span class="g">npm install provenrail</span></code></pre>
+    <p><strong>Version 0.6.0.</strong> The supervisor commands below (<code>pr undo</code>,
+      <code>pr stop</code>, <code>pr resume</code>, <code>pr remote setup</code>, <code>pr away</code>,
+      <code>pr back</code>, <code>pr scan</code> and <code>pr brief</code>) need 0.6.0. The package on PyPI
+      is older and does not have them, so install from GitHub:</p>
+    <pre><code><span class="g">uv tool install git+https://github.com/pofky/provenrail</span></code></pre>
+    <p>The Claude Code plugin needs none of that. It carries its own engine, and its commands are
+      <code>/guard-undo</code>, <code>/guard-stop</code>, <code>/guard-scan</code>,
+      <code>/guard-status</code>, <code>/guard-card</code> and <code>/guard-budget</code>. For the other
+      hosts, <code>pr guard install --host codex|gemini|copilot|cursor</code> wires the same hook. Only the
+      Claude Code adapter is driven with a payload captured from the running CLI; the other four are
+      written from each vendor's published hook contract and are not yet driven against a live install.</p>
+
+    <h2 id="undo">Undo (<code>pr undo</code>)</h2>
+    <p>Before every action that can change a file, the hook checkpoints the working tree into a shadow git
+      store under <code>~/.provenrail/projects</code>. Your project's real <code>.git</code> is never opened
+      or written. Because it is a snapshot of the whole tree and not of the file a tool names, it also
+      covers what a shell command changed, which Claude Code's own checkpointing does not, according to its documentation.</p>
+    <pre><code><span class="g">pr undo</span>                  <span class="c"># list checkpoints, with what each action changed</span>
+<span class="g">pr undo last</span>             <span class="c"># put the tree back to before the most recent action</span>
+<span class="g">pr undo 12</span>               <span class="c"># put the tree back to checkpoint #12</span>
+<span class="g">pr undo 12 --diff</span>        <span class="c"># show what that would change, and change nothing</span>
+<span class="g">pr undo 12 src/app.py</span>    <span class="c"># restore only these paths</span>
+<span class="g">pr undo init</span>             <span class="c"># build the store now, so snapshots in the hook are incremental</span></code></pre>
+    <p>A full restore is verified by tree hash and says so: "Verified: the working tree now matches the
+      checkpoint exactly." Every restore first takes a checkpoint of the state it replaces, and prints the
+      command that puts it back. Checkpoints are kept for 14 days. Nested repositories and submodules are recorded as a pointer and are never touched by a restore. If a snapshot cannot finish in 10 seconds, checkpoints pause for that project and Provenrail says so; the call still runs. A restore that had to leave
+      something alone, a nested repository or a directory holding files that are in no checkpoint, says so and is
+      not marked verified. Inside Claude Code it is <code>/guard-undo</code>.</p>
+    <pre><code><span class="c"># .provenrail.json</span>
+{"undo": {"enabled": true, "include": [".env", ".env.*"]}}</code></pre>
+    <p>A feature switched off in <code>.provenrail.json</code> (undo, watch, lanes) is announced once a day,
+      because that file is in the working tree, where an agent can write it.</p>
+    <p><code>include</code> lists gitignored files to checkpoint anyway, as globs relative to the repository
+      root. The default is the root-level <code>.env</code> files, because an <code>.env</code> is the one
+      ignored file that is neither regenerable nor backed up anywhere.</p>
+    <p>Measured on a 381-file repository: 1.04 s for the first snapshot and 0.03 s for each one after it.
+      The supervisor adds about 8 ms to a hook call that takes no snapshot (78 ms against 70 ms before,
+      Python 3.9).</p>
+    <div class="note"><strong>What undo does not cover.</strong> Gitignored files are not checkpointed,
+      apart from root-level <code>.env</code> files. A file over 50 MiB is skipped and listed. Nested
+      repositories and submodules are recorded as a pointer, not by content, and a restore never touches them. Commits, branches and stashes
+      in your real repository are not rewound, and neither are git history, databases and anything outside
+      the repository. It works inside git repositories only.</div>
+
+    <h2 id="stop">Stop and resume (<code>pr stop</code>)</h2>
+    <pre><code><span class="g">pr stop "wrong branch"</span>   <span class="c"># refuse every tool call from every agent on this machine</span>
+<span class="g">pr resume</span>                 <span class="c"># lift it</span></code></pre>
+    <p>While the stop file exists, every tool call in every project and on every host is refused, with the
+      reason you gave. It is deliberately machine-wide: the person reaching for it is not in a position to
+      remember which of four terminals is the runaway. It reaches agents that run the Provenrail hook, at each
+      one's next tool call. A call already running is not interrupted. It is checked first, with a single file check, and nothing
+      that fails afterwards can lift it. The phone remote can stop and resume too. Inside Claude Code it is
+      <code>/guard-stop</code>.</p>
+
+    <h2 id="loop">Loop breaker</h2>
+    <p>Puts the next call to a human after the same call, or the same short cycle of one to three calls, has
+      repeated 8 times back to back. It asks rather than blocks, because polling a build is also a run of
+      identical calls and only a person can tell the two apart. Cycles longer than three calls are not looked
+      for.</p>
+    <pre><code><span class="c"># .provenrail.json</span>
+{"watch": {"enabled": true, "repeats": 8}}</code></pre>
+    <p>The threshold is measured, not guessed. Across 3,186 real Claude Code sessions and 147,356 tool calls
+      on the author's machine, 97.1% of sessions never repeated a block at all and 0.47% would have been
+      questioned.</p>
+
+    <h2 id="lanes">File lanes</h2>
+    <p>When two agent sessions work in one checkout, the second is asked before it edits a file the first
+      wrote in the last 15 minutes, with the other session named. It asks rather than blocks, because the
+      second edit is often exactly what you want.</p>
+    <pre><code><span class="c"># .provenrail.json</span>
+{"lanes": {"enabled": true, "minutes": 15}}</code></pre>
+    <p><strong>Limits.</strong> A lane is not a lock. It sees edits made by file-editing tools, not by shell
+      commands: a shell command that rewrites a file takes no lane, because a shell command does not say
+      which files it will touch.</p>
+
+    <h2 id="remote">Phone remote</h2>
+    <p>Approve or refuse a risky call, and stop or resume every agent, from Telegram (your own bot) or
+      ntfy (a secret topic). No Provenrail server is involved: messages go from your machine to the channel
+      you chose.</p>
+    <pre><code><span class="g">pr remote setup telegram</span>   <span class="c"># asks for the bot token without echoing it; --token still works</span>
+<span class="g">pr remote setup ntfy</span>       <span class="c"># no account, a secret topic</span>
+<span class="g">pr remote test</span>             <span class="c"># send a question you can answer</span>
+<span class="g">pr remote status</span>           <span class="c"># what is set up, and where questions go</span>
+<span class="g">pr remote off</span>              <span class="c"># remove it from this machine</span>
+<span class="g">pr away</span>   <span class="c"># send questions to the phone</span>
+<span class="g">pr back</span>   <span class="c"># ask questions at this machine again</span></code></pre>
+    <p>The Telegram bot is one you create with @BotFather. The settings live at the user level, not in the
+      project, and are set with <code>pr remote config</code>:</p>
+    <pre><code><span class="g">pr remote config --ask auto --detail full --wait-s 300</span></code></pre>
+    <ul>
+      <li><code>--ask</code> is <code>auto</code>, <code>always</code> or <code>never</code>. With
+        <code>auto</code>, questions go to the phone when you are away (<code>pr away</code>, or
+        automatically after 2 minutes idle on macOS) and stay on screen when you are at the keyboard.</li>
+      <li><code>--detail</code> is <code>full</code> or <code>shape</code>. By default up to 600 characters
+        of the command are sent; with <code>shape</code> only the verb and flags are. A command longer than
+        600 characters is cut, with a line saying how many characters are not shown.</li>
+      <li><code>--wait-s</code> is how long the hook waits for an answer. It never waits longer than the
+        timeout the host gave the hook.</li>
+    </ul>
+    <p>The project's <code>.provenrail.json</code> sits in the working tree, where an agent can write it, so it
+      has less say than you do. It can no longer set <code>remote.ask</code>, cannot set
+      <code>remote.detail</code> to <code>"full"</code>, and cannot lengthen the wait. It may only make the remote
+      more private or quicker to give up:</p>
+    <pre><code><span class="c"># .provenrail.json</span>
+{"remote": {"detail": "shape", "wait_s": 120}}</code></pre>
+    <p>On hosts with no approval prompt of their own (Codex, Gemini CLI), a rule that needs a human becomes
+      a real question on the phone instead of a flat refusal (by design; those two adapters are not yet driven
+      against a live install).</p>
+    <p><strong>Limits.</strong> It never fails open: no answer, no network, an unpaired chat or an ended
+      evaluation leaves the verdict as it was. Telegram answers are accepted only from the one chat paired
+      by typing a code your machine printed. For ntfy the topic name is the secret, so anyone who knows it
+      can answer; it is 128 random bits and is not printed after setup. On ntfy, anyone who knows the topic
+      name can answer, and so can a program running in your own account; Telegram is the stronger channel.
+      The remote guards against a trusted agent's mistakes while you are away, not against hostile software
+      running as you. The text of a question passes
+      through the service you chose, under its terms; see <a href="/privacy#phone-remote">privacy</a>. The
+      remote runs as a 14-day evaluation that needs no account, then needs the paid plan. The licence
+      check is a commercial control in open-source code, not DRM.</p>
+    <p>The 14 days are counted on your machine from the day you run <code>pr remote setup</code>. When they end,
+      questions stay on the machine exactly as they did before you set the remote up, and nothing else changes.
+      No card or account was taken, so nothing is charged; the remote starts again only if you buy the plan and
+      run <code>pr activate</code>.</p>
+
+    <h2 id="scan">Scan (<code>pr scan</code>)</h2>
+    <pre><code><span class="g">pr scan</span>               <span class="c"># check the current folder</span>
+<span class="g">pr scan path/to/repo</span> <span class="c"># check a folder you just cloned</span>
+<span class="g">pr scan --json</span>        <span class="c"># machine-readable</span>
+<span class="g">pr scan --strict</span>      <span class="c"># exit 1 on medium findings as well as high</span></code></pre>
+    <p>Answers one question about a repository you have just cloned: which files will run a command, start
+      a process, change the agent's permissions or rewrite its instructions without you asking. It screens
+      agent settings, hooks, MCP servers, skills and commands, folder-open editor tasks, devcontainer
+      lifecycle commands, install-time scripts, git submodules, and instruction files for invisible Unicode,
+      hidden HTML comments and download-piped-into-a-shell patterns. It is static and offline: it never
+      executes or imports anything from the scanned tree, makes no network call, and never follows a symlink
+      out of the directory. Inside Claude Code it is <code>/guard-scan</code>.</p>
+    <p><strong>Limits.</strong> It screens known auto-run surfaces and does not read or judge the
+      repository's code. A hook that calls a script is reported as a hook, not as whatever the script does.
+      "Nothing found" means none of the places it knows about runs anything on its own, not that the
+      repository is safe. Hitting its file-size or file-count cap is reported as a finding rather than
+      skipped quietly, and config it cannot parse is a finding, never a pass.</p>
+
+    <h2 id="brief">Brief (<code>pr brief</code>)</h2>
+    <pre><code><span class="g">pr brief</span>                  <span class="c"># the most recent session in this repository</span>
+<span class="g">pr brief --session 3fa9</span>     <span class="c"># a session, by id prefix</span>
+<span class="g">pr brief --since 12</span>         <span class="c"># start at checkpoint #12</span>
+<span class="g">pr brief --all</span>             <span class="c"># every session in the log</span>
+<span class="g">pr brief --out brief.txt</span>   <span class="c"># write it to a file; --json for machine-readable</span></code></pre>
+    <p>A review brief of what the agent changed, for the person who has to review it. It is built from the
+      recorded checkpoints and the guard journal, not from the agent's own summary: the net change, files
+      touched and reverted, shell commands that changed files, sensitive paths (lockfiles, migrations,
+      auth, CI, agent config), and what was stopped or questioned.</p>
+    <p><strong>Limits.</strong> It states facts and names what to check. It does not accuse, and it does not
+      claim that tests pass. It needs checkpoints, so it works inside git repositories only.</p>
 
     <h2 id="guard">Guard a coding agent (no code)</h2>
     <p>If you run Claude Code, this is the shortest path to something useful, and it needs nothing
@@ -581,7 +743,13 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
       <code>pr --version</code> answers <code>pr (GNU coreutils) 8.32</code>. Use the module
       entry point instead, which nothing can shadow:
       <code>python -m provenrail verify bundle.json</code>. Every subcommand is identical.</div>
-    <pre><code><span class="g">pr quickstart</span>        <span class="c"># local recording server + config, zero tokens</span>
+    <pre><code><span class="g">pr undo</span> [last|N]      <span class="c"># 0.6.0: restore the working tree to before an agent action</span>
+<span class="g">pr stop</span> / <span class="g">pr resume</span>  <span class="c"># 0.6.0: refuse, then allow, every agent's tool calls on this machine</span>
+<span class="g">pr remote</span> setup ntfy  <span class="c"># 0.6.0: approve from your phone; also: test, status, off</span>
+<span class="g">pr away</span> / <span class="g">pr back</span>    <span class="c"># 0.6.0: send questions to the phone, or ask at this machine again</span>
+<span class="g">pr scan</span> [path]        <span class="c"># 0.6.0: what in a repository runs or steers an agent</span>
+<span class="g">pr brief</span>              <span class="c"># 0.6.0: review brief of what the agent changed</span>
+<span class="g">pr quickstart</span>        <span class="c"># local recording server + config, zero tokens</span>
 <span class="g">pr demo</span>              <span class="c"># records a session, anchors it, writes bundle.json + pin.json</span>
 <span class="g">pr export</span> my-run.json  <span class="c"># export your own recorded run, locally</span>
 <span class="g">pr verify</span> bundle.json --pin pin.json     <span class="c"># verify, trusting nobody</span>
@@ -771,7 +939,7 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
         <div class="footer-brand">
           <img src="/assets/logo-full.png" alt="Provenrail" width="190" style="height:auto;display:block">
         </div>
-        <p class="footer-tagline">A deterministic policy layer for coding agents. It stops the agent at the tool boundary, and signs what it stopped into a record anyone can verify.</p>
+        <p class="footer-tagline">The supervisor for coding agents. It checkpoints the working tree so an agent's changes can be undone, stops every agent that runs its hook at the next tool call, and signs its decisions into a record anyone can verify.</p>
         <nav class="footer-links" aria-label="Footer links">
           <a href="/docs">Documentation</a>
           <a href="/pricing">Pricing</a>
@@ -820,7 +988,7 @@ await record(<span class="g">"my-agent"</span>, async (pr) =&gt; {
       <p><span style="color:var(--accent)">pr-verify</span>, the SDK and the spec are open-source under MIT; the server under AGPL-3.0</p>
     </div>
     <div class="footer-copy container" style="margin-top:0;border-top:0;padding-top:0">
-      <p style="max-width:64ch;color:var(--text-lo);font-family:var(--font-body)">Provenrail is evidence tooling, not legal advice or a compliance guarantee. It makes recorded events tamper-evident and independently verifiable; it never claims completeness. Compliance references describe technical evidence mapping, not certification. Software provided as-is, without warranty.</p>
+      <p style="max-width:64ch;color:var(--text-lo);font-family:var(--font-body)">Provenrail is evidence tooling, not legal advice or a compliance guarantee. It makes recorded events tamper-evident and independently verifiable; it never claims completeness. Compliance references describe technical evidence mapping, not certification. Claude Code, Codex, Gemini CLI, GitHub Copilot, Cursor, Telegram and ntfy are names of their respective owners. Provenrail is independent of all of them. Only the Claude Code adapter is driven against a live install; the others are not yet driven against a live install. Software provided as-is, without warranty.</p>
     </div>
   </footer>
   <script src="/main.js" defer></script>

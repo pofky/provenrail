@@ -348,7 +348,7 @@ section { position: relative; }
 .faq-q-icon::after { top: 0; left: 7px; width: 2px; height: 16px; }
 .faq-item.open .faq-q-icon::after { transform: scaleY(0); }
 .faq-a { max-height: 0; overflow: hidden; color: var(--text-mid); font-size: 1rem; line-height: 1.7; transition: max-height .35s var(--ease), padding .35s var(--ease); }
-.faq-item.open .faq-a { max-height: 460px; padding-bottom: 1.3rem; }
+.faq-item.open .faq-a { max-height: 1200px; padding-bottom: 1.3rem; }
 .faq-a code { font-family: var(--font-mono); font-size: .85em; background: var(--bg-3); border: 1px solid var(--border); padding: .08em .35em; border-radius: 5px; color: var(--accent); }
 
 /* ---------- Footer ---------- */

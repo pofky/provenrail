@@ -359,7 +359,9 @@ def flow_supervisor(pr: Path, work: Path) -> None:
               r.returncode == 1 and "SessionStart" in r.stdout, r.stdout[-800:])
 
     d = work / "supervised-CLI"
-    r = run([str(pr), "brief"], d)
+    # `--all`: the delete was session s1 and the loop test ran afterwards as another session,
+    # so the default scope (the most recent session) rightly holds no shell change at all.
+    r = run([str(pr), "brief", "--all"], d)
     check("pr brief describes the session from recorded facts",
           r.returncode == 0 and "rm -rf" in r.stdout, (r.stdout + r.stderr)[-800:])
     r = run([str(pr), "remote", "status"], d)

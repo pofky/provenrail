@@ -39,12 +39,13 @@ posted. The copy for this release is written, one file per field, in
 
 ## Done and verified
 
-- **2,277 tests pass and `ruff check .` is clean** (run 2026-10-09; the count includes 197 new
-  ones in `test_checkpoint.py`, `test_supervisor.py`, `test_scan.py`, `test_brief.py`).
+- **2,310 tests pass and `ruff check .` is clean** (run 2026-10-09; the count includes the new
+  `test_checkpoint.py`, `test_supervisor.py`, `test_supervisor_hardening.py`, `test_scan.py`,
+  `test_brief.py`).
 - **The wheel is proven, not the source tree.** `tools/verify_flows.py` builds 0.6.0, installs
   it into a clean venv and drives the flows, now including the supervisor through BOTH engines
   (installed CLI, and the plugin alone under the system `python3`): delete, list, undo last,
-  byte-for-byte comparison, stop, resume, the eighth identical call, scan, brief. Exit 0.
+  byte-for-byte comparison, stop, resume, the eighth identical call, scan, brief. 54 checks, exit 0.
 - **Undo proven in a real Claude Code session** with `--plugin-dir` and no CLI on PATH: the
   agent ran `rm -rf src` over two never-committed files, `pr undo last` restored both,
   `shasum` identical, and the user's `.git` held no stash and no new ref.

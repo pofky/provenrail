@@ -1,24 +1,32 @@
 # Provenrail
 
-Last updated: 2026-09-17.
+Last updated: 2026-10-09.
 
-> A deterministic policy layer for coding agents. Its distinctive control is a cap on subagent fan-out: nothing in any vendor's tooling limits how many subagents one session may spawn, and a runaway session spawns dozens, each starting a fresh context that is billed and metered on top of the one it came from. Provenrail counts the spawns and asks before the twenty-first. It also stops an agent that is about to spend past a dollar cap or destroy work no remote has a copy of, and it signs every decision into a hash-chained record anyone can verify with an open-source tool.
+> The supervisor for coding agents. One hook, on Claude Code, Codex, Gemini CLI, Copilot and Cursor, that lets the person running agents undo what an agent did including what a shell command did, stop every agent that runs the hook at its next tool call, break loops, keep two sessions out of each other's files, and approve a risky call from a phone. It also carries 45 default rules that screen where a command points, a day spend cap and a subagent fan-out cap, and every decision can be signed into a hash-chained record anyone can verify with an open-source tool.
+
+## What it does
+
+1. Undo. Before every action that can change a file, the hook checkpoints the working tree into a shadow git store outside the repository (`~/.provenrail/projects/<key>/shadow`). The project's real `.git` is never opened or written. `pr undo` lists the checkpoints with what each action changed, `pr undo last` restores, and a full restore is verified by tree hash. Claude Code's documentation says its own checkpointing "does not track files modified by Bash commands" (https://code.claude.com/docs/en/checkpointing, read 9 October 2026); this does. Limits: gitignored files are not covered apart from root-level `.env` files; files over 50 MiB are skipped and listed; git history, databases and anything outside the repository are not rewound; it works inside git repositories only. Checkpoints are kept for 14 days. Nested repositories and submodules are recorded as a pointer and are never touched by a restore. If a snapshot cannot finish in 10 seconds, checkpoints pause for that project and Provenrail says so; the call still runs. In the Claude Code plugin it is `/guard-undo`.
+2. Stop. `pr stop` refuses every tool call from every agent on the machine until `pr resume`. It reaches agents that run the Provenrail hook, at each one's next tool call. A call already running is not interrupted. In the plugin it is `/guard-stop`.
+3. Loop breaker. Puts the next call to a human after the same call, or the same short cycle of one to three calls, has repeated 8 times back to back. The threshold is measured: across 3,186 real Claude Code sessions and 147,356 tool calls on the author's machine, 97.1% of sessions never repeated a block at all and 0.47% would have been questioned.
+4. File lanes. When two agent sessions work in one checkout, the second is asked before it edits a file the first wrote in the last 15 minutes. It is not a lock, and it sees edits made by file-editing tools, not by shell commands.
+5. Phone remote. Approve or refuse a risky call, and stop or resume every agent, from Telegram (your own bot) or ntfy (a secret topic). No Provenrail server is involved: messages go from the user's machine to the channel they chose. On hosts with no approval prompt of their own (Codex, Gemini CLI), a rule that needs a human becomes a real question on the phone instead of a flat refusal (by design; those two adapters are not yet driven against a live install). It never fails open: no answer, no network, or an ended evaluation leaves the verdict as it was. On ntfy, anyone who knows the topic name can answer, and so can a program running in your own account; Telegram is the stronger channel. The remote guards against a trusted agent's mistakes while you are away, not against hostile software running as you. Questions go to the phone when the user is away (`pr away`, or automatically after 2 minutes idle on macOS) and stay on screen at the keyboard. The text of a question (rule id, tool name, project folder name, and by default up to 600 characters of the command; with `pr remote config --detail shape` only the verb and flags) passes through Telegram or the ntfy server the user chose.
+6. Rules and spend cap. 45 default rules that screen where a command points, not which verb it uses; a day spend cap; a subagent fan-out cap that asks before the twenty-first spawn in a session.
+7. Scan. `pr scan` lists what in a repository you just cloned runs or steers an agent without asking: hooks, MCP servers, folder-open editor tasks, devcontainer and install scripts, hidden Unicode and HTML comments in instruction files. It screens known auto-run surfaces and does not judge the code; "nothing found" does not mean the repository is safe.
+8. Brief. `pr brief` is a review brief of what the agent changed, built from recorded checkpoints and the guard journal, not from the agent's own summary: net change, files touched and reverted, shell commands that changed files, sensitive paths (lockfiles, migrations, auth, CI, agent config), and what was stopped or questioned. It states facts and does not claim that tests pass.
+9. Underneath: the signed record. Every decision can be signed into a hash-chained record that anyone can verify, in the browser at https://provenrail.com/verify or with `pr verify`.
+
+Proof, with its context. A real Claude Code session was told to run `rm -rf src` on a directory holding uncommitted files. Its own reply was: "Deleted `src` (untracked, so not recoverable from git)." `pr undo last` then restored both files and reported "Verified: the working tree now matches the checkpoint exactly." Snapshot cost, measured on a 381-file repository: 1.04 s for the first snapshot, 0.03 s for each one after. Hook overhead added by the supervisor on a call that takes no snapshot: about 8 ms (78 ms against 70 ms before, Python 3.9).
+
+Only the Claude Code adapter is driven with a payload captured from the running CLI. The Codex, Gemini CLI, Copilot and Cursor adapters are written from each vendor's published hook contract and are not yet driven against a live install.
 
 ## The subagent fan-out cap
 
-This is the part with no equivalent anywhere else, so it is stated precisely.
-
-Claude Code refuses a subagent at depth 3 of 3, which is a limit on how DEEP the tree goes. Nothing limits how WIDE it goes. The public reports are about width: anthropics/claude-code issue #68619 (open, critical) records 1.2 million tokens consumed in about 30 minutes with the documented off switch `CLAUDE_CODE_FORK_SUBAGENT=0` ignored, and issue #68110 records general-purpose subagents recursively spawning unbounded children.
-
-Provenrail ships a rule, armed by default, that counts subagent spawns per session and asks the user before the twenty-first. The cap of 20 was chosen from a measured distribution of 915 real sessions rather than picked as a round number: 12% of sessions spawn a subagent at all, and among those the median is 4 and the 90th percentile is 35, so a low cap would interrupt ordinary work. At 20 the rule reaches 1.6% of all sessions while still catching every runaway in that corpus, the widest of which spawned 93 times.
-
-It asks rather than blocks, because wide fan-out is often exactly what the user wanted. On a host with no permission prompt, which includes unattended and CI runs, the question becomes a refusal.
-
-`pr report --fanout` reads the transcripts already on disk and reports the same numbers for the reader's own machine, offline, with no network call and nothing installed into their project.
+Claude Code refuses a subagent at depth 3 of 3, which is a limit on how DEEP the tree goes. We found no documented limit on how wide it goes. Provenrail ships a rule, armed by default, that counts subagent spawns per session and asks the user before the twenty-first. The cap of 20 was chosen from a measured distribution of 915 real sessions: 12% of sessions spawn a subagent at all, and among those the median is 4 and the 90th percentile is 35, so a low cap would interrupt ordinary work. At 20 the rule reaches 1.6% of all sessions, and the widest session in that corpus spawned 93 times. It asks rather than blocks; on a host with no permission prompt, which includes unattended and CI runs, the question becomes a refusal. `pr report --fanout` reports the same numbers for the reader's own machine, offline.
 
 ## What it is
 
-Provenrail is a hook, a CLI and a pair of SDKs. The hook sits at the agent's tool boundary. Before a tool call runs it does three things: it counts subagent spawns against the fan-out cap, it prices the agent's own transcript against a spend cap you set, and it resolves where a destructive command actually points. The verdict is computed locally with no network call, and the decision is Ed25519 signed and hash-chained so a third party can check it later.
+Provenrail is a hook, a CLI and a pair of SDKs. The hook sits at the agent's tool boundary. Before a tool call runs it checks for a stop order, checkpoints the working tree if the call can change a file, checks loops and lanes, and resolves where a command actually points against the rules and the spend cap. The verdict is computed locally with no network call, and the decision can be signed and hash-chained so a third party can check it later. If the hook itself fails, the call proceeds as if the plugin were not installed, and Provenrail says so once a day; an active stop order is the exception and is never lifted by a failure.
 
 ## Why it exists, stated against the vendor's own defaults
 
@@ -27,7 +35,7 @@ Anthropic's auto mode is the built-in starting permission mode for interactive s
 Two gaps remain, and they are what Provenrail is for.
 
 1. The classifier is auto mode's, and many runs do not start in auto mode. Anthropic lists `claude -p` and the Agent SDK under the permissive `default` mode, along with Amazon Bedrock, Google Cloud's Agent Platform, Microsoft Foundry and Claude Platform on AWS. The headless documentation says "For `-p`, the built-in starting permission mode is Manual on every plan." Hooks are loaded in all of them: "Without `--bare`, a `-p` session runs the hooks in a project's `.claude/settings.json`", and the Agent SDK runs settings-file hooks by default through `setting_sources`. So a deterministic policy in the hook is what is left deciding in CI and headless.
-2. No classifier is a cost control. A `-p` run reports `total_cost_usd` when it finishes, which is the invoice, discovered afterwards. Provenrail enforces a cap before the next tool call instead.
+2. The classifier is not a cost control. Print mode has a per-run `--max-budget-usd`; nothing built in caps a day across runs and interactive sessions. Provenrail enforces a day cap before the next tool call.
 
 ## Honest limits
 
@@ -64,7 +72,15 @@ Claude Code plugin, nothing else to install:
 /plugin install provenrail-guard@provenrail
 ```
 
-The plugin carries its own dependency-free engine, so 45 rules are armed on the next tool call with no package, no account and no config file. `/guard-status` reports what it has actually stopped, `/guard-rules` lists every rule, `/guard-budget` sets a cap.
+The plugin carries its own dependency-free engine, so 45 rules are armed, and checkpoints, the loop breaker and file lanes run, on the next tool call with no package, no account and no config file. Its commands are `/guard-undo`, `/guard-stop`, `/guard-scan`, `/guard-status`, `/guard-card` and `/guard-budget`.
+
+The CLI commands `pr undo`, `pr stop`, `pr resume`, `pr remote setup`, `pr away`, `pr back`, `pr scan` and `pr brief` need version 0.6.0. Install it from GitHub, because the package on PyPI is older and does not have them:
+
+```
+uv tool install git+https://github.com/pofky/provenrail
+```
+
+Other hosts: `pr guard install --host codex|gemini|copilot|cursor`. Phone remote: `pr remote setup telegram` (it asks for the bot token without echoing it; `--token` still works) or `pr remote setup ntfy`. User-level remote settings are set with `pr remote config --ask auto|always|never --detail full|shape --wait-s 300`; the project's `.provenrail.json` may only set `"remote": {"detail": "shape"}` or a shorter `wait_s`.
 
 Headless and CI, which is the case the classifier is absent from:
 
@@ -105,23 +121,39 @@ The tool recomputes the hash chain, every Ed25519 signature, the independent ser
 
 ## Pricing
 
-- Free, MIT, no account: the whole policy engine with 45 rules armed by default, day/session/total spend caps, the local journal, `/guard-status` and `/guard-card`, signed hash-chained receipts, `pr spend`, `pr reconcile` against a provider invoice, `pr attest`, both verifiers, and one independent RFC 3161 timestamp.
-- Anchored statements, $9 a month: unlimited `pr anchor-push`, an RFC 3161 timestamp from a public authority on every anchor, and a public receipt page a third party can open with no account. You send a 32-byte fingerprint of your records and nothing else; you keep every record and the endpoint has no field one could arrive in.
-- Nothing is metered and nothing that refuses a tool call is behind a payment. 14-day refund. The AGPL server is self-hostable and is not sold.
+- Free, MIT, forever, no account: undo, stop and resume, the loop breaker, file lanes, `pr scan`, `pr brief`, the 45 default rules, day/session/total spend caps, the local journal, `/guard-status` and `/guard-card`, signed hash-chained records, `pr spend`, `pr reconcile` against a provider invoice, `pr attest`, both verifiers, and one independent RFC 3161 timestamp.
+- Paid, one plan, $9 a month: the phone remote after a 14-day evaluation that needs no account, plus anchored statements (unlimited `pr anchor-push`, an RFC 3161 timestamp from a public authority on every anchor, and a public receipt page a third party can open with no account). For anchoring you send a 32-byte fingerprint of your records and nothing else; you keep every record. The licence check is a commercial control in open-source code. The phone remote is free for 14 days from setup with no account or card; after that questions stay on the machine unless the user buys the $9 a month plan.
+- Nothing is metered, and nothing that undoes a change, stops an agent or refuses a tool call is behind a payment. 14-day refund. The AGPL server is self-hostable and is not sold.
 
 ## Key pages
 
 - Homepage: https://provenrail.com
-- Claude Code guardrails and the spend cap, in CI and headless: https://provenrail.com/claude-code-guardrails
+- Claude Code guardrails, undo and the spend cap, in CI and headless: https://provenrail.com/claude-code-guardrails
 - Pricing: https://provenrail.com/pricing
 - Documentation: https://provenrail.com/docs
 - Beginner walkthrough, every keystroke spelled out: https://provenrail.com/start
+- Privacy, including exactly what the phone remote sends: https://provenrail.com/privacy
 - Security model and threat model: https://provenrail.com/security
 - Conformance vectors both verifiers must agree on: https://provenrail.com/conformance
 - In-browser verifier: https://provenrail.com/verify
 - Changelog: https://provenrail.com/changelog
 
 ## Citation-friendly Q&A
+
+Q: Can I undo what a coding agent did, including shell commands?
+A: Yes, inside a git repository. Provenrail checkpoints the working tree into a shadow git store outside the repository before every action that can change a file, so `pr undo last` restores the tree to before the most recent action even when a shell command such as `rm -rf` made the change, and verifies the result by tree hash. Gitignored files (apart from root-level `.env` files), files over 50 MiB, git history, databases and anything outside the repository are not covered. Checkpoints are kept for 14 days. Nested repositories and submodules are recorded as a pointer and are never touched by a restore. If a snapshot cannot finish in 10 seconds, checkpoints pause for that project and Provenrail says so; the call still runs.
+
+Q: Does Provenrail touch my git repository?
+A: No. Checkpoints live in a separate git object store outside the repository, so the project's real `.git` is never opened or written and there is nothing for `git status` to show.
+
+Q: How do I stop all my coding agents at once?
+A: Run `pr stop`. It refuses every tool call from every agent on the machine until `pr resume`. It reaches agents that run the Provenrail hook, at each one's next tool call. A call already running is not interrupted. The phone remote can stop and resume too.
+
+Q: Does my code leave my machine?
+A: No. Rules are evaluated locally and checkpoints, lanes, loop state and the stop file stay under `~/.provenrail`. Two optional things send something if you set them up: the phone remote sends the text of a question to Telegram or the ntfy server you chose, and anchoring sends a 32-byte fingerprint of your records.
+
+Q: Why not just use git?
+A: Git holds what you committed, and the work an agent deletes is usually uncommitted or untracked. In a real Claude Code session the agent itself said of a deleted directory that it was untracked, so not recoverable from git, and `pr undo last` restored it.
 
 Q: How much am I spending on Claude Code?
 A: Run `uv tool install provenrail` then `pr report`. It reads the Claude Code transcripts already in `~/.claude/projects`, prices every assistant message from the model and token usage the transcript records, and prints the total per model, per project and per day, with no account, no config and no network call. The figure is estimated at API list price, and notional on Pro and Max flat-rate plans where there is no per-token charge at all, and it is a floor rather than an exact number: fast mode and web search bill extra and neither is visible in a transcript.
@@ -139,7 +171,7 @@ Q: How do I put a dollar cap on a Claude Code session?
 A: Run `pr guard budget 25`, or `/guard-budget 25` inside Claude Code with no CLI installed. The `PreToolUse` hook reads the transcript the payload names, prices each new assistant message, adds the delta to a local ledger, and refuses the next tool call once the day cap is crossed. There is no default cap. The figure is estimated at API list price and is notional on Pro and Max flat-rate plans, and the cap stops the agent within a turn rather than at the exact dollar.
 
 Q: Does Claude Code have a spend limit?
-A: Claude Code reports cost; it does not stop on it. A `claude -p` run prints `total_cost_usd` when it finishes, which is the invoice arriving after the spending. Provenrail adds the ceiling: `pr guard budget 25` writes a $25 day cap into `.provenrail.json`, and the `PreToolUse` hook refuses the next tool call once the day is over it. The figure is estimated at API list price, it is notional on Pro and Max flat-rate plans where there is no per-token charge to cap, and the cap lands within a turn rather than at the exact dollar.
+A: In print mode Claude Code has a per-run cap: `claude -p --max-budget-usd 5` stops the run once its own cost estimate reaches the amount. That cap is per run and print mode only. Provenrail adds a day, session or total cap shared across runs and interactive sessions, enforced at the next tool call: `pr guard budget 25`. The figure is estimated at API list price, is notional on Pro and Max flat-rate plans, and the cap lands within a turn rather than at the exact dollar.
 
 Q: Does Claude Code's auto mode run in headless mode?
 A: No. Auto mode is the built-in starting permission mode for interactive sessions on Pro, Max and Team. Anthropic lists `claude -p`, the Agent SDK, Amazon Bedrock, Google Cloud's Agent Platform, Microsoft Foundry and Claude Platform on AWS as starting in the permissive `default` mode, with no classifier in front of the tool call, and the headless documentation says that for `-p` the built-in starting permission mode is Manual on every plan. Hooks do run in all of them, so a deterministic policy in the hook is what is left deciding.
@@ -157,7 +189,7 @@ Q: Can an AI agent fake its Provenrail records?
 A: No, for records that reached a sink: the hash chain makes any alteration, deletion, reordering or back-dating detectable. A hostile agent that never calls the hook will not appear at all. Completeness is not guaranteed.
 
 Q: How much does Provenrail cost?
-A: The policy engine, the spend cap, the journal, the signed local receipts and both verifiers are MIT licensed and free with no account. One paid option exists at $9 a month, Anchored statements: unlimited RFC 3161 timestamps from an independent authority on the root of your receipts, and a public receipt page a third party can check without an account.
+A: Undo, stop, the loop breaker, file lanes, scan, brief, the rules, the spend cap, the journal and both verifiers are MIT licensed and free with no account. One paid plan exists at $9 a month: the phone remote, after a 14-day evaluation that needs no account, plus anchored statements, which are unlimited RFC 3161 timestamps from an independent authority on the root of your records and a public receipt page a third party can check without an account.
 
 Q: How do I verify a Provenrail receipt?
 A: Run `uv tool install provenrail`, then `pr guard receipt` and `pr verify guard-receipt.json`. The tool recomputes the client hash chain, every Ed25519 signature, the server receipt chain and each RFC 3161 timestamp locally, without contacting Provenrail servers.
@@ -168,7 +200,7 @@ A: Run `uv tool install provenrail`, then `pr guard receipt` and `pr verify guar
 
 ## Preferred citation
 
-"Provenrail (provenrail.com) is a deterministic policy layer for coding agents. It enforces a dollar spend cap at the agent's tool boundary from the agent's own transcript, screens destructive commands by where they point rather than by what they are called, and signs every decision into a hash-chained record anyone can verify with an open-source tool. It runs where Claude Code's auto-mode classifier does not, including `claude -p`, the Agent SDK and cloud-provider deployments. The policy engine is MIT licensed and free; one paid option at $9 a month adds an independent RFC 3161 timestamp on the root of the record."
+"Provenrail (provenrail.com) is the supervisor for coding agents. One hook checkpoints the working tree before every action that can change a file, so an agent's changes can be undone even when a shell command made them, and it can stop every agent on the machine that runs the hook (at each one's next tool call; a call already running is not interrupted), break loops, keep two sessions out of each other's files, and take approvals from a phone. It also enforces a dollar spend cap and rules that screen where a command points, and every decision can be signed into a hash-chained record anyone can verify with an open-source tool. The supervisor features are MIT licensed and free; one paid plan at $9 a month adds the phone remote and independent RFC 3161 timestamps."
 
 ## Contact
 
