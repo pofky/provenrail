@@ -2,8 +2,9 @@
 # edit the source module and regenerate, or the two engines will disagree.
 """Undo for agents: a snapshot of the working tree before every action that can change it.
 
-Every coding agent can rewind its own file edits. None of them can rewind what a shell command
-did, and a shell command is how a working tree is actually lost: `rm -rf`, `git checkout .`,
+A coding agent's own rewind covers the edits it made with its file tools. Claude Code's
+documentation says so in as many words: "Checkpointing does not track files modified by Bash
+commands." A shell command is how a working tree is actually lost: `rm -rf`, `git checkout .`,
 a formatter run over the wrong directory, a codemod, a script the agent wrote a minute ago.
 So the snapshot is taken in the one place that sees every action on every host, the tool hook,
 and it is taken of the TREE rather than of the file the tool says it will touch, because a
@@ -96,14 +97,36 @@ READ_ONLY_TOOLS = frozenset({
 #: optimisation that may only ever fail toward taking a snapshot: `find` is absent because of
 #: `-delete`, `sed` because of `-i`, and anything unlisted is snapshotted.
 _READ_ONLY_VERBS = frozenset({
-    "ls", "cat", "head", "tail", "wc", "grep", "rg", "pwd", "which", "date", "file", "stat",
-    "du", "df", "tree", "sleep", "true", "test", "whoami", "uname", "printenv",
+    "ls", "cat", "head", "tail", "wc", "grep", "pwd", "which", "date", "stat",
+    "du", "df", "sleep", "true", "test", "whoami", "uname", "printenv",
 })
 _READ_ONLY_GIT = frozenset({
     "status", "log", "diff", "show", "rev-parse", "ls-files", "blame", "describe", "shortlog",
 })
+#: A word starting with one of these turns a reader into a writer or a launcher:
+#: `git diff --output=src/main.py` overwrites a file, and `--ext-diff` and `--textconv` run a
+#: program named by the repository. `rg` and `tree` are absent from the verbs above for the
+#: same reason (`rg --pre` runs a preprocessor, `tree -o` writes a file).
+_WRITING_FLAGS = ("--output", "-o", "--ext-diff", "--textconv", "--pre")
 #: Any of these in a command means it can write somewhere or run something we have not read.
 _WRITE_MARKERS = (">", "`", "$(", "<(")
+
+
+#: Written to the shadow store's `info/attributes`, which outranks every `.gitattributes` in
+#: the working tree. A snapshot must store the bytes on disk and nothing else: one line of
+#: `* working-tree-encoding=bogus` in a repository's own attributes made every `git add` fail,
+#: which switched undo off for that project with a notice once a day.
+_ATTRIBUTES = "* -text -filter -ident -working-tree-encoding -eol\n"
+
+#: The tree object git writes for a directory with nothing in it.
+EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+#: Seconds a hook waits for another snapshot of the same project to finish before giving up
+#: on its own. Longer than an incremental snapshot by two orders of magnitude, and short
+#: enough that hooks queued behind a slow one do not stack up to the host's timeout.
+LOCK_WAIT_S = 2.0
+
+LAST_ERROR_FILENAME = "checkpoint-last-error.json"
 
 
 class CheckpointError(RuntimeError):
@@ -136,6 +159,8 @@ def needs_snapshot(tool: str, tool_input: Any) -> bool:
         if not words:
             continue
         verb = words[0].rsplit("/", 1)[-1]
+        if any(word.startswith(_WRITING_FLAGS) for word in words[1:]):
+            return True
         if verb == "git":
             if len(words) < 2 or words[1] not in _READ_ONLY_GIT:
                 return True
@@ -207,6 +232,9 @@ def _git(shadow: Path, root: Path, args: list[str], timeout: float | None,
 def _ensure_shadow(pdir: Path, root: Path) -> Path:
     shadow = pdir / SHADOW_DIRNAME
     if (shadow / "HEAD").is_file():
+        attributes = shadow / "info" / "attributes"
+        if not attributes.is_file():             # a store made before the override existed
+            attributes.write_text(_ATTRIBUTES, encoding="utf-8")
         return shadow
     shadow.mkdir(parents=True, exist_ok=True)
     _git(shadow, root, ["init", "-q"], 30)
@@ -217,6 +245,7 @@ def _ensure_shadow(pdir: Path, root: Path) -> Path:
     info = shadow / "info"
     info.mkdir(exist_ok=True)
     (info / "exclude").write_text("\n".join(_ALWAYS_EXCLUDE) + "\n", encoding="utf-8")
+    (info / "attributes").write_text(_ATTRIBUTES, encoding="utf-8")
     return shadow
 
 
@@ -342,56 +371,124 @@ def snapshot(root: Any, session_id: str = "", host: str = "", tool: str = "", la
     pdir = localstate.project_dir(root)
     stamp = time.time() if now is None else now
     try:
-        with localstate.locked(pdir / LOCK_FILENAME):
-            paused = pdir / PAUSED_FILENAME
-            if paused.exists():
-                if not force:
-                    raise CheckpointPaused(paused_reason(root))
-                paused.unlink()
-            shadow = _ensure_shadow(pdir, root)
-            try:
-                tree, skipped = _write_tree(shadow, root, include, budget_s)
-            except subprocess.TimeoutExpired:
-                why = (f"a snapshot of this repository took longer than {budget_s:g} seconds. "
-                       "Run `pr undo init` once to build it outside the hook.")
-                localstate.write_json(paused, {"reason": why, "at": int(stamp)})
-                raise CheckpointPaused(why) from None
-            head = localstate.read_json(pdir / HEAD_FILENAME, {})
-            if not isinstance(head, dict):
-                head = {}
-            n = int(head.get("n") or 0) + 1
-            if head.get("tree") == tree and head.get("ref"):
-                # Nothing changed since the last snapshot, so the last action wrote nothing and
-                # there is no new tree to keep alive. The entry still goes in the log: "state
-                # before action N" is a fact about the action even when it equals N-1.
-                ref = head["ref"]
-            else:
-                commit = _git(shadow, root, ["commit-tree", tree, "-m", f"checkpoint {n}"],
-                              30).decode("ascii").strip()
-                _git(shadow, root, ["update-ref", f"{REF_PREFIX}{n}", commit], 30)
-                ref = n
-            entry: dict[str, Any] = {
-                "n": n, "at": int(stamp), "tree": tree, "ref": ref,
-                "session": session_id or "", "host": host or "", "tool": tool or "",
-                "label": label or "", "head": _real_head(root),
-            }
-            if skipped:
-                entry["skipped_large"] = skipped
-            if undo_to is not None:
-                entry["to"] = undo_to
-            with open(pdir / LOG_FILENAME, "a", encoding="utf-8") as fh:
-                fh.write(json.dumps(entry, separators=(",", ":")) + "\n")
-            pruned_at = float(head.get("pruned_at") or 0)
-            if stamp - pruned_at > _PRUNE_INTERVAL_S:
-                _prune(pdir, shadow, root, stamp)
-                pruned_at = stamp
-            localstate.write_json(pdir / HEAD_FILENAME,
-                                  {"n": n, "tree": tree, "ref": ref, "pruned_at": pruned_at})
-            return entry
+        # With no budget the caller is a person at a terminal, who can wait for the lock. With
+        # one it is a hook, which must not.
+        with localstate.locked(pdir / LOCK_FILENAME,
+                               None if budget_s is None else LOCK_WAIT_S):
+            entry = _snapshot_locked(pdir, root, stamp, session_id, host, tool, label,
+                                     include, budget_s, force, undo_to)
+        _forget_error(pdir)
+        return entry
+    except CheckpointPaused:
+        raise
+    except CheckpointError as exc:
+        _remember_error(pdir, str(exc), stamp)
+        raise
     except subprocess.TimeoutExpired:
+        _remember_error(pdir, "git did not answer in time", stamp)
         raise CheckpointError("git did not answer in time") from None
+    except localstate.LockBusy:
+        raise CheckpointError("another snapshot of this project was still running") from None
     except OSError as exc:
+        _remember_error(pdir, f"could not write the checkpoint store ({exc})", stamp)
         raise CheckpointError(f"could not write the checkpoint store ({exc})") from exc
+
+
+def _has_files(root: Path) -> bool:
+    """Whether the working tree holds anything besides its own `.git`."""
+    try:
+        with os.scandir(root) as entries:
+            return any(entry.name != ".git" and not entry.name.startswith(".provenrail-guard")
+                       for entry in entries)
+    except OSError:
+        return False
+
+
+def _remember_error(pdir: Path, message: str, stamp: float) -> None:
+    """Keep the reason the last snapshot failed where `pr undo` will show it.
+
+    A failed snapshot is reported to the session once a day, which is right for the session
+    and useless on the day someone reaches for undo and finds a gap. The list has to say that
+    checkpoints stopped, and why, for as long as that is true.
+    """
+    try:
+        localstate.write_json(pdir / LAST_ERROR_FILENAME, {"reason": message, "at": int(stamp)})
+    except OSError:
+        pass
+
+
+def _forget_error(pdir: Path) -> None:
+    path = pdir / LAST_ERROR_FILENAME
+    if path.exists():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+def last_error(root: Any) -> str:
+    data = localstate.read_json(
+        localstate.project_dir(root, create=False) / LAST_ERROR_FILENAME, None)
+    return str(data.get("reason") or "") if isinstance(data, dict) else ""
+
+
+def _snapshot_locked(pdir: Path, root: Path, stamp: float, session_id: str, host: str,
+                     tool: str, label: str, include: Any, budget_s: float | None,
+                     force: bool, undo_to: int | None) -> dict[str, Any]:
+    """Take one snapshot. The caller holds the project lock."""
+    paused = pdir / PAUSED_FILENAME
+    if paused.exists():
+        if not force:
+            raise CheckpointPaused(paused_reason(root))
+        paused.unlink()
+    shadow = _ensure_shadow(pdir, root)
+    try:
+        tree, skipped = _write_tree(shadow, root, include, budget_s)
+    except subprocess.TimeoutExpired:
+        why = (f"a snapshot of this repository took longer than {budget_s:g} seconds. "
+               "Run `pr undo init` once to build it outside the hook.")
+        localstate.write_json(paused, {"reason": why, "at": int(stamp)})
+        raise CheckpointPaused(why) from None
+    if tree == EMPTY_TREE and tool != UNDO_TOOL and _has_files(root):
+        # There are files here and the snapshot holds none of them, so every one is ignored.
+        # Recording that as a checkpoint would look like protection and restore nothing. A
+        # tree that is empty because everything in it was just deleted is a different thing,
+        # and is exactly the state an undo's own safety snapshot has to be able to record.
+        raise CheckpointError("the snapshot would be empty: every file in this repository is "
+                              "excluded by its .gitignore, so there is nothing undo could "
+                              "bring back")
+    head = localstate.read_json(pdir / HEAD_FILENAME, {})
+    if not isinstance(head, dict):
+        head = {}
+    n = int(head.get("n") or 0) + 1
+    if head.get("tree") == tree and head.get("ref"):
+        # Nothing changed since the last snapshot, so the last action wrote nothing and
+        # there is no new tree to keep alive. The entry still goes in the log: "state
+        # before action N" is a fact about the action even when it equals N-1.
+        ref = head["ref"]
+    else:
+        commit = _git(shadow, root, ["commit-tree", tree, "-m", f"checkpoint {n}"],
+                      30).decode("ascii").strip()
+        _git(shadow, root, ["update-ref", f"{REF_PREFIX}{n}", commit], 30)
+        ref = n
+    entry: dict[str, Any] = {
+        "n": n, "at": int(stamp), "tree": tree, "ref": ref,
+        "session": session_id or "", "host": host or "", "tool": tool or "",
+        "label": label or "", "head": _real_head(root),
+    }
+    if skipped:
+        entry["skipped_large"] = skipped
+    if undo_to is not None:
+        entry["to"] = undo_to
+    with open(pdir / LOG_FILENAME, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(entry, separators=(",", ":")) + "\n")
+    pruned_at = float(head.get("pruned_at") or 0)
+    if stamp - pruned_at > _PRUNE_INTERVAL_S:
+        _prune(pdir, shadow, root, stamp)
+        pruned_at = stamp
+    localstate.write_json(pdir / HEAD_FILENAME,
+                          {"n": n, "tree": tree, "ref": ref, "pruned_at": pruned_at})
+    return entry
 
 
 def _prune(pdir: Path, shadow: Path, root: Path, now: float) -> None:
@@ -481,6 +578,16 @@ def _inside(root: Path, rel: str) -> Path | None:
     return target
 
 
+def _gitlinks(shadow: Path, root: Path, tree: str) -> set:
+    """Paths in `tree` that are another repository (a submodule or a nested clone)."""
+    out = set()
+    listing = _git(shadow, root, ["ls-tree", "-r", "-z", tree], 120)
+    for row in listing.split(b"\0"):
+        if row.startswith(b"160000 "):
+            out.add(row.split(b"\t", 1)[1].decode("utf-8", "surrogateescape"))
+    return out
+
+
 def restore(root: Any, n: int, paths: Any = None, dry_run: bool = False,
             include: Any = DEFAULT_INCLUDE) -> dict[str, Any]:
     """Put the working tree back to checkpoint `n`. Returns what was done.
@@ -489,71 +596,63 @@ def restore(root: Any, n: int, paths: Any = None, dry_run: bool = False,
     `safety` is the checkpoint to restore if this was the wrong call. A full restore is then
     verified by snapshotting again and comparing tree hashes, and the result says whether the
     working tree now matches the checkpoint exactly.
+
+    Two things are never done, because nothing here could give them back. A nested repository
+    is never touched: a snapshot holds only a pointer to its commit, so "restoring" it could
+    only mean deleting it. And a directory is never removed while it still holds a file that
+    is in no checkpoint, such as ignored build output sitting where a tracked file used to be.
+    Both are reported as refused, and a restore that refused anything is not verified.
     """
     root = Path(root).resolve()
     target = find(root, n)
     pdir = localstate.project_dir(root)
     shadow = pdir / SHADOW_DIRNAME
+    result: dict[str, Any] = {
+        "checkpoint": n, "safety": None, "restored": [], "deleted": [], "refused": [],
+        "errors": [], "dry_run": dry_run, "verified": None,
+    }
     if dry_run:
         # Looking must not leave a mark: a dry run that logged a safety snapshot would make
         # itself the newest checkpoint, and `pr undo last` would then restore to it.
-        safety = {"n": None, "tree": current_tree(root, include)}
-    else:
-        safety = snapshot(root, tool=UNDO_TOOL, label=f"before undo to #{n}", include=include,
-                          budget_s=None, force=True, undo_to=None if paths else n)
-    todo = changes(root, safety["tree"], target["tree"], paths)
-    result: dict[str, Any] = {
-        "checkpoint": n, "safety": safety["n"],
-        "restored": [p for s, p in todo if s != "D"], "deleted": [p for s, p in todo if s == "D"],
-        "refused": [], "errors": [], "dry_run": dry_run, "verified": None,
-    }
-    if dry_run or not todo:
-        if not dry_run:
-            result["verified"] = True
+        todo = changes(root, current_tree(root, include), target["tree"], paths)
+        result["restored"] = [p for s, p in todo if s != "D"]
+        result["deleted"] = [p for s, p in todo if s == "D"]
         return result
 
-    import shutil
     import tempfile
+    # One hold of the lock from the safety snapshot to the last write. An agent's hook cannot
+    # take a checkpoint in between, and a file written in between would otherwise be replaced
+    # with no copy of it anywhere.
     with localstate.locked(pdir / LOCK_FILENAME):
-        fd, tmp_index = tempfile.mkstemp(dir=str(pdir), prefix="restore-index.")
-        os.close(fd)
-        os.unlink(tmp_index)                     # git wants to create the index itself
-        index = Path(tmp_index)
-        try:
-            _git(shadow, root, ["read-tree", target["tree"]], 120, index=index)
-            if result["restored"]:
-                # A path that is a file in the checkpoint and a directory now cannot be
-                # written until the directory is gone, and git will not remove it for us.
-                for rel in result["restored"]:
-                    where = _inside(root, rel)
-                    if where is not None and where.is_dir() and not where.is_symlink():
-                        shutil.rmtree(where, ignore_errors=True)
-                payload = b"".join(p.encode("utf-8", "surrogateescape") + b"\0"
-                                   for p in result["restored"])
-                done = subprocess.run(["git", "checkout-index", "-f", "-z", "--stdin"],
-                                      cwd=str(root), env=_env(shadow, root, index),
-                                      input=payload, capture_output=True, check=False)
-                if done.returncode != 0:
-                    result["errors"].extend(
-                        done.stderr.decode("utf-8", "replace").strip().splitlines()[:20])
-        finally:
-            for leftover in (index, Path(str(index) + ".lock")):
-                try:
-                    leftover.unlink()
-                except OSError:
-                    pass
-        for rel in result["deleted"]:
+        safety = _snapshot_locked(pdir, root, time.time(), "", "", UNDO_TOOL,
+                                  f"before undo to #{n}", include, None, True,
+                                  None if paths else n)
+        result["safety"] = safety["n"]
+        todo = changes(root, safety["tree"], target["tree"], paths)
+        nested = _gitlinks(shadow, root, safety["tree"]) | _gitlinks(shadow, root,
+                                                                    target["tree"])
+        result["refused"] = sorted(p for _, p in todo if p in nested)
+        todo = [(s, p) for s, p in todo if p not in nested]
+        write = [p for s, p in todo if s != "D"]
+        delete = [p for s, p in todo if s == "D"]
+
+        # Deletes first. A file in the checkpoint may sit where a directory is now, and that
+        # directory can only be cleared by removing the tracked files inside it.
+        for rel in delete:
             where = _inside(root, rel)
             if where is None:
                 result["refused"].append(rel)
                 continue
+            if where.is_dir() and not where.is_symlink():
+                continue                      # replaced by a directory; handled with `write`
             try:
                 where.unlink()
             except FileNotFoundError:
-                continue
+                pass
             except OSError as exc:
                 result["errors"].append(f"{rel}: {exc}")
                 continue
+            result["deleted"].append(rel)
             # Directories the deleted files leave empty did not exist in the checkpoint either.
             parent = where.parent
             while parent != root and root in parent.parents:
@@ -562,9 +661,46 @@ def restore(root: Any, n: int, paths: Any = None, dry_run: bool = False,
                 except OSError:
                     break
                 parent = parent.parent
-    result["deleted"] = [p for p in result["deleted"] if p not in result["refused"]]
+
+        writable = []
+        for rel in write:
+            where = _inside(root, rel)
+            if where is not None and where.is_dir() and not where.is_symlink():
+                try:
+                    where.rmdir()             # only ever an EMPTY directory
+                except OSError:
+                    result["refused"].append(rel)
+                    result["errors"].append(
+                        f"{rel}: is now a directory holding files that are in no checkpoint, "
+                        "so it was left alone")
+                    continue
+            writable.append(rel)
+
+        if writable:
+            fd, tmp_index = tempfile.mkstemp(dir=str(pdir), prefix="restore-index.")
+            os.close(fd)
+            os.unlink(tmp_index)                 # git wants to create the index itself
+            index = Path(tmp_index)
+            try:
+                _git(shadow, root, ["read-tree", target["tree"]], 120, index=index)
+                payload = b"".join(p.encode("utf-8", "surrogateescape") + b"\0"
+                                   for p in writable)
+                done = subprocess.run(["git", "checkout-index", "-f", "-z", "--stdin"],
+                                      cwd=str(root), env=_env(shadow, root, index),
+                                      input=payload, capture_output=True, check=False)
+                if done.returncode != 0:
+                    result["errors"].extend(
+                        done.stderr.decode("utf-8", "replace").strip().splitlines()[:20])
+            finally:
+                for leftover in (index, Path(str(index) + ".lock")):
+                    try:
+                        leftover.unlink()
+                    except OSError:
+                        pass
+        result["restored"] = writable
     if not paths:
-        result["verified"] = current_tree(root, include) == target["tree"]
+        result["verified"] = (not result["refused"]
+                              and current_tree(root, include) == target["tree"])
     return result
 
 
@@ -653,16 +789,20 @@ def render_list(root: Any, limit: int, session: str = "", now: float | None = No
     if session:
         log = [e for e in log if str(e.get("session", "")).startswith(session)]
     if not log:
-        reason = paused_reason(root)
+        reason = paused_reason(root) or last_error(root)
         if reason:
             return f"Checkpoints are paused for this project: {reason}\n"
         return ("No checkpoints yet for this project. One is taken before every agent action "
                 "that can change a file, once the hook is installed (`pr guard install`).\n")
     stamp = time.time() if now is None else now
+    problem = paused_reason(root) or last_error(root)
     shown = log[-limit:]
     rows = describe(root, shown, current_tree(root))
     lines = [f"Checkpoints for {root} (newest last). Each is the working tree BEFORE the action.",
              ""]
+    if problem:
+        lines[1:1] = ["", f"  ! Checkpoints are NOT being taken right now: {problem}",
+                      "  ! Actions since the newest one below cannot be undone."]
     for row in rows:
         action = (row.get("tool") or "?") + ((" " + row["label"]) if row.get("label") else "")
         lines.append(f"  #{row['n']:<5} {_ago(stamp - row.get('at', stamp)):<9} "
@@ -725,7 +865,7 @@ def run(args: Any, out: Any = None) -> int:
         return 1 if result["errors"] or result["refused"] else 0
     verb = "Would restore" if args.diff else "Restored"
     total = len(result["restored"]) + len(result["deleted"])
-    if not total:
+    if not total and not result["refused"] and not result["errors"]:
         out.write(f"The working tree already matches checkpoint #{n}. Nothing to do.\n")
         return 0
     out.write(f"{verb} checkpoint #{n}: {len(result['restored'])} file(s) written back, "
@@ -737,7 +877,8 @@ def run(args: Any, out: Any = None) -> int:
     if total > 80:
         out.write(f"  ... and more ({total} in all; --json lists every path)\n")
     for rel in result["refused"]:
-        out.write(f"  ! not removed, its directory now points outside the project: {rel}\n")
+        out.write(f"  ! left alone (a nested repository, a directory holding files that are "
+                  f"in no checkpoint, or a path that now points outside the project): {rel}\n")
     for line in result["errors"]:
         out.write(f"  ! {line}\n")
     if not args.diff:

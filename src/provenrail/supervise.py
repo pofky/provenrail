@@ -65,10 +65,11 @@ DEFAULT_NOTIFY_ON = ("deny",)
 #: The hook timeout assumed when the hook command does not state one, which is every install
 #: made before the phone remote existed. It is the timeout those installs were written with.
 LEGACY_BUDGET_S = 15
-#: Seconds of the hook's timeout kept back from a phone wait: ten for the checkpoint that
-#: follows an approval (`checkpoint.SNAPSHOT_BUDGET_S`) and ten for everything else, so the
+#: Seconds of the hook's timeout kept back from a phone wait: ten that the last network call
+#: of a wait may run past its deadline (`remote._HTTP_TIMEOUT_S`), ten for the checkpoint that
+#: follows an approval (`checkpoint.SNAPSHOT_BUDGET_S`), and ten for everything else, so the
 #: hook always answers before the host gives up on it.
-RESERVE_S = 20
+RESERVE_S = 30
 #: Below this a phone wait is not attempted. Nobody reads a command and answers in under half
 #: a minute, so a shorter wait would only ever add a delay before the same fallback.
 MIN_WAIT_S = 30
@@ -90,11 +91,24 @@ def _preview(tool: str, tool_input: Any, detail: str) -> str:
     data = tool_input if isinstance(tool_input, dict) else {}
     command = data.get("command") if data else tool_input
     if tool == "Bash" and isinstance(command, str):
-        return command_shape(command) if detail == "shape" else command[:_MAX_PREVIEW]
+        return command_shape(command) if detail == "shape" else _clip(command)
     for key in ("file_path", "path", "notebook_path", "url"):
         if isinstance(data.get(key), str):
-            return data[key][:_MAX_PREVIEW]
+            return _clip(data[key])
     return ""
+
+
+def _clip(text: str) -> str:
+    """The first `_MAX_PREVIEW` characters, and a plain statement of how many were cut.
+
+    Cutting silently would let a command that is six hundred harmless characters followed by
+    a destructive tail look harmless on the phone. The person approving has to know they are
+    not seeing all of it, in which case the right answer is usually to refuse.
+    """
+    if len(text) <= _MAX_PREVIEW:
+        return text
+    return (f"{text[:_MAX_PREVIEW]}\n[CUT: {len(text) - _MAX_PREVIEW} more characters are NOT "
+            "shown. Refuse unless you know what they are.]")
 
 
 def _project(root: Any, cwd: str) -> str:
@@ -147,15 +161,35 @@ def pre(hook: dict[str, Any], host: str, verdict: str, rule_id: Any, reason: str
     remote = None
     remote_section = section("remote")
     try:
-        if _enabled(remote_section) and (localstate.home() / _REMOTE_CONFIG).exists():
+        if (localstate.home() / _REMOTE_CONFIG).exists():
             remote = _remote_module()
             cfg = remote.load()
         if cfg is not None:
-            cfg = dict(cfg, **{k: v for k, v in remote_section.items()
-                               if k in ("ask", "detail", "wait_s", "notify_on")})
+            # The repository's own file may only make the remote more private or more
+            # patient-less, never the reverse. `.provenrail.json` is in the working tree: the
+            # agent can write it and a cloned repository can ship it, and neither may decide
+            # that commands are sent to a phone in full or that the phone is never asked.
+            # Those choices live in the user's own `remote.json` (`pr remote config`).
+            cfg = dict(cfg)
+            if remote_section.get("detail") == "shape":
+                cfg["detail"] = "shape"
+            repo_wait = remote_section.get("wait_s")
+            if isinstance(repo_wait, (int, float)) and not isinstance(repo_wait, bool):
+                cfg["wait_s"] = min(_number(cfg, "wait_s", remote.DEFAULT_WAIT_S, 1,
+                                            remote.MAX_WAIT_S), max(1.0, float(repo_wait)))
             remote.poll_in_background()
     except Exception:  # noqa: BLE001
         cfg = None
+
+    # A feature switched off by the repository's own file is said out loud, once a day. The
+    # file is in the working tree, so the agent being supervised can write it; the user has
+    # to be able to tell "I turned undo off here" from "something turned undo off here".
+    off = [name for name in ("undo", "watch", "lanes") if not _enabled(section(name))]
+    if off:
+        notice += once("supervisor-off-" + "-".join(off), (
+            f"provenrail: switched OFF for this project by {config_path}: "
+            + ", ".join({"undo": "undo checkpoints", "watch": "the loop breaker",
+                         "lanes": "file lanes"}[name] for name in off) + "\n"))
 
     # 2. The loop breaker. Only on a call the rules would have let through: a call that is
     # already being refused or questioned needs no second reason.

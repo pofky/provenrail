@@ -39,7 +39,7 @@ posted. The copy for this release is written, one file per field, in
 
 ## Done and verified
 
-- **2,276 tests pass and `ruff check .` is clean** (run 2026-10-09; the count includes 197 new
+- **2,277 tests pass and `ruff check .` is clean** (run 2026-10-09; the count includes 197 new
   ones in `test_checkpoint.py`, `test_supervisor.py`, `test_scan.py`, `test_brief.py`).
 - **The wheel is proven, not the source tree.** `tools/verify_flows.py` builds 0.6.0, installs
   it into a clean venv and drives the flows, now including the supervisor through BOTH engines
@@ -60,6 +60,16 @@ posted. The copy for this release is written, one file per field, in
   tool calls; 8 back-to-back repeats questions 0.47% of sessions. The distribution is pinned
   in `tests/test_supervisor.py::MEASURED` and the README figures are asserted against it.
 - **`claude plugin validate ./plugins/provenrail-guard` passes** at 0.6.0.
+- **An adversarial review of the new modules found seventeen defects and each fixed one has a
+  reproduction in `tests/test_supervisor_hardening.py`.** The three that mattered: a restore
+  deleted a nested repository, `.git` and unpushed commits included; the background poller ran
+  `python -m` from the repository, so a planted `provenrail/__init__.py` was executed; and a
+  broken `.provenrail.json` returned "not enforcing" before the stop switch was ever read. The
+  same review found no path from deny or ask to allow other than a real approval, and no write
+  or delete outside the repository root.
+- **A legal review of the public copy found three blockers, all corrected**: the Codex comment
+  claimed it worked on a host never driven, the README claimed five hosts with no hedge, and
+  the site said Claude Code cannot stop on cost, which `claude -p --max-budget-usd` contradicts.
 - **Two old defects found and fixed on the way.** A `.provenrail.json` with no `policy` key
   armed the defaults under the plugin and NOTHING under the CLI. And `pr guard install --host
   gemini` wrote a 15 millisecond hook timeout, because Gemini CLI counts in milliseconds
@@ -86,6 +96,28 @@ posted. The copy for this release is written, one file per field, in
 
 ## Traps
 
+- **The stop switch is read before anything that can fail.** First statement of both hook
+  entry points, ahead of payload parsing and policy loading. Every "could not load, allowing"
+  branch is otherwise a way past a stop order.
+- **`.provenrail.json` is in the working tree, so it may only tighten.** The agent can write
+  it and a clone can ship it. It can switch undo, the loop breaker or lanes off only with a
+  notice; for the remote it can only reduce detail to `shape` or shorten the wait. When the
+  phone is asked and how much it is sent live in `~/.provenrail/remote.json`
+  (`pr remote config`).
+- **A restore never touches a nested repository and never empties a directory holding a file
+  that is in no checkpoint.** Both are reported as refused and the restore is then NOT marked
+  verified. A snapshot holds only a pointer to a nested repository, so "restoring" one could
+  only ever delete it.
+- **The safety snapshot and the writes of a restore are one lock hold.** Split, an agent's
+  write between them was replaced with no copy anywhere.
+- **An empty snapshot is an error only when the tree has files.** Everything ignored is a
+  gap to report; everything just deleted is the exact state an undo must be able to record.
+- **The shadow store's `info/attributes` overrides the repository's `.gitattributes`.** One
+  line of `* working-tree-encoding=bogus` in a repository failed every snapshot.
+- **Nothing spawned by the hook may run with the repository as its working directory**, and
+  nothing on the hook's path may wait on a lock without a limit (`localstate.locked(timeout)`).
+- **A command cut for the phone must say it was cut.** 600 harmless characters and then a
+  destructive tail otherwise looks harmless to the person approving it.
 - **The supervisor may only make a verdict stricter, with one exception.** A human answering
   "approve" turns an ask into an allow. Nothing else in `supervise.py` may loosen anything,
   and every step that fails must leave the verdict as it found it.
@@ -176,6 +208,19 @@ posted. The copy for this release is written, one file per field, in
 - **Nested repositories and submodules are snapshotted as a pointer, not by content.**
 - **A shell command that rewrites a file takes no lane**, because it does not say which files
   it will touch. Stated in `lanes.py` and the docs.
+- **The checkpoint store has no total size cap.** Fourteen days of large changes can fill a
+  disk. Files over 50 MiB are skipped, which bounds a single snapshot and not the sum.
+- **`find_root` takes the nearest `.git`**, so a session started inside a nested repository
+  snapshots only that one.
+- **The remote does not defend against hostile software in the user's own account**, which can
+  read its state files, and on ntfy can read the topic and answer its own question. Said in
+  `remote.py`, in the setup text and on the site. Telegram is the stronger channel.
+- **Three legal notes left for the operator, all older than 0.6.0**: the terms do not say the
+  subscription renews until cancelled, the refund channel differs between `terms.html` (email)
+  and `pricing.html` (the Polar portal), and neither can be settled without knowing how the
+  Polar product is actually configured.
+- **The 8 ms hook overhead was measured once, on a quiet machine** (70 ms against 78 ms,
+  interleaved). Under load both figures move by more than the difference.
 - **The paid line is an untested guess.** One feature, one price, a 14-day evaluation counted
   locally. Nobody has reached it.
 

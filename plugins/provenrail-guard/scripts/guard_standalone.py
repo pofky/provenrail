@@ -645,6 +645,16 @@ def allow_out(host):
 
 def run(raw, default_event="pre", host=hosts.DEFAULT_HOST, budget_s=supervise.LEGACY_BUDGET_S):
     """Handle one hook invocation. Returns (stdout, stderr)."""
+    # The stop switch, before anything that can fail. A payload that does not parse and a
+    # policy that does not load both end in "allowing", and neither may be a way past an
+    # order to stop: writing one broken line into `.provenrail.json` would otherwise lift it.
+    try:
+        order = watch.halted()
+    except Exception:  # noqa: BLE001
+        order = None
+    if order is not None:
+        stopped = f"Provenrail guardrail {supervise.RULE_STOPPED}: {watch.halt_reason(order)}"
+        return hosts.render(host, "deny", stopped), ""
     try:
         data = json.loads(raw) if raw.strip() else {}
     except ValueError:

@@ -37,9 +37,25 @@ _KEY_HEX = 12
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 
+#: Owner only. The store holds copies of `.env` files, a bot token and a topic that is a
+#: password, and the default of 0755 would let every other account on the machine read them.
+PRIVATE_DIR_MODE = 0o700
+PRIVATE_FILE_MODE = 0o600
+
+
 def home() -> Path:
     override = os.environ.get(HOME_ENV)
     return Path(override) if override else Path.home() / ".provenrail"
+
+
+def _private_dir(path: Path) -> None:
+    """Create `path` owner-only, and tighten it if it already exists looser."""
+    try:
+        path.mkdir(parents=True, exist_ok=True, mode=PRIVATE_DIR_MODE)
+        if path.stat().st_mode & 0o077:
+            os.chmod(path, PRIVATE_DIR_MODE)
+    except OSError:
+        pass
 
 
 def find_root(start: Any = None) -> Path | None:
@@ -69,8 +85,9 @@ def project_key(root: Any) -> str:
 
 def project_dir(root: Any, create: bool = True) -> Path:
     path = home() / "projects" / project_key(root)
-    if create:
-        path.mkdir(parents=True, exist_ok=True)
+    if create and not path.is_dir():
+        _private_dir(home())
+        _private_dir(path)
     return path
 
 
@@ -88,15 +105,23 @@ def read_json(path: Any, default: Any) -> Any:
         return default
 
 
-def write_json(path: Any, data: Any) -> None:
-    """Write atomically, so a reader never sees half a file and a crash leaves the old one."""
+def write_json(path: Any, data: Any, private: bool = False) -> None:
+    """Write atomically, so a reader never sees half a file and a crash leaves the old one.
+
+    `private` creates the file owner-only from its first byte. Writing it and tightening it
+    afterwards leaves a moment in which a secret is readable by everyone.
+    """
     target = Path(path)
+    if not home().is_dir():
+        _private_dir(home())
     target.parent.mkdir(parents=True, exist_ok=True)
     # A name unique to this process is all that is needed, and `tempfile` costs several
     # milliseconds to import on a path that runs on every tool call.
     tmp = f"{target}.{os.getpid()}.tmp"
     try:
-        with open(tmp, "w", encoding="utf-8") as fh:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+                     PRIVATE_FILE_MODE if private else 0o644)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(data, fh, separators=(",", ":"))
         os.replace(tmp, target)
     except BaseException:
@@ -107,26 +132,55 @@ def write_json(path: Any, data: Any) -> None:
         raise
 
 
+class LockBusy(OSError):
+    """The lock could not be taken in the time allowed."""
+
+
+#: How often a waiter retries a busy lock. Short against any wait a caller would set, and long
+#: enough that a hook queued behind another is not spinning a core while it waits.
+_LOCK_POLL_S = 0.02
+
+
 @contextmanager
-def locked(path: Any):
+def locked(path: Any, timeout: float | None = None):
     """Hold an exclusive lock for the duration of the block.
 
     Two agents in one repository run their hooks at the same moment as a matter of course, and
     every structure here is read, changed and written back. On a platform with no `flock` the
     block runs unlocked: a lost update to a lane or a loop counter is a missed warning, which is
     the direction this is allowed to fail in.
+
+    `timeout` bounds the wait and raises `LockBusy` when it runs out. Anything on the hook's
+    path must pass one: a hook that waits without limit behind another process is killed by
+    the host at its timeout, and a killed hook is read as having had no opinion.
     """
+    import time
     target = Path(path)
+    if not home().is_dir():
+        _private_dir(home())
     target.parent.mkdir(parents=True, exist_ok=True)
     handle = open(target, "a+")  # noqa: SIM115 - held open across the yield on purpose
     try:
         if _fcntl is not None:
-            _fcntl.flock(handle.fileno(), _fcntl.LOCK_EX)
+            if timeout is None:
+                _fcntl.flock(handle.fileno(), _fcntl.LOCK_EX)
+            else:
+                deadline = time.monotonic() + timeout
+                while True:
+                    try:
+                        _fcntl.flock(handle.fileno(), _fcntl.LOCK_EX | _fcntl.LOCK_NB)
+                        break
+                    except OSError:
+                        if time.monotonic() >= deadline:
+                            raise LockBusy(f"{target.name} is held by another process") from None
+                        time.sleep(_LOCK_POLL_S)
         yield
     finally:
         try:
             if _fcntl is not None:
                 _fcntl.flock(handle.fileno(), _fcntl.LOCK_UN)
+        except OSError:
+            pass
         finally:
             handle.close()
 

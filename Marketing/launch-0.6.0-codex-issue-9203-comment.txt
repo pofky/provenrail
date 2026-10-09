@@ -1,11 +1,11 @@
-Until /undo is back, this works today through Codex's own PreToolUse hook. It snapshots the working tree before every tool call that can write, shell commands included, into a separate git object store outside the repo (your .git is never touched), and pr undo last restores it and verifies the result by tree hash.
+While /undo is gone, this may help. It is a PreToolUse hook that snapshots the working tree before every tool call that can write, shell commands included, into a separate git object store outside the repo (your .git is never touched). pr undo last restores it and verifies the result by tree hash.
 
-uv tool install provenrail
+uv tool install git+https://github.com/pofky/provenrail
 
 pr guard install --host codex
 
 pr undo
 
-It covers what a shell command did. It does not cover gitignored files (except root .env files), files over 50 MiB, or your git history. MIT, local only: https://github.com/pofky/provenrail
+It does not cover gitignored files (except root .env files), files over 50 MiB, git history, databases, or anything outside the repo, and checkpoints are pruned after 14 days. MIT, runs locally: https://github.com/pofky/provenrail
 
 Disclosure: I wrote it.

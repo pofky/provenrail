@@ -17,6 +17,11 @@ Either way the text of the question (the rule, the tool, and by default the comm
 the machine and passes through that service. That is the user's decision, made at
 `pr remote setup`, and `"detail": "shape"` reduces what is sent to the verb and its flags.
 
+What it is a defence against. A trusted agent that makes mistakes, and a person who is not
+at the keyboard. It is not a defence against a hostile program running as the same user: that
+program can read this module's state files, and with ntfy it can read the topic and answer
+its own question. Nothing that runs in the user's own account can be.
+
 It never fails open. No answer, a network error, an unpaired chat, an expired evaluation:
 every one of them leaves the verdict exactly what it was before the remote was consulted.
 
@@ -80,6 +85,8 @@ IDLE_AWAY_S = 120
 #: 600 shows a long command whole on a phone screen without scrolling past the buttons.
 MAX_BODY_CHARS = 600
 
+#: Seconds the hook will wait for the remote's lock before skipping the background check.
+_POLL_LOCK_WAIT_S = 0.1
 _ANSWER_TTL_S = 24 * 3600
 _COMMANDS = ("stop", "resume", "away", "back", "status")
 
@@ -107,12 +114,8 @@ def load() -> dict[str, Any] | None:
 
 
 def save(cfg: dict[str, Any]) -> None:
-    path = config_file()
-    localstate.write_json(path, cfg)
-    try:
-        os.chmod(path, 0o600)            # it holds a bot token or a topic that is a password
-    except OSError:
-        pass
+    # Owner-only from its first byte: it holds a bot token or a topic that is a password.
+    localstate.write_json(config_file(), cfg, private=True)
 
 
 def forget() -> bool:
@@ -132,7 +135,7 @@ def _state() -> dict[str, Any]:
 
 
 def _save_state(state: dict[str, Any]) -> None:
-    localstate.write_json(localstate.home() / STATE_FILENAME, state)
+    localstate.write_json(localstate.home() / STATE_FILENAME, state, private=True)
 
 
 def entitled(cfg: dict[str, Any], licensed: Any, now: float | None = None) -> tuple:
@@ -301,19 +304,32 @@ def send(cfg: dict[str, Any], title: str, body: str, request_id: str = "") -> No
     _call(cfg, "POST", server + "/", payload)
 
 
+def _is_owner(cfg: dict[str, Any], sender: Any) -> bool:
+    """Whether a Telegram update came from the account that paired. A config written before
+    the account was recorded has no `user_id`, and falls back to the chat check alone."""
+    owner = cfg.get("user_id")
+    if not owner:
+        return True
+    return isinstance(sender, dict) and sender.get("id") == owner
+
+
 def _absorb(state: dict[str, Any], text: str, now: float) -> None:
     """File one piece of incoming text as an answer or a command. Anything else is dropped."""
     text = (text or "").strip()
     if len(text) > 2 and text[1] == ":" and text[0] in "ad":
-        state.setdefault("inbox", {})[text[2:66]] = {
-            "answer": "approve" if text[0] == "a" else "deny", "at": int(now)}
+        inbox = state.setdefault("inbox", {})
+        # A refusal stands. Two taps on one question, in either order, are a refusal.
+        if (inbox.get(text[2:66]) or {}).get("answer") != "deny":
+            inbox[text[2:66]] = {"answer": "approve" if text[0] == "a" else "deny",
+                                 "at": int(now)}
         return
     word = text.lstrip("/").split("@", 1)[0].split(" ", 1)[0].lower()
     if word in _COMMANDS:
         state.setdefault("commands", []).append(word)
 
 
-def fetch(cfg: dict[str, Any], wait_s: float = 0, now: float | None = None) -> None:
+def fetch(cfg: dict[str, Any], wait_s: float = 0, now: float | None = None,
+          http_margin_s: float = _HTTP_TIMEOUT_S) -> None:
     """Pull whatever has arrived into the shared state: answers into the inbox, and the
     words `stop`, `resume`, `away`, `back`, `status` into the command queue.
 
@@ -328,7 +344,7 @@ def fetch(cfg: dict[str, Any], wait_s: float = 0, now: float | None = None) -> N
             updates = _telegram(cfg, "getUpdates", {
                 "offset": int(state.get("offset") or 0), "timeout": int(wait_s),
                 "allowed_updates": ["callback_query", "message"]},
-                timeout=wait_s + _HTTP_TIMEOUT_S)
+                timeout=wait_s + http_margin_s)
             for update in updates if isinstance(updates, list) else []:
                 if not isinstance(update, dict):
                     continue
@@ -338,9 +354,10 @@ def fetch(cfg: dict[str, Any], wait_s: float = 0, now: float | None = None) -> N
                 message = update.get("message")
                 if isinstance(query, dict):
                     chat = ((query.get("message") or {}).get("chat") or {}).get("id")
-                    # Only the paired chat may answer. A bot is reachable by anyone who
-                    # finds its name, and an approval from a stranger is not an approval.
-                    if chat == cfg["chat_id"]:
+                    # Only the paired chat may answer, and in it only the person who paired:
+                    # a bot is reachable by anyone who finds its name, a group chat has other
+                    # members, and an approval from either is not an approval.
+                    if chat == cfg["chat_id"] and _is_owner(cfg, query.get("from")):
                         _absorb(state, str(query.get("data") or ""), stamp)
                     try:
                         _telegram(cfg, "answerCallbackQuery",
@@ -348,13 +365,14 @@ def fetch(cfg: dict[str, Any], wait_s: float = 0, now: float | None = None) -> N
                     except RemoteError:
                         pass
                 elif isinstance(message, dict):
-                    if (message.get("chat") or {}).get("id") == cfg["chat_id"]:
+                    if ((message.get("chat") or {}).get("id") == cfg["chat_id"]
+                            and _is_owner(cfg, message.get("from"))):
                         _absorb(state, str(message.get("text") or ""), stamp)
         else:
             since = state.get("since") or str(int(float(cfg.get("installed_at") or stamp)))
             url = (f"{_ntfy_server(cfg)}/{_quote(_reply_topic(cfg))}/json"
                    f"?poll=1&since={_quote(str(since))}")
-            raw = _call(cfg, "GET", url)
+            raw = _call(cfg, "GET", url, timeout=http_margin_s)
             for line in raw.splitlines():
                 try:
                     event = json.loads(line)
@@ -386,11 +404,14 @@ def ask(cfg: dict[str, Any], title: str, body: str, wait_s: float = DEFAULT_WAIT
     """Put a question to the phone. Returns "approve", "deny", "timeout" or "error"."""
     wait_s = max(1.0, min(float(wait_s), float(MAX_WAIT_S)))
     request_id = secrets.token_hex(8)
+    # The clock starts before the question is sent. Sending can itself take ten seconds on a
+    # bad network, and a wait measured from afterwards would run that much past what the
+    # caller, and behind the caller the host's hook timeout, was promised.
+    deadline = time.monotonic() + wait_s
     try:
         send(cfg, title, body, request_id)
     except RemoteError:
         return "error"
-    deadline = time.monotonic() + wait_s
     failures = 0
     while True:
         answer = _take_answer(request_id)
@@ -400,7 +421,8 @@ def ask(cfg: dict[str, Any], title: str, body: str, wait_s: float = DEFAULT_WAIT
         if left <= 0:
             return "timeout"
         try:
-            fetch(cfg, wait_s=min(_SLICE_S, max(0.0, left)))
+            fetch(cfg, wait_s=min(_SLICE_S, max(0.0, left)),
+                  http_margin_s=min(_HTTP_TIMEOUT_S, max(1.0, left)))
             failures = 0
             # A `stop` sent while a question is open is an answer to it, and the clearest
             # one there is.
@@ -467,16 +489,26 @@ def poll_in_background() -> bool:
     """
     if not poll_due():
         return False
-    # Stamp before spawning, so a burst of tool calls starts one poller and not forty.
-    with localstate.locked(localstate.home() / LOCK_FILENAME):
-        state = _state()
-        state["polled_at"] = int(time.time())
-        _save_state(state)
+    # Stamp before spawning, so a burst of tool calls starts one poller and not forty. If the
+    # lock is busy, someone is already talking to the service on this machine's behalf, and
+    # waiting for them would put a network round trip in front of this tool call.
+    try:
+        with localstate.locked(localstate.home() / LOCK_FILENAME, _POLL_LOCK_WAIT_S):
+            state = _state()
+            state["polled_at"] = int(time.time())
+            _save_state(state)
+    except localstate.LockBusy:
+        return False
     command = ([sys.executable, "-m", "provenrail.remote", "--poll"] if __package__
                else [sys.executable, os.path.abspath(__file__), "--poll"])
     try:
-        subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL, start_new_session=True)
+        # Never from the hook's working directory. That is the repository being worked on,
+        # `python -m` puts the working directory first on its import path, and a repository
+        # holding a `provenrail/__init__.py` would have had it executed here, outside every
+        # permission the agent is held to.
+        subprocess.Popen(command, cwd=str(localstate.home()), stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
         return True
     except OSError:
         return False
@@ -498,9 +530,15 @@ def poll_once() -> list[str]:
 
 def _setup_telegram(args: Any, out: Any) -> int:
     token = (args.token or os.environ.get("PROVENRAIL_TELEGRAM_TOKEN") or "").strip()
+    if not token and sys.stdin.isatty():
+        # Asked for here so it need not be typed as an argument, where it would sit in the
+        # shell history and be visible in the process list.
+        import getpass
+        token = getpass.getpass("Bot token from @BotFather (not shown): ").strip()
     if not token:
         out.write("Create a bot first: message @BotFather on Telegram, send /newbot, and it "
-                  "gives you a token.\nThen: pr remote setup telegram --token <token>\n")
+                  "gives you a token.\nThen: pr remote setup telegram   (it asks for the "
+                  "token without echoing it)\n")
         return 2
     cfg: dict[str, Any] = {"provider": "telegram", "token": token, "chat_id": 0,
                            "installed_at": int(time.time())}
@@ -530,6 +568,7 @@ def _setup_telegram(args: Any, out: Any) -> int:
             # public, and the first message could be anyone's.
             if str(message.get("text") or "").strip() == code:
                 cfg["chat_id"] = (message.get("chat") or {}).get("id")
+                cfg["user_id"] = (message.get("from") or {}).get("id")
                 save(cfg)
                 _save_state({"offset": offset})
                 notify(cfg, "Provenrail remote is paired",
@@ -549,7 +588,8 @@ def _setup_ntfy(args: Any, out: Any) -> int:
         cfg["server"] = args.server.rstrip("/")
     out.write(f"In the ntfy app, subscribe to this topic on {_ntfy_server(cfg)}:\n\n"
               f"    {cfg['topic']}\n\nIt is a password: anyone who knows it can answer for "
-              f"you. Then tap Approve on the message that arrives (within {args.wait} "
+              "you, and so can a program running as you on this machine. Telegram is the "
+              f"stronger of the two. Then tap Approve on the message that arrives (within {args.wait} "
               "seconds).\n")
     out.flush()
     time.sleep(0 if args.wait <= 5 else 8)       # time to type the topic before the message
@@ -565,7 +605,15 @@ def _setup_ntfy(args: Any, out: Any) -> int:
 
 def add_arguments(parser: Any) -> None:
     parser.add_argument("action", nargs="?", default="status",
-                        choices=["setup", "test", "status", "off"])
+                        choices=["setup", "test", "status", "off", "config"])
+    parser.add_argument("--ask", choices=["auto", "always", "never"],
+                        help="for `config`: when questions go to the phone (default auto: "
+                             "when you are away, or the host has no prompt of its own)")
+    parser.add_argument("--detail", choices=["full", "shape"],
+                        help="for `config`: send the command (full) or only its verb and "
+                             "flags (shape)")
+    parser.add_argument("--wait-s", dest="wait_s", type=int,
+                        help="for `config`: seconds to wait for an answer")
     parser.add_argument("provider", nargs="?", default="", choices=["", "telegram", "ntfy"])
     parser.add_argument("--token", default="", help="telegram bot token from @BotFather")
     parser.add_argument("--server", default="", help="ntfy server (default https://ntfy.sh)")
@@ -590,6 +638,18 @@ def run(args: Any, licensed: Any = None, out: Any = None) -> int:
     if cfg is None:
         out.write("No phone remote is set up. `pr remote setup` shows the two ways.\n")
         return 0 if args.action == "status" else 1
+    if args.action == "config":
+        # These live here, in the user's own file, and not in the project's
+        # `.provenrail.json`: a repository must not be able to decide that your commands are
+        # sent to a phone in full, or that your phone is never asked.
+        for key in ("ask", "detail", "wait_s"):
+            value = getattr(args, key, None)
+            if value is not None:
+                cfg[key] = max(1, min(int(value), MAX_WAIT_S)) if key == "wait_s" else value
+        save(cfg)
+        out.write(f"ask: {cfg.get('ask') or 'auto'}   detail: {cfg.get('detail') or 'full'}   "
+                  f"wait: {cfg.get('wait_s') or DEFAULT_WAIT_S} s\n")
+        return 0
     usable, note = entitled(cfg, licensed)
     if args.action == "status":
         out.write(f"Remote: {cfg['provider']}"

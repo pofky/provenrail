@@ -851,6 +851,17 @@ def run_hook(raw: str, default_event: str = "pre",
         return UNKNOWN_HOST_EXIT, "", (
             f"provenrail: {exc}. NOT enforcing and NOT recording: there is no hook contract "
             "for that host, so nothing here has screened this tool call.\n")
+    # The stop switch, before anything that can fail. A payload that does not parse and a
+    # policy that does not load both end in "allowing", and neither may be a way past an
+    # order to stop: writing one broken line into `.provenrail.json` would otherwise lift it.
+    try:
+        from . import supervise, watch
+        order = watch.halted()
+    except Exception:  # noqa: BLE001
+        order = None
+    if order is not None:
+        reason = f"Provenrail guardrail {supervise.RULE_STOPPED}: {watch.halt_reason(order)}"
+        return 0, hosts.render(host, "deny", reason), ""
     try:
         data = json.loads(raw) if raw.strip() else {}
     except ValueError:

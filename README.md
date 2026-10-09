@@ -1,9 +1,12 @@
 # Provenrail
 
-**The supervisor for coding agents.** Undo anything an agent did, including what a shell
-command did. Stop every agent on the machine with one command, or from your phone. Get asked
-before a risky call runs when you are not at the keyboard. One hook, on Claude Code, Codex,
-Gemini CLI, Copilot and Cursor, and nothing leaves your machine unless you set up the remote.
+**The supervisor for coding agents.** Undo what an agent did to your working tree, including
+what a shell command did. Stop every agent on the machine with one command, or from your phone. Get asked
+before a risky call runs when you are not at the keyboard. One hook, with adapters for Claude
+Code, Codex, Gemini CLI, Copilot and Cursor. Only the Claude Code adapter has been driven end
+to end; the other four are written from each vendor's published hook contract and are not yet
+driven against a live install. Nothing leaves your machine unless you set up the phone remote
+or anchor a record.
 
 ```
 > Run exactly this shell command: rm -rf src
@@ -45,7 +48,7 @@ pr guard install --host codex    # or gemini, copilot, cursor
 | | Command | In the plugin |
 |---|---|---|
 | **Undo.** A checkpoint of the working tree before every action that can change a file. | `pr undo`, `pr undo last`, `pr undo <n> --diff` | `/guard-undo` |
-| **Stop.** Every tool call from every agent on this machine is refused until you resume. | `pr stop`, `pr resume` | `/guard-stop` |
+| **Stop.** Every tool call from every agent running the hook on this machine is refused until you resume. | `pr stop`, `pr resume` | `/guard-stop` |
 | **Loop breaker.** Asks you after the same call, or the same short cycle, runs 8 times back to back. | on by default | on by default |
 | **File lanes.** Asks before one session edits a file another session wrote in the last 15 minutes. | on by default | on by default |
 | **Phone remote.** Approve, refuse, stop and resume from Telegram or ntfy. No server of ours. | `pr remote setup`, `pr away`, `pr back` | needs the CLI |
@@ -62,6 +65,10 @@ repository the first snapshot took 1.04 s and each one after it 0.03 s.
 What it does not cover: files your `.gitignore` excludes (apart from root-level `.env` files),
 any file over 50 MiB (skipped, and listed), commits and branches in your real repository,
 databases, and anything outside the repository. It runs inside git repositories only.
+Checkpoints are kept for 14 days. A nested repository or submodule is recorded as a pointer
+and a restore never touches it. If a snapshot cannot finish in 10 seconds, checkpoints pause
+for that project and `pr undo` says so; the call still runs. It is a way back from a mistake,
+not a backup.
 
 **The loop breaker's threshold is measured.** `tools/measure_loops.py` replays your own
 transcripts. On the machine this was written on, across 3,186 sessions and 147,356 tool calls,
@@ -71,18 +78,24 @@ transcripts. On the machine this was written on, across 3,186 sessions and 147,3
 evaluation: each leaves the verdict exactly what it was. It also never waits longer than the
 hook timeout the host was given, because a host that kills a hook treats it as having had no
 opinion. On a host with no approval prompt of its own (Codex, Gemini CLI), a rule that needs
-a human becomes a real question on your phone instead of a flat refusal.
+a human becomes a real question on your phone instead of a flat refusal (by design; those two
+adapters are not yet driven against a live install).
 
 ```bash
 pr remote setup ntfy                          # no account: a secret topic in the ntfy app
-pr remote setup telegram --token <token>      # a bot you create, answers only from your chat
+pr remote setup telegram                      # a bot you create, answers only from you   
 pr away                                       # questions go to the phone until `pr back`
 ```
 
+What it is a defence against: a trusted agent that makes mistakes, while you are away. It is
+not a defence against a hostile program running in your own account, which can read the same
+files this does. Telegram is the stronger channel of the two.
+
 The text of a question (the rule, the tool, and by default the command) goes from your machine
-to the channel you chose. `"remote": {"detail": "shape"}` in `.provenrail.json` sends the verb
-and flags only. The remote is free for 14 days with no account, then part of the $9 a month
-plan; everything else in the table is free and stays free.
+to the channel you chose. `pr remote config --detail shape` sends the verb and flags only, and
+a command longer than 600 characters is cut with a line saying how much is not shown. The remote is free for 14 days from setup with no account or card; after that questions stay
+on your machine unless you buy the $9 a month plan, which also covers timestamp anchoring of
+the signed record. Everything else in the table is MIT licensed and free.
 
 **Tuning.** All of it is on by default and each part has a switch in `.provenrail.json`:
 
@@ -91,8 +104,17 @@ plan; everything else in the table is free and stays free.
   "undo":   {"enabled": true, "include": [".env", ".env.*"]},
   "watch":  {"enabled": true, "repeats": 8},
   "lanes":  {"enabled": true, "minutes": 15},
-  "remote": {"ask": "auto", "detail": "full", "wait_s": 300}
+  "remote": {"detail": "shape"}
 }
+```
+
+That file is in your working tree, where an agent can write it and a cloned repository can
+ship it. So it may switch a feature off only out loud (you are told once a day), and for the
+remote it may only make things more private or the wait shorter. When the phone is asked, how
+much of a command it is sent, and how long it waits are yours alone:
+
+```bash
+pr remote config --ask auto --detail full --wait-s 300
 ```
 
 Every decision can also be signed into a hash-chained record anyone can verify, trusting
@@ -827,3 +849,7 @@ Open-core, dual-licensed (see `LICENSING.md`):
 Provenrail is evidence tooling, not legal advice or a compliance guarantee; completeness is never
 claimed. See `DISCLAIMER.md`. Business model in `BUSINESS.md`, moat analysis in `MOAT.md`,
 regulatory mapping in `COMPLIANCE.md`.
+
+Claude Code, Codex, Gemini CLI, GitHub Copilot, Cursor, Telegram and ntfy are names of their
+respective owners. Provenrail is independent and is not affiliated with, endorsed by or
+sponsored by any of them.
