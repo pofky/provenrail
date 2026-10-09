@@ -483,3 +483,18 @@ def test_pr_guard_hook_refuses_a_host_the_code_has_no_contract_for(capsys):
     with pytest.raises(SystemExit) as raised:
         cli.main(["guard", "hook", "--host", "not-a-real-agent"])
     assert raised.value.code != 0
+
+
+def test_each_host_is_given_its_timeout_in_its_own_unit():
+    """Gemini CLI counts a hook timeout in milliseconds and every other host in seconds. The
+    seconds figure was once written to all five, which gave the Gemini guard 15 ms to answer."""
+    from provenrail import guard
+    seconds = guard.HOOK_TIMEOUT_S
+    gemini = hosts.install_plan("gemini", "cmd", seconds)["entries"]["BeforeTool"][0]["hooks"][0]
+    assert gemini["timeout"] == seconds * 1000
+    codex = hosts.install_plan("codex", "cmd", seconds)["entries"]["PreToolUse"][0]["hooks"][0]
+    assert codex["timeout"] == seconds
+    copilot = hosts.install_plan("copilot", "cmd", seconds)["entries"]["preToolUse"][0]
+    assert copilot["timeoutSec"] == seconds
+    cursor = hosts.install_plan("cursor", "cmd", seconds)["entries"]["beforeShellExecution"][0]
+    assert cursor["timeout"] == seconds

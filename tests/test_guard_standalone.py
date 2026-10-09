@@ -574,9 +574,12 @@ def test_both_engines_count_subagent_spawns_the_same_way(tmp_path):
     every single tool call and the cap would never be reached.
     """
     cap = rulesets.rule_by_id("fan-out.subagent-spawn-cap")["max_per_session"]
+    # A different prompt each time: identical spawns back to back are a loop, which is the
+    # loop breaker's question to ask and would be asked long before this cap is reached.
     for i in range(cap):
-        assert _standalone_verdict(tmp_path, ["fan-out"], "Agent", {"prompt": "x"}) == "allow", i
-    assert _standalone_verdict(tmp_path, ["fan-out"], "Agent", {"prompt": "x"}) == "ask"
+        assert _standalone_verdict(tmp_path, ["fan-out"], "Agent",
+                                   {"prompt": f"x{i}"}) == "allow", i
+    assert _standalone_verdict(tmp_path, ["fan-out"], "Agent", {"prompt": "last"}) == "ask"
 
     state = SessionState()
     policy = load_policy({"use": ["fan-out"]})
@@ -591,7 +594,8 @@ def test_the_zero_install_engine_refuses_a_wide_fan_out_where_nobody_can_be_aske
     An unattended run is the one that most needs the cap to hold."""
     cap = rulesets.rule_by_id("fan-out.subagent-spawn-cap")["max_per_session"]
     (tmp_path / ".provenrail.json").write_text(
-        json.dumps({"policy": {"use": ["fan-out"]}}), encoding="utf-8")
+        json.dumps({"policy": {"use": ["fan-out"]}, "watch": {"enabled": False}}),
+        encoding="utf-8")
     verdicts = []
     for _ in range(cap + 1):
         proc = subprocess.run(

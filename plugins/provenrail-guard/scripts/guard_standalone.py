@@ -45,7 +45,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hosts  # noqa: E402
 import spend as spend_ledger  # noqa: E402
+import supervise  # noqa: E402
 import transcript  # noqa: E402
+import watch  # noqa: E402
 from predicates import evaluate as predicate_ok  # noqa: E402
 from shell import command_shape, segments  # noqa: E402
 from welcome import first_run_notice  # noqa: E402
@@ -641,7 +643,7 @@ def allow_out(host):
     return hosts.render(host, "allow", "")
 
 
-def run(raw, default_event="pre", host=hosts.DEFAULT_HOST):
+def run(raw, default_event="pre", host=hosts.DEFAULT_HOST, budget_s=supervise.LEGACY_BUDGET_S):
     """Handle one hook invocation. Returns (stdout, stderr)."""
     try:
         data = json.loads(raw) if raw.strip() else {}
@@ -673,13 +675,33 @@ def run(raw, default_event="pre", host=hosts.DEFAULT_HOST):
     # whole purpose was a spend cap into the "nothing is armed" path, where it was never
     # evaluated at all.
     if not rules and not budgets:
-        return allow_out(host), once_a_day(config_path, "unarmed", (
+        notice = once_a_day(config_path, "unarmed", (
             "provenrail-guard: hooks are installed but NO guardrails are armed, so nothing is "
             "being blocked. Remove \"policy\" from %s to get the defaults back.\n"
             % (config_path or CONFIG_FILENAME)))
+        # The supervisor still runs. Arming no rules is a decision about rules; it is not a
+        # decision to ignore a stop order, skip checkpoints or stop watching for loops.
+        if hook["event"] != "pre":
+            supervise.post(hook, host, config_path)
+            return allow_out(host), notice
+        verdict, rule_id, reason, extra = supervise.pre(
+            hook, host, "allow", None, "", config_path, hosts.supports_ask(host),
+            lambda entry: append_journal(config_path, dict(entry, by="standalone")),
+            lambda name, message: once_a_day(config_path, name, message), None, budget_s)
+        notice += extra
+        if verdict == "allow":
+            return allow_out(host), notice
+        if verdict == "ask":
+            mark_ask(config_path, hook["session_id"], hook["tool"], rule_id or "")
+        append_journal(config_path, {
+            "at": int(time.time()), "event": "pre", "tool": hook["tool"],
+            "session_id": hook["session_id"], "host": host, "verdict": verdict,
+            "rule": rule_id, "reason": reason, "by": "standalone"})
+        return hosts.render(host, verdict, f"Provenrail guardrail {rule_id}: {reason}"), notice
 
     notice = welcome(config_path, catalog, rules, source)
     if hook["event"] != "pre":
+        supervise.post(hook, host, config_path)
         return allow_out(host), notice
 
     spent, spend_notice = apply_spend(config_path, budgets, on_unpriced, hook)
@@ -698,6 +720,14 @@ def run(raw, default_event="pre", host=hosts.DEFAULT_HOST):
                                           hook.get("cwd") or "")
         if counts != before:
             save_session_entry(config_path, hook["session_id"], counts=counts)
+    # The supervisor runs after the rules and before anything is journalled, so the journal
+    # carries the verdict that was actually enforced. `licensed` is None here on purpose: this
+    # engine has no signature library, so it cannot check a licence and does not pretend to.
+    verdict, rule_id, reason, extra = supervise.pre(
+        hook, host, verdict, rule_id, reason, config_path, hosts.supports_ask(host),
+        lambda entry: append_journal(config_path, dict(entry, by="standalone")),
+        lambda name, message: once_a_day(config_path, name, message), None, budget_s)
+    notice += extra
     if verdict == "ask":
         mark_ask(config_path, hook["session_id"], hook["tool"], rule_id or "")
 
@@ -897,6 +927,40 @@ def status():
     return "\n".join(lines) + "\n"
 
 
+def _tool(name, argv):
+    # Imported by name on demand: none of these is needed to answer a hook, and the hook is
+    # what this file is run for hundreds of times an hour.
+    import argparse
+    import importlib
+    module = importlib.import_module(name)
+    parser = argparse.ArgumentParser(prog="provenrail-guard")
+    module.add_arguments(parser)
+    return module.run(parser.parse_args(argv))
+
+
+def _stop(argv):
+    order = watch.halt(by="/guard-stop", reason=" ".join(argv))
+    sys.stdout.write("Stopped: " + watch.halt_reason(order) + ".\n")
+    return 0
+
+
+def _resume(argv):
+    sys.stdout.write("Resumed. Agents on this machine may run again.\n" if watch.resume()
+                     else "Nothing was stopped.\n")
+    return 0
+
+
+#: The supervisor's commands, for a machine with the plugin and nothing else. Each is the
+#: same module the CLI runs, so `/guard-undo` and `pr undo` cannot drift apart.
+TOOLS = {
+    "--undo": lambda argv: _tool("checkpoint", argv),
+    "--scan": lambda argv: _tool("scan", argv),
+    "--remote": lambda argv: _tool("remote", argv),
+    "--stop": _stop,
+    "--resume": _resume,
+}
+
+
 def main(argv):
     if "--status" in argv:
         sys.stdout.write(status())
@@ -904,9 +968,17 @@ def main(argv):
     if "--card" in argv:
         sys.stdout.write(card())
         return 0
+    if argv and argv[0] in TOOLS:
+        return TOOLS[argv[0]](argv[1:])
     event = "pre"
     host = hosts.DEFAULT_HOST
+    budget_s = supervise.LEGACY_BUDGET_S
     for i, arg in enumerate(argv):
+        if arg == "--budget" and i + 1 < len(argv):
+            try:
+                budget_s = float(argv[i + 1])
+            except ValueError:
+                pass
         if arg == "--event" and i + 1 < len(argv):
             event = argv[i + 1]
         elif arg == "--host" and i + 1 < len(argv):
@@ -922,7 +994,8 @@ def main(argv):
             "has screened this tool call.\n".format(host, ", ".join(hosts.HOST_NAMES)))
         return 2
     try:
-        stdout, stderr = run(sys.stdin.read(), default_event=event, host=host)
+        stdout, stderr = run(sys.stdin.read(), default_event=event, host=host,
+                             budget_s=budget_s)
     except Exception as exc:  # never break the session
         sys.stderr.write(f"provenrail-guard: internal error ({exc}); allowing.\n")
         return 0

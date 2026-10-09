@@ -70,7 +70,14 @@ from . import hosts
 JOURNAL_FILENAME = ".provenrail-guard.jsonl"
 CLAUDE_SETTINGS = Path(".claude") / "settings.json"
 HOOK_COMMAND = "pr guard hook"
-HOOK_TIMEOUT_S = 15
+#: The timeout the pre-tool hook is installed with, and the budget it is told about on its
+#: own command line. It is long because a question may be waiting on someone's phone; every
+#: other step in the hook has a short limit of its own. The two numbers must be the same
+#: number: a hook that believes it has longer than the host will give it is killed mid
+#: question, and a killed hook is read by the host as "no opinion".
+HOOK_TIMEOUT_S = 630
+#: The post-tool hook only records. It keeps the short timeout it always had.
+POST_HOOK_TIMEOUT_S = 15
 
 # What `pr guard install` arms when the project has no policy yet. Chosen for a coding agent
 # working in a repo: the things that destroy work, leak credentials, or hand out access.
@@ -257,6 +264,12 @@ def policy_spec(config: dict[str, Any] | None) -> Any:
     empty one) or an explicit `rules` list is still a decision, and still wins completely.
     """
     spec = (config or {}).get("policy")
+    if spec is None and config is not None:
+        # A config file with no "policy" key at all is not a decision to run unguarded either.
+        # It is what a file looks like when it only tunes undo, the loop breaker or the remote,
+        # and the zero-install engine has always armed the defaults for it. This engine did
+        # not, so the same file meant forty-four rules under the plugin and none under the CLI.
+        return {"use": list(DEFAULT_PACKS)}
     if isinstance(spec, dict) and "use" not in spec and "rules" not in spec:
         return {**spec, "use": list(DEFAULT_PACKS)}
     return spec
@@ -767,6 +780,16 @@ def _first_run_notice(policy: Any, config_exists: bool) -> str:
 UNKNOWN_HOST_EXIT = 2
 
 
+def _licensed() -> bool:
+    """Whether a valid commercial licence is on this machine. Imported lazily: it pulls in
+    the signature library, and almost no tool call ever needs the answer."""
+    try:
+        from .license import load_license_token, verify_license
+        return bool(verify_license(load_license_token()).valid)
+    except Exception:  # noqa: BLE001 - an unreadable licence is not a licence
+        return False
+
+
 def _allow_out(host: str) -> str:
     """Stdout for "this hook has no opinion", which is not the empty string everywhere.
 
@@ -779,9 +802,34 @@ def _allow_out(host: str) -> str:
     return hosts.render(host, "allow", "")
 
 
+def _supervise_only(hook: dict[str, Any], host: str, notice: str,
+                    budget_s: float) -> tuple[int, str, str]:
+    """The hook's answer when no rule and no budget is armed: the supervisor's alone."""
+    from . import supervise
+    from .easy import find_config_file
+    config_file = find_config_file()
+    if hook["event"] != "pre":
+        supervise.post(hook, host, config_file)
+        return 0, _allow_out(host), notice
+    verdict, rule, reason, extra = supervise.pre(
+        hook, host, "allow", None, "", config_file, hosts.supports_ask(host), journal,
+        _once_a_day, _licensed, budget_s)
+    notice += extra
+    if verdict == "allow":
+        return 0, _allow_out(host), notice
+    if verdict == "ask":
+        mark_ask(hook.get("session_id", ""), hook.get("tool", ""), rule or "")
+    import time as _time
+    journal({"at": int(_time.time()), "event": "pre", "tool": hook["tool"],
+             "session_id": hook.get("session_id", ""), "host": host, "verdict": verdict,
+             "rule": rule, "recorded": False, "reason": reason})
+    return 0, hosts.render(host, verdict, f"Provenrail guardrail {rule}: {reason}"), notice
+
+
 def run_hook(raw: str, default_event: str = "pre",
              use: list[str] | None = None,
-             host: str = hosts.DEFAULT_HOST) -> tuple[int, str, str]:
+             host: str = hosts.DEFAULT_HOST,
+             budget_s: float = 15) -> tuple[int, str, str]:
     """Handle one hook invocation. Returns (exit_code, stdout, stderr).
 
     Never raises into the agent: any internal failure degrades to "allow, unrecorded" rather
@@ -861,7 +909,10 @@ def run_hook(raw: str, default_event: str = "pre",
         # Hooks are wired but nothing is armed. Staying silent here is how a user ends up
         # believing they are guarded for weeks while nothing is being checked, so say it,
         # rarely enough not to become noise the user tunes out.
-        return 0, _allow_out(host), _no_policy_notice()
+        #
+        # The supervisor still runs. Arming no rules is a decision about rules; it is not a
+        # decision to ignore a stop order, skip checkpoints or stop watching for loops.
+        return _supervise_only(hook, host, _no_policy_notice(), budget_s)
 
     # Installing the CLI used to make the plugin's first-run notice disappear, because the CLI
     # answers the hook and had no notice of its own. So the user who followed the upgrade path
@@ -873,6 +924,20 @@ def run_hook(raw: str, default_event: str = "pre",
                 if hook["event"] == "pre" else None)
     # A guard that cannot enforce a cap it advertises has to say so where the user will see it.
     notice += (decision or {}).get("notice") or ""
+    # The supervisor runs after the rules and before anything is recorded, so the receipt
+    # carries the verdict that was actually enforced: a stop order, a loop, another session
+    # in the same file, or an answer from the phone.
+    from . import supervise
+    config_file = find_config_file()
+    if decision is not None:
+        (decision["verdict"], decision["rule"], decision["reason"],
+         extra) = supervise.pre(hook, host, decision["verdict"], decision.get("rule"),
+                                decision.get("reason") or "", config_file,
+                                hosts.supports_ask(host), journal, _once_a_day, _licensed,
+                                budget_s)
+        notice += extra
+    else:
+        supervise.post(hook, host, config_file)
     if decision is not None and decision["verdict"] == "ask":
         mark_ask(hook.get("session_id", ""), hook.get("tool", ""), decision["rule"] or "")
 
@@ -963,8 +1028,10 @@ def install_claude_hooks(root: Path | None = None, matcher: str = _DEFAULT_MATCH
             raise GuardError(f'{path}: hooks.{event} is not a list.')
         ours = {"matcher": matcher if event == "PreToolUse" else "*",
                 "hooks": [{"type": "command",
-                           "command": f"{HOOK_COMMAND} --event {arg}",
-                           "timeout": HOOK_TIMEOUT_S}]}
+                           "command": (f"{HOOK_COMMAND} --event pre --budget {HOOK_TIMEOUT_S}"
+                                       if arg == "pre" else f"{HOOK_COMMAND} --event {arg}"),
+                           "timeout": HOOK_TIMEOUT_S if arg == "pre"
+                           else POST_HOOK_TIMEOUT_S}]}
         entries[:] = [e for e in entries if not (isinstance(e, dict) and _entry_is_ours(e))]
         entries.append(ours)
 
@@ -1002,7 +1069,8 @@ def install_hooks(host: str = hosts.DEFAULT_HOST, root: Path | None = None) -> P
         # uninstaller, and is the one path with users. Rewriting it to share code here would
         # risk the only install that is actually in service.
         return install_claude_hooks(root)
-    plan = hosts.install_plan(host, f"{HOOK_COMMAND} --host {host}", HOOK_TIMEOUT_S)
+    plan = hosts.install_plan(host, f"{HOOK_COMMAND} --host {host} --budget {HOOK_TIMEOUT_S}",
+                              HOOK_TIMEOUT_S)
     path = root.joinpath(*plan["path"])
     settings = _load_settings(path)
     for key, value in plan["top"].items():

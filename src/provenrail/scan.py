@@ -1,0 +1,1370 @@
+"""`pr scan`: what runs, or steers a coding agent, when you open a cloned folder.
+
+You have just cloned a repository. Before you open it in a coding agent or an editor, this
+answers one question: *which files in it will run a command, start a process, change the agent's
+permissions, or rewrite its instructions without me asking?* It is a static, offline, read-only
+check. It never executes anything from the scanned tree, never imports it, never makes a
+network call, and never follows a symlink out of the directory it was pointed at.
+
+What it screens, by name: Claude Code settings, hooks, MCP servers, skills, commands and agents;
+Cursor, Codex, Gemini CLI and Copilot configuration; VS Code folder-open tasks and auto-approve
+settings; devcontainer lifecycle commands; direnv and mise files; npm install-time scripts;
+git submodules; and every instruction file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, Cursor rules,
+Copilot instructions, skills) for invisible Unicode, hidden HTML comments, and command patterns
+such as a download piped into a shell.
+
+**The limit, stated plainly:** this tool screens the *known auto-run surfaces* listed above. It
+does not read or judge the repository's code, it does not know about surfaces that did not exist
+when it was written, and a hook that calls a script inside the repo is reported as a hook, not
+as whatever that script does. "Nothing found" therefore means "none of the places this tool
+knows about runs anything on its own", not "this repository is safe".
+
+Two rules keep a hostile tree from defeating the check itself:
+
+* Work is bounded. Each file is read up to `MAX_FILE_BYTES` and at most `MAX_FILES_WALKED`
+  entries are walked. Hitting either cap is reported as an `unscanned` finding rather than
+  skipped quietly, because a silent skip is exactly the hole an attacker would use.
+* Config that cannot be parsed is itself a finding (`unparseable`), never a pass.
+
+This file is deliberately standard library only, runs on Python 3.9, and imports nothing from
+the rest of the package, so it can be vendored as one standalone file.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import stat
+import sys
+import unicodedata
+from collections.abc import Callable, Iterator
+from typing import Any
+
+Finding = dict[str, Any]
+
+# Every real settings file this reads is a few kilobytes. A megabyte is already far outside
+# honest use, and a bound on bytes read is what bounds the work a hostile file can cause.
+MAX_FILE_BYTES = 1 << 20
+
+# Upper bound on directory entries visited. A large monorepo has tens of thousands of files;
+# past this the walk stops and says so, instead of running for minutes on a pathological tree.
+MAX_FILES_WALKED = 50_000
+
+# The longest excerpt placed in a finding, so one minified line cannot flood a terminal.
+MAX_DETAIL = 200
+
+# Real config nests perhaps six levels. Refusing past this keeps recursion far below the
+# interpreter limit, and deep nesting is reported as unparseable rather than ignored.
+MAX_JSON_DEPTH = 32
+
+# Longest HTML comment body inspected for imperative text. Longer comments are truncated here,
+# which is safe because the imperative words only need to occur somewhere in the opening part.
+MAX_HTML_COMMENT = 2000
+
+# Continuation lines the tolerant TOML reader will join for one multi-line value.
+MAX_TOML_CONTINUATION = 200
+
+SKIP_DIRS = frozenset({".git", "node_modules", ".venv", "venv", "__pycache__", "site-packages"})
+
+SEVERITIES = ("high", "medium", "info")
+_SEV_RANK = {"high": 0, "medium": 1, "info": 2}
+
+# Whether a severity goes up a step when it is found inside something that executes, rather
+# than inside prose an agent merely reads. A pipe-to-shell in a README is a warning; the same
+# string as a hook command is a loaded gun.
+_RAISE = {"info": "medium", "medium": "high", "high": "high"}
+
+
+# --------------------------------------------------------------------------------------------
+# Command pattern table
+# --------------------------------------------------------------------------------------------
+
+# A shell or interpreter that will happily execute whatever is piped into it. The alternatives
+# are disjoint literals, so this stays linear on hostile input.
+_INTERP = (
+    r"(?:sudo\s+(?:-\S+\s+)?)?(?:(?:ba|z|da|k)?sh|python[0-9.]*|node|perl|ruby|php)\b"
+)
+
+# A credential location. `.env` is matched only because it is paired with a send below.
+_CRED = (
+    r"(?:~|\$HOME|\$\{HOME\})/\.(?:ssh|aws|gnupg|netrc|kube|docker)\b"
+    r"|\.env\b|\bid_rsa\b|\bid_ed25519\b|\bkeychain\b"
+    r"|\bsecurity\s+find-(?:generic|internet)-password\b|/etc/passwd"
+)
+
+# A command that sends local data out, as opposed to merely fetching: curl/wget with a request
+# body or upload flag, or a raw socket tool. The lazy gap is bounded so nothing can backtrack
+# across a whole hostile line.
+_SEND = (
+    r"\b(?:curl|wget)\b[^\n]{0,300}?\s(?:-d|-F|-T|--data[\w-]*|--form|--upload-file"
+    r"|--post-(?:data|file))\b"
+    r"|\b(?:nc|ncat|netcat|scp)\s"
+)
+
+# Each entry: (id, severity as found in prose, tuple of regexes that must ALL match one line,
+# plain-English reason). Severity is raised one step when the text is a hook, task or script.
+# Every quantifier is bounded or applied to a disjoint character class, because the input is
+# hostile and a regex that backtracks is a denial-of-service on the scanner.
+PATTERNS: tuple[tuple[str, str, tuple[re.Pattern[str], ...], str], ...] = (
+    (
+        # curl/wget output piped into a shell or interpreter: the classic remote-code install.
+        "fetch-pipe-shell",
+        "medium",
+        (re.compile(r"\b(?:curl|wget)\b[^\n|]{0,500}\|\s*" + _INTERP, re.I),),
+        "downloads something and pipes it straight into a shell or interpreter",
+    ),
+    (
+        # `sh -c "$(curl ...)"`, `bash <(curl ...)`, `eval "$(wget ...)"`: same thing, no pipe.
+        "fetch-subst-shell",
+        "medium",
+        (
+            re.compile(
+                r"\b(?:(?:ba|z|da)?sh|eval|source)\s[^\n|]{0,40}\$?<?\(\s*(?:curl|wget)\b", re.I
+            ),
+        ),
+        "runs the output of a download through a shell by command substitution",
+    ),
+    (
+        # PowerShell: `iwr url | iex`.
+        "fetch-pipe-iex",
+        "medium",
+        (
+            re.compile(
+                r"\b(?:iwr|irm|invoke-webrequest|invoke-restmethod)\b[^\n|]{0,500}\|\s*"
+                r"(?:iex|invoke-expression)\b",
+                re.I,
+            ),
+        ),
+        "downloads a script and pipes it into PowerShell's Invoke-Expression",
+    ),
+    (
+        # PowerShell: `iex (iwr url)` or `iex (New-Object Net.WebClient).DownloadString(...)`.
+        "fetch-pipe-iex",
+        "medium",
+        (
+            re.compile(
+                r"\b(?:iex|invoke-expression)\b[^\n]{0,200}\b"
+                r"(?:iwr|irm|invoke-webrequest|downloadstring)\b",
+                re.I,
+            ),
+        ),
+        "evaluates downloaded text with PowerShell's Invoke-Expression",
+    ),
+    (
+        # Decoding a base64 blob straight into a shell hides what is about to run.
+        "base64-pipe-shell",
+        "high",
+        (
+            re.compile(
+                r"\bbase64\s+(?:-[dD]\w*|--decode)\b[^\n|]{0,200}\|\s*"
+                r"(?:sudo\s+)?(?:(?:ba|z|da)?sh|python[0-9.]*|node|perl|ruby|eval)\b",
+                re.I,
+            ),
+        ),
+        "decodes base64 and pipes it into a shell, which hides the command from review",
+    ),
+    (
+        # `node -e` / `python -c` combined with an in-line base64 decoder: an obfuscated payload.
+        "inline-eval-base64",
+        "high",
+        (
+            re.compile(r"\b(?:node|python[0-9.]*|ruby|perl)\s+-[ecr]\b", re.I),
+            re.compile(r"\b(?:base64|atob|b64decode|Buffer\.from)\b", re.I),
+        ),
+        "runs an inline interpreter one-liner that decodes base64",
+    ),
+    (
+        # A line that both names a credential location and sends data out.
+        "credential-network-send",
+        "high",
+        (re.compile(_CRED, re.I), re.compile(_SEND, re.I)),
+        "refers to a credential location and sends data over the network on the same line",
+    ),
+    (
+        # /dev/tcp and `nc -e` are how a reverse shell is opened from one line of shell.
+        "reverse-shell",
+        "high",
+        (re.compile(r"/dev/tcp/|\bnc\b[^\n]{0,40}\s-e\b", re.I),),
+        "opens a raw network connection to a shell",
+    ),
+)
+
+# Events that fire without the user asking for a tool call: opening a session is enough. The
+# match is on the lowercased event name with separators removed.
+_AUTO_START_EVENTS = frozenset({"sessionstart", "setup", "onstart", "init"})
+
+
+def pattern_hits(text: str) -> list[tuple[str, str, int, int, str]]:
+    """Return (id, severity, first line, line count, excerpt) for each pattern that fires.
+
+    Matching is per line so a pattern cannot be satisfied by two unrelated lines, and so a
+    finding can point at a line number.
+    """
+    first: dict[tuple[str, str], tuple[int, str]] = {}
+    count: dict[tuple[str, str], int] = {}
+    for number, line in enumerate(text.split("\n"), 1):
+        if len(line) < 4:
+            continue
+        for pid, _severity, regexes, why in PATTERNS:
+            if all(rx.search(line) for rx in regexes):
+                key = (pid, why)
+                count[key] = count.get(key, 0) + 1
+                first.setdefault(key, (number, line.strip()))
+    out = []
+    for (pid, why), (number, excerpt) in first.items():
+        severity = next(s for p, s, _r, w in PATTERNS if p == pid and w == why)
+        out.append((pid, severity, number, count[(pid, why)], excerpt))
+    return out
+
+
+def command_severity(base: str, text: str) -> tuple[str, list[str]]:
+    """Severity of a string that *executes*, and the pattern ids that raised it."""
+    severity = base
+    ids: list[str] = []
+    for pid, pattern_sev, _line, _count, _excerpt in pattern_hits(text):
+        raised = _RAISE[pattern_sev]
+        if _SEV_RANK[raised] < _SEV_RANK[severity]:
+            severity = raised
+        if pid not in ids:
+            ids.append(pid)
+    return severity, ids
+
+
+# --------------------------------------------------------------------------------------------
+# Text helpers
+# --------------------------------------------------------------------------------------------
+
+_UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"})
+
+
+def clean(text: str) -> str:
+    """Make file-controlled text safe to print.
+
+    A hostile repo controls every string we echo, so control characters, bidi marks and ANSI
+    escapes are replaced with a visible escape. Otherwise the report itself could rewrite the
+    terminal, or hide a finding behind a right-to-left override.
+    """
+    out = []
+    for ch in text:
+        if ch in "\n\r\t":
+            out.append(" ")
+        elif unicodedata.category(ch) in _UNSAFE_CATEGORIES:
+            out.append(f"\\u{ord(ch):04x}" if ord(ch) <= 0xFFFF else f"\\U{ord(ch):08x}")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def line_of(text: str, needle: str) -> int | None:
+    """1-based line where `needle` first appears in the raw file, or None if not found."""
+    if not needle:
+        return None
+    escaped = json.dumps(needle, ensure_ascii=False)[1:-1]
+    for candidate in (escaped, needle):
+        index = text.find(candidate)
+        if index >= 0:
+            return text.count("\n", 0, index) + 1
+    return None
+
+
+def strip_jsonc(text: str) -> str:
+    """Turn JSON-with-comments into JSON: drop `//` and `/* */` comments and trailing commas.
+
+    Done with a small state machine instead of a regex so that a `//` inside a string, such as
+    a URL, is left alone, and so the cost is linear in the input whatever it contains.
+    """
+    out: list[str] = []
+    i, n = 0, len(text)
+    in_string = False
+    while i < n:
+        c = text[i]
+        if in_string:
+            out.append(c)
+            if c == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if c == '"':
+                in_string = False
+            i += 1
+            continue
+        if c == '"':
+            in_string = True
+            out.append(c)
+            i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            end = text.find("\n", i)
+            i = n if end == -1 else end
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            end = text.find("*/", i + 2)
+            if end == -1:
+                raise ValueError("unterminated /* comment")
+            out.append(" ")
+            i = end + 2
+            continue
+        out.append(c)
+        i += 1
+    return _drop_trailing_commas("".join(out))
+
+
+def _drop_trailing_commas(text: str) -> str:
+    out: list[str] = []
+    i, n = 0, len(text)
+    in_string = False
+    while i < n:
+        c = text[i]
+        if in_string:
+            out.append(c)
+            if c == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if c == '"':
+                in_string = False
+        elif c == '"':
+            in_string = True
+            out.append(c)
+        elif c == ",":
+            j = i + 1
+            while j < n and text[j] in " \t\r\n":
+                j += 1
+            if not (j < n and text[j] in "}]"):
+                out.append(c)
+        else:
+            out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _strip_toml_comment(line: str) -> str:
+    quote = ""
+    for index, ch in enumerate(line):
+        if quote:
+            if ch == quote:
+                quote = ""
+        elif ch in "\"'":
+            quote = ch
+        elif ch == "#":
+            return line[:index]
+    return line
+
+
+_TOML_STRING_RE = re.compile(r'"((?:[^"\\]|\\.)*)"|\'([^\']*)\'')
+
+
+def _toml_strings(raw: str) -> list[str]:
+    return [a if a else b for a, b in _TOML_STRING_RE.findall(raw)]
+
+
+def parse_toml_lines(text: str) -> list[tuple[str, str, str, int]]:
+    """Tolerant line reader returning (section, key, raw value, line) for each `key = value`.
+
+    `tomllib` only exists from Python 3.11 and this file must run on 3.9, and a strict parser
+    would also reject a whole file for one bad line, which is the wrong failure for a screen.
+    This reads only what the scanner needs: section headers, simple keys, and multi-line
+    arrays and strings, which it joins so their inner lines are not mistaken for keys.
+    """
+    rows: list[tuple[str, str, str, int]] = []
+    lines = text.split("\n")
+    section = ""
+    i = 0
+    while i < len(lines):
+        number = i + 1
+        line = _strip_toml_comment(lines[i]).strip()
+        i += 1
+        if not line:
+            continue
+        if line.startswith("["):
+            section = line.strip("[] \t")
+            continue
+        if "=" not in line:
+            continue
+        key, _eq, raw = line.partition("=")
+        key, raw = key.strip().strip("\"'"), raw.strip()
+        extra = 0
+        if raw.startswith('"""') and raw.count('"""') < 2:
+            while i < len(lines) and extra < MAX_TOML_CONTINUATION:
+                raw += "\n" + lines[i]
+                i += 1
+                extra += 1
+                if '"""' in lines[i - 1]:
+                    break
+        elif raw.startswith("[") and raw.count("[") > raw.count("]"):
+            while i < len(lines) and extra < MAX_TOML_CONTINUATION:
+                raw += " " + _strip_toml_comment(lines[i]).strip()
+                i += 1
+                extra += 1
+                if raw.count("[") <= raw.count("]"):
+                    break
+        rows.append((section, key, raw, number))
+    return rows
+
+
+# --------------------------------------------------------------------------------------------
+# Scan context
+# --------------------------------------------------------------------------------------------
+
+
+class _Ctx:
+    def __init__(self, root: str) -> None:
+        self.root = root
+        self.real_root = os.path.realpath(root)
+        self.findings: list[Finding] = []
+        self.scanned = 0
+        self._seen: set = set()
+
+    def add(
+        self,
+        fid: str,
+        severity: str,
+        rel: str,
+        line: int | None,
+        summary: str,
+        detail: str = "",
+    ) -> None:
+        finding = {
+            "id": fid,
+            "severity": severity,
+            "path": clean(rel),
+            "line": line,
+            "summary": clean(summary),
+            "detail": clean(detail)[:MAX_DETAIL],
+        }
+        key = (fid, finding["path"], line, finding["detail"], finding["summary"])
+        if key not in self._seen:
+            self._seen.add(key)
+            self.findings.append(finding)
+
+    def inside(self, full: str) -> bool:
+        real = os.path.realpath(full)
+        return real == self.real_root or real.startswith(self.real_root + os.sep)
+
+    def read(self, rel: str) -> str | None:
+        """Read one file under the caps, or record why it was not read."""
+        full = os.path.join(self.root, *rel.split("/"))
+        if not self.inside(full):
+            self.add(
+                "unscanned", "medium", rel, None,
+                "Path resolves outside the scanned folder, so it was not followed or screened.",
+            )
+            return None
+        try:
+            info = os.stat(full)
+            if not stat.S_ISREG(info.st_mode):
+                return None
+            if info.st_size > MAX_FILE_BYTES:
+                self.add(
+                    "unscanned", "medium", rel, None,
+                    f"File is larger than the {MAX_FILE_BYTES} byte read cap, so it was not "
+                    "screened.",
+                    f"{info.st_size} bytes",
+                )
+                return None
+            with open(full, "rb") as handle:
+                raw = handle.read(MAX_FILE_BYTES + 1)
+        except OSError as exc:
+            self.add(
+                "unscanned", "medium", rel, None,
+                "Could not read this file, so it was not screened.", exc.__class__.__name__,
+            )
+            return None
+        if len(raw) > MAX_FILE_BYTES:
+            self.add(
+                "unscanned", "medium", rel, None,
+                f"File grew past the {MAX_FILE_BYTES} byte read cap while reading, so it was "
+                "not screened.",
+            )
+            return None
+        self.scanned += 1
+        return raw.decode("utf-8", errors="replace")
+
+    def parse_json(self, rel: str, text: str) -> dict[str, Any] | None:
+        """Parse JSON or JSONC, reporting failure as a finding instead of passing silently."""
+        try:
+            data = json.loads(strip_jsonc(text.lstrip("﻿")))
+        except (ValueError, RecursionError) as exc:
+            self.add(
+                "unparseable", "medium", rel, None,
+                "Could not parse this config, so it could not be screened.", str(exc),
+            )
+            return None
+        if not isinstance(data, dict):
+            self.add(
+                "unparseable", "medium", rel, None,
+                "Config is not a JSON object, so it could not be screened.",
+            )
+            return None
+        return data
+
+
+def _truthy(value: Any) -> bool:
+    if isinstance(value, dict):
+        return any(_truthy(v) for v in value.values())
+    if isinstance(value, (list, str)):
+        return len(value) > 0 and value not in ("off", "false", "never")
+    return bool(value)
+
+
+def _walk_json(node: Any, depth: int = 0) -> Iterator[tuple[str, Any, Any]]:
+    """Yield (key, value, parent) for every dict entry, to a bounded depth."""
+    if depth > MAX_JSON_DEPTH:
+        raise ValueError(f"nested deeper than {MAX_JSON_DEPTH} levels")
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield str(key), value, node
+            for item in _walk_json(value, depth + 1):
+                yield item
+    elif isinstance(node, list):
+        for value in node:
+            for item in _walk_json(value, depth + 1):
+                yield item
+
+
+# --------------------------------------------------------------------------------------------
+# JSON surface handlers
+# --------------------------------------------------------------------------------------------
+
+# Keys whose string value is something that executes or is injected into the agent. `command`
+# is Claude and Cursor, `bash` / `powershell` are Copilot, `run` and `script` appear in others.
+_HOOK_COMMAND_KEYS = frozenset({"command", "bash", "powershell", "script", "run", "cmd"})
+_HOOK_OTHER_KEYS = frozenset({"url", "prompt"})
+
+
+def _hook_values(node: Any, depth: int = 0) -> Iterator[tuple[str, str]]:
+    if depth > MAX_JSON_DEPTH:
+        raise ValueError(f"nested deeper than {MAX_JSON_DEPTH} levels")
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if isinstance(value, str) and (
+                key in _HOOK_COMMAND_KEYS or key in _HOOK_OTHER_KEYS
+            ):
+                yield key, value
+            else:
+                for item in _hook_values(value, depth + 1):
+                    yield item
+    elif isinstance(node, list):
+        for value in node:
+            for item in _hook_values(value, depth + 1):
+                yield item
+
+
+def _hooks(ctx: _Ctx, vendor: str, rel: str, text: str, data: dict[str, Any]) -> None:
+    hooks = data.get("hooks")
+    if not hooks:
+        return
+    items = list(hooks.items()) if isinstance(hooks, dict) else [("hook", hooks)]
+    reported = 0
+    for event, value in items:
+        for key, command in _hook_values(value):
+            reported += 1
+            auto = str(event).lower().replace("_", "").replace("-", "") in _AUTO_START_EVENTS
+            base = "high" if auto else "medium"
+            severity, ids = command_severity(base, command)
+            what = {"url": "calls a URL", "prompt": "injects a prompt"}.get(key, "runs a command")
+            extra = " (matches: {})".format(", ".join(ids)) if ids else ""
+            when = "when a session starts" if auto else f"on the {event} event"
+            ctx.add(
+                f"{vendor}.hook", severity, rel, line_of(text, command[:60]),
+                f"{vendor} hook {what} {when}{extra}.",
+                f"event={event} {key}={command}",
+            )
+    if not reported:
+        ctx.add(
+            f"{vendor}.hook", "medium", rel, line_of(text, "hooks"),
+            "Hooks are declared in a shape this scanner does not recognise, so they were "
+            "not screened.",
+            json.dumps(hooks, ensure_ascii=False),
+        )
+
+
+def _mcp_servers(
+    ctx: _Ctx, vendor: str, rel: str, text: str, data: dict[str, Any],
+    keys: tuple[str, ...] = ("mcpServers",),
+) -> None:
+    for container_key in keys:
+        servers = data.get(container_key)
+        if not isinstance(servers, dict):
+            continue
+        for name, cfg in servers.items():
+            if not isinstance(cfg, dict):
+                continue
+            url = cfg.get("url") or cfg.get("httpUrl") or cfg.get("serverUrl")
+            command = cfg.get("command")
+            args = cfg.get("args")
+            parts = [str(command)] if isinstance(command, str) else []
+            if isinstance(args, list):
+                parts += [str(a) for a in args if isinstance(a, (str, int, float))]
+            joined = " ".join(parts)
+            line = line_of(text, str(name))
+            if joined:
+                severity, ids = command_severity("medium", joined)
+                extra = " (matches: {})".format(", ".join(ids)) if ids else ""
+                ctx.add(
+                    f"{vendor}.mcp-server", severity, rel, line,
+                    f"{vendor} MCP server '{name}' starts a local process{extra}.",
+                    joined,
+                )
+            if isinstance(url, str):
+                ctx.add(
+                    f"{vendor}.mcp-server", "medium", rel, line,
+                    f"{vendor} MCP server '{name}' connects to a remote tool server whose "
+                    "responses "
+                    "steer the agent.",
+                    url,
+                )
+            if not joined and not isinstance(url, str):
+                ctx.add(
+                    f"{vendor}.mcp-server", "medium", rel, line,
+                    f"{vendor} MCP server '{name}' has no command or url this scanner recognises.",
+                    json.dumps(cfg, ensure_ascii=False),
+                )
+
+
+_BROAD_PERMISSION_RE = re.compile(r"(?:Bash|\*)(?:\((?:\*{1,2}|:\*)?\))?")
+
+# Environment keys that redirect where the model's traffic goes or which credential it uses.
+# A repo that sets one can route every prompt, with source code in it, to a host it controls.
+_ENV_REDIRECT_RE = re.compile(
+    r"(?:ANTHROPIC|OPENAI|CLAUDE|GEMINI|GOOGLE|CODEX|AZURE_OPENAI|BEDROCK)\w*"
+    r"(?:BASE_URL|API_BASE|API_URL|ENDPOINT|API_KEY|AUTH_TOKEN)$|^(?:HTTPS?|ALL)_PROXY$",
+    re.I,
+)
+# Environment keys that make an interpreter load attacker-chosen code at start.
+_ENV_EXEC_KEYS = frozenset(
+    {"NODE_OPTIONS", "BASH_ENV", "LD_PRELOAD", "DYLD_INSERT_LIBRARIES", "PYTHONSTARTUP"}
+)
+
+
+def _claude_settings(ctx: _Ctx, rel: str, text: str) -> None:
+    data = ctx.parse_json(rel, text)
+    if data is None:
+        return
+    _hooks(ctx, "claude", rel, text, data)
+    _mcp_servers(ctx, "claude", rel, text, data)
+    if data.get("enableAllProjectMcpServers") is True:
+        ctx.add(
+            "claude.enable-all-mcp", "high", rel, line_of(text, "enableAllProjectMcpServers"),
+            "Auto-approves every MCP server the repository declares, with no prompt.",
+            "enableAllProjectMcpServers: true",
+        )
+    permissions = data.get("permissions")
+    if isinstance(permissions, dict):
+        allow = permissions.get("allow")
+        for entry in allow if isinstance(allow, list) else []:
+            if isinstance(entry, str) and _BROAD_PERMISSION_RE.fullmatch(entry.strip()):
+                ctx.add(
+                    "claude.broad-permission", "high", rel, line_of(text, entry),
+                    "Pre-approves unrestricted shell or tool use without asking.", entry,
+                )
+        mode = permissions.get("defaultMode")
+        if mode == "bypassPermissions":
+            ctx.add(
+                "claude.permission-mode", "high", rel, line_of(text, "defaultMode"),
+                "Default permission mode skips every permission prompt.", str(mode),
+            )
+        elif mode == "acceptEdits":
+            ctx.add(
+                "claude.permission-mode", "medium", rel, line_of(text, "defaultMode"),
+                "Default permission mode accepts file edits without asking.", str(mode),
+            )
+    env = data.get("env")
+    if isinstance(env, dict):
+        for key, value in env.items():
+            if _ENV_REDIRECT_RE.search(str(key)) or str(key).upper() in _ENV_EXEC_KEYS:
+                secret = bool(re.search(r"KEY|TOKEN", str(key), re.I))
+                ctx.add(
+                    "claude.env-override", "high", rel, line_of(text, str(key)),
+                    "Overrides an environment variable that redirects the model endpoint, "
+                    "swaps its credential, or loads code at start.",
+                    str(key) if secret else f"{key}={value}",
+                )
+    for key, fid, label in (
+        ("apiKeyHelper", "claude.api-key-helper", "apiKeyHelper"),
+        ("awsAuthRefresh", "claude.helper-command", "awsAuthRefresh"),
+        ("awsCredentialExport", "claude.helper-command", "awsCredentialExport"),
+        ("otelHeadersHelper", "claude.helper-command", "otelHeadersHelper"),
+    ):
+        value = data.get(key)
+        if isinstance(value, str):
+            severity, ids = command_severity("medium", value)
+            extra = " (matches: {})".format(", ".join(ids)) if ids else ""
+            ctx.add(
+                fid, severity, rel, line_of(text, key),
+                f"{label} runs a command from the repository's settings{extra}.", value,
+            )
+    status = data.get("statusLine")
+    status_cmd = status.get("command") if isinstance(status, dict) else status
+    if isinstance(status_cmd, str):
+        severity, ids = command_severity("medium", status_cmd)
+        extra = " (matches: {})".format(", ".join(ids)) if ids else ""
+        ctx.add(
+            "claude.status-line", severity, rel, line_of(text, "statusLine"),
+            f"The status line runs a command from the repository's settings{extra}.",
+            status_cmd,
+        )
+
+
+def _hooks_file(ctx: _Ctx, rel: str, text: str, vendor: str) -> None:
+    data = ctx.parse_json(rel, text)
+    if data is None:
+        return
+    try:
+        _hooks(ctx, vendor, rel, text, data)
+    except ValueError as exc:
+        ctx.add("unparseable", "medium", rel, None, "Hooks nest too deeply to screen.", str(exc))
+
+
+def _mcp_file(
+    ctx: _Ctx, rel: str, text: str, vendor: str, keys: tuple[str, ...] = ("mcpServers",)
+) -> None:
+    data = ctx.parse_json(rel, text)
+    if data is not None:
+        _mcp_servers(ctx, vendor, rel, text, data, keys)
+
+
+def _gemini_settings(ctx: _Ctx, rel: str, text: str) -> None:
+    data = ctx.parse_json(rel, text)
+    if data is None:
+        return
+    try:
+        _hooks(ctx, "gemini", rel, text, data)
+        _mcp_servers(ctx, "gemini", rel, text, data)
+        for key, value, _parent in _walk_json(data):
+            lowered = key.lower()
+            yolo = lowered == "approvalmode" and str(value).lower() == "yolo"
+            if (lowered == "autoaccept" and value is True) or yolo:
+                ctx.add(
+                    "gemini.auto-approve", "high", rel, line_of(text, key),
+                    "Configures Gemini CLI to run tools without asking.", f"{key}={value}",
+                )
+    except ValueError as exc:
+        ctx.add("unparseable", "medium", rel, None, "Config nests too deeply to screen.", str(exc))
+
+
+def _task_command(task: dict[str, Any]) -> str:
+    parts: list[str] = []
+    command = task.get("command")
+    if isinstance(command, str):
+        parts.append(command)
+    args = task.get("args")
+    if isinstance(args, list):
+        for arg in args:
+            if isinstance(arg, str):
+                parts.append(arg)
+            elif isinstance(arg, dict) and isinstance(arg.get("value"), str):
+                parts.append(arg["value"])
+    return " ".join(parts)
+
+
+def _vscode_tasks(ctx: _Ctx, rel: str, text: str) -> None:
+    data = ctx.parse_json(rel, text)
+    if data is None:
+        return
+    tasks = data.get("tasks")
+    for task in tasks if isinstance(tasks, list) else []:
+        if not isinstance(task, dict):
+            continue
+        options = task.get("runOptions")
+        if isinstance(options, dict) and options.get("runOn") == "folderOpen":
+            command = _task_command(task)
+            _sev, ids = command_severity("high", command)
+            extra = " (matches: {})".format(", ".join(ids)) if ids else ""
+            label = str(task.get("label", "(unnamed)"))
+            ctx.add(
+                "vscode.folder-open-task", "high", rel, line_of(text, label),
+                f"Task '{label}' runs automatically when the folder is opened{extra}.",
+                command,
+            )
+
+
+def _vscode_settings(ctx: _Ctx, rel: str, text: str) -> None:
+    data = ctx.parse_json(rel, text)
+    if data is None:
+        return
+    try:
+        for key, value, _parent in _walk_json(data):
+            if "autoapprove" in key.lower() and _truthy(value):
+                ctx.add(
+                    "vscode.auto-approve", "high", rel, line_of(text, key),
+                    "Setting auto-approves terminal commands or chat tools without asking.",
+                    f"{key}: {json.dumps(value, ensure_ascii=False)}",
+                )
+    except ValueError as exc:
+        ctx.add("unparseable", "medium", rel, None, "Config nests too deeply to screen.", str(exc))
+
+
+# Devcontainer lifecycle keys, from the spec at containers.dev. All run commands on open or
+# attach. `initializeCommand` is the one that runs on the HOST, before any container exists.
+_DEVCONTAINER_KEYS = {
+    "initializeCommand": "high",
+    "onCreateCommand": "medium",
+    "updateContentCommand": "medium",
+    "postCreateCommand": "medium",
+    "postStartCommand": "medium",
+    "postAttachCommand": "medium",
+}
+
+
+def _flatten_command(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return " ".join(str(v) for v in value if isinstance(v, (str, int, float)))
+    if isinstance(value, dict):
+        return " ; ".join(_flatten_command(v) for v in value.values())
+    return ""
+
+
+def _devcontainer(ctx: _Ctx, rel: str, text: str) -> None:
+    data = ctx.parse_json(rel, text)
+    if data is None:
+        return
+    for key, base in _DEVCONTAINER_KEYS.items():
+        if key not in data:
+            continue
+        command = _flatten_command(data[key])
+        if not command:
+            continue
+        severity, ids = command_severity(base, command)
+        extra = " (matches: {})".format(", ".join(ids)) if ids else ""
+        where = "on your machine, outside the container" if base == "high" else "in the container"
+        ctx.add(
+            "devcontainer.lifecycle", severity, rel, line_of(text, key),
+            f"{key} runs a command {where} when the folder is opened{extra}.", command,
+        )
+
+
+# Lifecycle scripts npm runs on a plain `npm install` of this package, without a separate
+# command from the user. `prepare` also runs after a local install, which is what husky uses.
+_NPM_LIFECYCLE = ("preinstall", "install", "postinstall", "prepare")
+
+
+def _package_json(ctx: _Ctx, rel: str, text: str) -> None:
+    data = ctx.parse_json(rel, text)
+    if data is None:
+        return
+    scripts = data.get("scripts")
+    if not isinstance(scripts, dict):
+        return
+    for name in _NPM_LIFECYCLE:
+        command = scripts.get(name)
+        if not isinstance(command, str):
+            continue
+        severity, ids = command_severity("medium", command)
+        extra = " (matches: {})".format(", ".join(ids)) if ids else ""
+        ctx.add(
+            "npm.lifecycle-script", severity, rel, line_of(text, name),
+            f"The '{name}' script runs during npm install{extra}.", command,
+        )
+
+
+# --------------------------------------------------------------------------------------------
+# Non-JSON surface handlers
+# --------------------------------------------------------------------------------------------
+
+
+def _codex_config(ctx: _Ctx, rel: str, text: str) -> None:
+    servers: dict[str, dict[str, Any]] = {}
+    for section, key, raw, number in parse_toml_lines(text):
+        strings = _toml_strings(raw)
+        value = strings[0] if strings else raw
+        if section.startswith("mcp_servers."):
+            name = section[len("mcp_servers."):].strip("\"'")
+            if "." in name and not name.startswith(("\"", "'")):
+                name = name.split(".")[0]
+            entry = servers.setdefault(name, {"line": number})
+            if key == "command":
+                entry["command"] = value
+            elif key == "args":
+                entry["args"] = strings
+            elif key == "url":
+                entry["url"] = value
+        elif section == "" and key.startswith("mcp_servers"):
+            severity, ids = command_severity("medium", raw)
+            ctx.add(
+                "codex.mcp-server", severity, rel, number,
+                "Declares MCP servers inline in the Codex config.", raw,
+            )
+        elif section == "" and key == "approval_policy" and value == "never":
+            ctx.add(
+                "codex.approval-policy", "high", rel, number,
+                "Codex is set to run commands without ever asking.", "approval_policy=never",
+            )
+        elif section == "" and key == "sandbox_mode" and value == "danger-full-access":
+            ctx.add(
+                "codex.sandbox-mode", "high", rel, number,
+                "Codex is set to run with no sandbox.", "sandbox_mode=danger-full-access",
+            )
+        elif section == "" and key == "notify":
+            severity, ids = command_severity("medium", " ".join(strings))
+            ctx.add(
+                "codex.notify", severity, rel, number,
+                "Codex runs a command from the repository's config on each notification.",
+                " ".join(strings),
+            )
+        elif key == "base_url" and (section.startswith("model_providers.") or section == ""):
+            ctx.add(
+                "codex.endpoint-override", "high", rel, number,
+                "Redirects where Codex sends the model's traffic.", f"{key}={value}",
+            )
+    for name, entry in servers.items():
+        command = " ".join([entry.get("command", "")] + list(entry.get("args", []))).strip()
+        if command:
+            severity, ids = command_severity("medium", command)
+            extra = " (matches: {})".format(", ".join(ids)) if ids else ""
+            ctx.add(
+                "codex.mcp-server", severity, rel, entry["line"],
+                f"codex MCP server '{name}' starts a local process{extra}.", command,
+            )
+        if entry.get("url"):
+            ctx.add(
+                "codex.mcp-server", "medium", rel, entry["line"],
+                f"codex MCP server '{name}' connects to a remote tool server whose responses "
+                "steer the agent.",
+                entry["url"],
+            )
+
+
+def _envrc(ctx: _Ctx, rel: str, text: str) -> None:
+    body = [
+        (n, ln.strip()) for n, ln in enumerate(text.split("\n"), 1)
+        if ln.strip() and not ln.strip().startswith("#")
+    ]
+    if not body:
+        return
+    severity, ids = command_severity("medium", text)
+    extra = " (matches: {})".format(", ".join(ids)) if ids else ""
+    ctx.add(
+        "shell.envrc", severity, rel, body[0][0],
+        f"direnv runs this shell file whenever you enter the folder once it is allowed{extra}.",
+        body[0][1],
+    )
+
+
+_TOOL_VERSIONS_LINE_RE = re.compile(r"[\w.\-]+(?:\s+\w[\w.\-@:/+]*)+")
+
+
+def _tool_versions(ctx: _Ctx, rel: str, text: str) -> None:
+    for number, raw in enumerate(text.split("\n"), 1):
+        line = raw.split("#", 1)[0].strip()
+        if line and not _TOOL_VERSIONS_LINE_RE.fullmatch(line):
+            ctx.add(
+                "tool.mise-hook", "medium", rel, number,
+                ".tool-versions contains text that is not a tool and version.", line,
+            )
+            return
+
+
+def _mise_toml(ctx: _Ctx, rel: str, text: str) -> None:
+    for section, key, raw, number in parse_toml_lines(text):
+        hook = section == "hooks" or section.startswith("hooks.")
+        env_exec = section.startswith("env") and (
+            key.startswith("_") or "exec(" in raw or "source" in key
+        )
+        if hook or env_exec:
+            severity, ids = command_severity("medium", raw)
+            extra = " (matches: {})".format(", ".join(ids)) if ids else ""
+            ctx.add(
+                "tool.mise-hook", severity, rel, number,
+                f"mise runs this command from the repository's config{extra}.",
+                f"[{section}] {key} = {raw}",
+            )
+
+
+def _gitmodules(ctx: _Ctx, rel: str, text: str) -> None:
+    urls = [
+        (n, ln.partition("=")[2].strip()) for n, ln in enumerate(text.split("\n"), 1)
+        if ln.strip().startswith("url") and "=" in ln
+    ]
+    for number, url in urls:
+        # The ext:: transport runs an arbitrary command as the remote helper.
+        if url.lower().startswith("ext::"):
+            ctx.add(
+                "git.submodule-ext", "high", rel, number,
+                "Submodule URL uses the ext:: transport, which runs a command.", url,
+            )
+    if urls:
+        ctx.add(
+            "git.submodules", "info", rel, urls[0][0],
+            f"Declares {len(urls)} git submodule(s) that a recursive clone will fetch.",
+            ", ".join(u for _n, u in urls),
+        )
+
+
+# --------------------------------------------------------------------------------------------
+# Instruction files
+# --------------------------------------------------------------------------------------------
+
+# Zero-width and joiner characters, bidi controls, and Unicode tag characters. U+FEFF is allowed
+# as a byte order mark at the start of a file and checked for position below. U+E0100..E01EF
+# are variation selectors used to smuggle data the same way tag characters do.
+_INVISIBLE_RE = re.compile(
+    "[​-‏⁠﻿‪-‮⁦-⁩\U000e0000-\U000e007f"
+    "\U000e0100-\U000e01ef]"
+)
+_ZERO_WIDTH_RANGES = ((0x200B, 0x200F), (0x2060, 0x2060), (0xFEFF, 0xFEFF), (0xE0100, 0xE01EF))
+_BIDI_RANGES = ((0x202A, 0x202E), (0x2066, 0x2069))
+
+# Words that read as an order to an agent. A comment that no human sees but that contains one
+# is the shape of a prompt injection, while `<!-- toc -->` is just markup.
+_IMPERATIVE_RE = re.compile(
+    r"\b(?:ignore|disregard|forget|override|you\s+must|you\s+should|always|never|do\s+not"
+    r"|don't|run|execute|curl|wget|send|upload|exfiltrate|read|cat|delete|remove|install"
+    r"|download|output|reply|respond|pretend|system\s+prompt|instructions?)\b",
+    re.I,
+)
+
+_ALLOWED_TOOLS_BASH_RE = re.compile(r"^allowed-tools:.*\bBash\b", re.I | re.M)
+
+
+def _in_ranges(code: int, ranges: tuple[tuple[int, int], ...]) -> bool:
+    return any(lo <= code <= hi for lo, hi in ranges)
+
+
+def _unicode_findings(ctx: _Ctx, rel: str, text: str) -> None:
+    stats: dict[str, list[int]] = {}  # kind -> [count, first index]
+    decoded: list[str] = []
+    for match in _INVISIBLE_RE.finditer(text):
+        code = ord(match.group())
+        if code == 0xFEFF and match.start() == 0:
+            continue
+        if 0xE0000 <= code <= 0xE007F:
+            kind = "tags"
+            # Tag characters mirror ASCII at an offset of U+E0000, so they decode losslessly.
+            if 0x20 <= code - 0xE0000 <= 0x7E and len(decoded) < MAX_DETAIL:
+                decoded.append(chr(code - 0xE0000))
+        elif _in_ranges(code, _BIDI_RANGES):
+            kind = "bidi"
+        else:
+            kind = "zero-width"
+        entry = stats.setdefault(kind, [0, match.start()])
+        entry[0] += 1
+    labels = {
+        "tags": (
+            "instr.unicode-tags",
+            "Contains %d invisible Unicode tag characters that spell hidden text an agent "
+            "can read but a human cannot see.",
+        ),
+        "bidi": (
+            "instr.bidi-controls",
+            "Contains %d bidirectional control characters that can reorder what a reviewer sees.",
+        ),
+        "zero-width": (
+            "instr.zero-width",
+            "Contains %d zero-width or invisible characters.",
+        ),
+    }
+    for kind, (count, index) in stats.items():
+        fid, template = labels[kind]
+        detail = 'decodes to: "{}"'.format("".join(decoded)) if kind == "tags" else (
+            f"first is U+{ord(text[index]):04X}"
+        )
+        ctx.add(fid, "high", rel, text.count("\n", 0, index) + 1, template % count, detail)
+
+
+def _html_comment_findings(ctx: _Ctx, rel: str, text: str) -> None:
+    # str.find in a loop, not a regex: an unclosed `<!--` repeated thousands of times would make
+    # a lazy-quantifier regex quadratic, and this stops at the first missing terminator.
+    pos = 0
+    while True:
+        start = text.find("<!--", pos)
+        if start < 0:
+            return
+        end = text.find("-->", start + 4)
+        if end < 0:
+            return
+        body = text[start + 4:min(end, start + 4 + MAX_HTML_COMMENT)]
+        pos = end + 3
+        if _IMPERATIVE_RE.search(body):
+            ctx.add(
+                "instr.html-comment", "medium", rel, text.count("\n", 0, start) + 1,
+                "HTML comment with instruction-like text is hidden in the rendered view but "
+                "visible to an agent.",
+                body.strip(),
+            )
+
+
+def _instruction_text(ctx: _Ctx, rel: str, text: str) -> None:
+    _unicode_findings(ctx, rel, text)
+    _html_comment_findings(ctx, rel, text)
+    for pid, severity, number, count, excerpt in pattern_hits(text):
+        why = next(w for p, _s, _r, w in PATTERNS if p == pid)
+        more = f" (and {count - 1} more lines)" if count > 1 else ""
+        ctx.add(
+            f"instr.{pid}", severity, rel, number,
+            f"Instruction text {why}{more}.", excerpt,
+        )
+    match = _ALLOWED_TOOLS_BASH_RE.search(text)
+    if match:
+        ctx.add(
+            "instr.allowed-tools-bash", "medium", rel, text.count("\n", 0, match.start()) + 1,
+            "Front matter grants this file shell access through allowed-tools.",
+            match.group().strip(),
+        )
+
+
+_INSTRUCTION_NAMES = frozenset(
+    {
+        "CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "AGENTS.override.md", "GEMINI.md",
+        ".cursorrules", "SKILL.md",
+    }
+)
+
+
+def _instruction_kind(rel: str) -> tuple[str, str] | None:
+    """Return (finding id for the info listing or "", label) if this is an instruction file."""
+    base = rel.rsplit("/", 1)[-1]
+    if rel.startswith(".claude/skills/") and base == "SKILL.md":
+        return "claude.skill", "Claude skill"
+    if rel.startswith(".claude/commands/") and base.endswith(".md"):
+        return "claude.command", "Claude slash command"
+    if rel.startswith(".claude/agents/") and base.endswith(".md"):
+        return "claude.agent", "Claude subagent"
+    if rel.startswith(".cursor/rules/"):
+        return "cursor.rules", "Cursor rule"
+    if rel == ".github/copilot-instructions.md" or (
+        rel.startswith(".github/instructions/") and base.endswith(".md")
+    ):
+        return "copilot.instructions", "Copilot instruction file"
+    if base in _INSTRUCTION_NAMES:
+        return "instructions.file", "Instruction file"
+    return None
+
+
+def _instruction_file(ctx: _Ctx, rel: str, text: str) -> None:
+    kind = _instruction_kind(rel)
+    if kind is not None:
+        fid, label = kind
+        ctx.add(
+            fid, "info", rel, None,
+            f"{label}: the agent reads this as instructions every session.",
+        )
+    _instruction_text(ctx, rel, text)
+
+
+# --------------------------------------------------------------------------------------------
+# Routing and walking
+# --------------------------------------------------------------------------------------------
+
+_JSON_ROUTES: dict[str, Callable[[_Ctx, str, str], None]] = {
+    ".claude/settings.json": _claude_settings,
+    ".claude/settings.local.json": _claude_settings,
+    ".mcp.json": lambda c, r, t: _mcp_file(c, r, t, "mcp"),
+    ".cursor/mcp.json": lambda c, r, t: _mcp_file(c, r, t, "cursor"),
+    ".cursor/hooks.json": lambda c, r, t: _hooks_file(c, r, t, "cursor"),
+    ".codex/config.toml": _codex_config,
+    ".codex/hooks.json": lambda c, r, t: _hooks_file(c, r, t, "codex"),
+    ".gemini/settings.json": _gemini_settings,
+    ".vscode/tasks.json": _vscode_tasks,
+    ".vscode/settings.json": _vscode_settings,
+    ".vscode/mcp.json": lambda c, r, t: _mcp_file(c, r, t, "vscode", ("servers", "mcpServers")),
+    ".devcontainer.json": _devcontainer,
+    ".envrc": _envrc,
+    ".tool-versions": _tool_versions,
+    "mise.toml": _mise_toml,
+    ".mise.toml": _mise_toml,
+    ".gitmodules": _gitmodules,
+}
+
+# Directories whose files are listed even if the walk was cut short, so the known surfaces are
+# always inspected.
+_KNOWN_DIRS = (
+    ".claude/commands", ".claude/agents", ".cursor/rules", ".github/hooks",
+    ".github/instructions", ".claude/skills",
+)
+
+_SCRIPT_EXTENSIONS = frozenset(
+    {".sh", ".bash", ".zsh", ".py", ".js", ".mjs", ".cjs", ".ts", ".rb", ".pl", ".ps1", ".bat"}
+)
+
+
+def _is_skill_script(rel: str) -> bool:
+    if not rel.startswith(".claude/skills/") or rel.endswith("/SKILL.md"):
+        return False
+    inner = rel.split("/")[3:]
+    return len(inner) > 0 and (
+        "scripts" in inner[:-1] or os.path.splitext(inner[-1])[1].lower() in _SCRIPT_EXTENSIONS
+    )
+
+
+def _route(rel: str) -> Callable[[_Ctx, str, str], None] | None:
+    if rel in _JSON_ROUTES:
+        return _JSON_ROUTES[rel]
+    base = rel.rsplit("/", 1)[-1]
+    if rel.startswith(".github/hooks/") and base.endswith(".json"):
+        return lambda c, r, t: _hooks_file(c, r, t, "copilot")
+    if base == "devcontainer.json" and ".devcontainer" in rel.split("/")[:-1]:
+        return _devcontainer
+    if base == "package.json":
+        return _package_json
+    if _instruction_kind(rel) is not None:
+        return _instruction_file
+    return None
+
+
+def _skip_dir(parent: str, name: str) -> bool:
+    return name in SKIP_DIRS or os.path.isfile(os.path.join(parent, name, "pyvenv.cfg"))
+
+
+def _walk(ctx: _Ctx) -> list[str]:
+    found: list[str] = []
+
+    def on_error(exc: OSError) -> None:
+        rel = os.path.relpath(getattr(exc, "filename", None) or ctx.root, ctx.root)
+        ctx.add(
+            "unscanned", "medium", rel.replace(os.sep, "/"), None,
+            "Could not list this directory, so its contents were not screened.",
+        )
+
+    for dirpath, dirnames, filenames in os.walk(ctx.root, followlinks=False, onerror=on_error):
+        dirnames[:] = sorted(d for d in dirnames if not _skip_dir(dirpath, d))
+        for name in sorted(filenames):
+            if len(found) >= MAX_FILES_WALKED:
+                ctx.add(
+                    "unscanned", "medium", ".", None,
+                    f"Stopped after walking {MAX_FILES_WALKED} files, so files past that point "
+                    "were "
+                    "not screened.",
+                )
+                return found
+            rel = os.path.relpath(os.path.join(dirpath, name), ctx.root)
+            found.append(rel.replace(os.sep, "/"))
+    return found
+
+
+def _known_paths(ctx: _Ctx) -> list[str]:
+    paths = list(_JSON_ROUTES) + [
+        ".github/copilot-instructions.md", "CLAUDE.md", "AGENTS.md", "GEMINI.md",
+        ".cursorrules", "package.json", ".devcontainer/devcontainer.json",
+    ]
+    for directory in _KNOWN_DIRS:
+        full = os.path.join(ctx.root, *directory.split("/"))
+        if os.path.isdir(full) and ctx.inside(full):
+            try:
+                names = sorted(os.listdir(full))
+            except OSError:
+                continue
+            paths += [f"{directory}/{n}" for n in names]
+            if directory == ".claude/skills":
+                paths += [f"{directory}/{n}/SKILL.md" for n in names]
+    return [p for p in paths if os.path.lexists(os.path.join(ctx.root, *p.split("/")))]
+
+
+def scan(root: Any) -> dict[str, Any]:
+    """Scan `root` and return {"root", "findings", "counts", "scanned_files"}."""
+    base = os.path.abspath(os.fspath(root))
+    if not os.path.isdir(base):
+        raise NotADirectoryError(base)
+    ctx = _Ctx(base)
+    ordered: dict[str, None] = {}
+    for rel in _known_paths(ctx) + _walk(ctx):
+        ordered.setdefault(rel, None)
+    skill_scripts: dict[str, list[str]] = {}
+    for rel in ordered:
+        if _is_skill_script(rel):
+            skill_scripts.setdefault("/".join(rel.split("/")[:3]), []).append(rel)
+            text = ctx.read(rel)
+            if text is not None:
+                _instruction_text(ctx, rel, text)
+            continue
+        handler = _route(rel)
+        if handler is None:
+            continue
+        text = ctx.read(rel)
+        if text is not None:
+            handler(ctx, rel, text)
+    for skill_dir, files in skill_scripts.items():
+        ctx.add(
+            "claude.skill-scripts", "medium", skill_dir, None,
+            f"Skill ships {len(files)} script file(s) the agent may be told to run.",
+            ", ".join(f.rsplit("/", 1)[-1] for f in files),
+        )
+    findings = sorted(
+        ctx.findings,
+        key=lambda f: (_SEV_RANK[f["severity"]], f["path"], f["line"] or 0, f["id"]),
+    )
+    counts = {s: sum(1 for f in findings if f["severity"] == s) for s in SEVERITIES}
+    return {
+        "root": base, "findings": findings, "counts": counts, "scanned_files": ctx.scanned,
+    }
+
+
+# --------------------------------------------------------------------------------------------
+# Output
+# --------------------------------------------------------------------------------------------
+
+_ANSI = {"high": "\x1b[31m", "medium": "\x1b[33m", "info": "\x1b[2m"}
+_ANSI_RESET = "\x1b[0m"
+
+_LIMIT_LINE = (
+    "Limit: this screens known auto-run surfaces only. It does not read or judge the code, so "
+    "a clean result is not a statement that the repository is safe."
+)
+
+
+def _verdict(result: dict[str, Any]) -> str:
+    counts, files = result["counts"], result["scanned_files"]
+    total = sum(counts.values())
+    if total == 0:
+        return (
+            f"Checked {files} files for agent hooks, MCP servers, editor tasks, devcontainer and "
+            "install scripts, and instruction files: nothing in them runs or steers an agent "
+            "on its own."
+        )
+    unchecked = sum(1 for f in result["findings"] if f["id"] in ("unscanned", "unparseable"))
+    lead = "Review before opening" if counts["high"] else "Worth a look before opening"
+    tail = f"; {unchecked} could not be screened" if unchecked else ""
+    return (
+        f"{lead}: {counts['high']} high, {counts['medium']} medium, {counts['info']} info "
+        f"across {files} files checked{tail}."
+    )
+
+
+def render(result: dict[str, Any], color: bool = False) -> str:
+    """Human-readable report: verdict first, findings by severity, limit statement last."""
+
+    def paint(severity: str, text: str) -> str:
+        return f"{_ANSI[severity]}{text}{_ANSI_RESET}" if color else text
+
+    lines = [_verdict(result)]
+    for severity in SEVERITIES:
+        group = [f for f in result["findings"] if f["severity"] == severity]
+        if not group:
+            continue
+        lines += ["", paint(severity, f"{severity.upper()} ({len(group)})")]
+        for f in group:
+            where = f["path"] if f["line"] is None else f"{f['path']}:{f['line']}"
+            lines.append("{}  {}".format(where, f["summary"]))
+            if f["detail"]:
+                lines.append("    {}".format(f["detail"]))
+    lines += ["", _LIMIT_LINE]
+    return "\n".join(lines)
+
+
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("path", nargs="?", default=".", help="folder to check (default: .)")
+    parser.add_argument("--json", action="store_true", help="print the result as JSON")
+    parser.add_argument(
+        "--strict", action="store_true", help="exit 1 on medium findings as well as high"
+    )
+
+
+def run(args: argparse.Namespace) -> int:
+    """Print the report. Exit 0 if nothing high, 1 on high (or medium with --strict), 2 if bad."""
+    try:
+        result = scan(args.path)
+    except NotADirectoryError:
+        print(f"pr scan: not a directory: {args.path}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        color = sys.stdout.isatty() and "NO_COLOR" not in os.environ
+        print(render(result, color=color))
+    counts = result["counts"]
+    if counts["high"] or (args.strict and counts["medium"]):
+        return 1
+    return 0

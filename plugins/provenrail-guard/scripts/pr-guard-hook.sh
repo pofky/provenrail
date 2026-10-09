@@ -25,6 +25,10 @@
 set -uo pipefail
 
 EVENT="${1:-pre}"
+# The timeout hooks.json gives this hook, passed on so the engine never waits on a phone
+# question for longer than the host will wait for the engine. Absent on an old hooks.json, in
+# which case the engine assumes the short timeout those were written with.
+BUDGET="${2:-15}"
 PAYLOAD="$(cat)"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -136,7 +140,7 @@ run_and_forward() {
 
 PR_BIN="$(find_pr || true)"
 if [ -n "${PR_BIN:-}" ]; then
-  run_and_forward "$PR_BIN" guard hook --event "$EVENT"
+  run_and_forward "$PR_BIN" guard hook --event "$EVENT" --budget "$BUDGET"
 fi
 
 # PostToolUse is the RECORDER, and the bundled engine is not a recorder: on a post event it
@@ -150,7 +154,7 @@ fi
 
 PY_BIN="$(find_python || true)"
 if [ -n "${PY_BIN:-}" ] && [ -f "$HERE/guard_standalone.py" ]; then
-  run_and_forward "$PY_BIN" "$HERE/guard_standalone.py" --event "$EVENT"
+  run_and_forward "$PY_BIN" "$HERE/guard_standalone.py" --event "$EVENT" --budget "$BUDGET"
 fi
 
 # Neither engine is available, on a pre event. Say so once a day rather than on every tool

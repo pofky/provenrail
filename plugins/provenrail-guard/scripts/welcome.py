@@ -35,6 +35,16 @@ _QUIET = ("  Quiet on ordinary work: `rm -rf ./build` and `git reset --hard` on 
 #: not exist. Same class of drift as the hand-written rule list above, same fix: derive it.
 #: The disarm instruction is part of the situation too. `echo ... >` is correct only when there
 #: is no file to clobber; telling the budgets-only user to run it would delete their cap.
+#: The half of the product that is not a rule, said once on the same screen. Someone who
+#: installed a "guard" has no way to know their working tree is now being checkpointed, and
+#: an undo nobody knows about is an undo nobody uses on the day it matters.
+_SUPERVISOR = {
+    True: ("  Also on: a checkpoint before every action that can change a file (`pr undo`), a "
+           "loop breaker, and a stop switch (`pr stop`)."),
+    False: ("  Also on: a checkpoint before every action that can change a file (/guard-undo), "
+            "a loop breaker, and a stop switch (/guard-stop)."),
+}
+
 _REASONS = {
     False: ("because this project has no {name}",
             "echo '{{\"policy\": {{\"use\": []}}}}' > {name}"),
@@ -95,6 +105,7 @@ def first_run_notice(armed: list, catalog_packs: dict, config_filename: str,
     if ask:
         lines.append(f"  Sent to you to approve: {_phrase(ask)}.")
     lines.append(_QUIET)
+    lines.append(_SUPERVISOR[bool(signed)])
     if signed:
         lines.append(f"  See what it stopped:  pr guard card       Turn it off:  {disarm}")
     else:

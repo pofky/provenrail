@@ -1,12 +1,13 @@
 [project]
 name = "provenrail"
-version = "0.5.0"
-description = "Guardrails for AI agents, with a receipt. Blocks destructive tool calls (rm -rf, terraform destroy, force push, DROP TABLE, leaked keys) before they run, and signs every decision into an off-box, hash-chained record anyone can verify."
+version = "0.6.0"
+description = "A supervisor for coding agents. Undo anything an agent did, including shell commands; stop every agent from your phone; approve risky calls when you are away; block destructive commands before they run. One hook on Claude Code, Codex, Gemini CLI, Copilot and Cursor, with a signed record underneath."
 readme = "README.md"
 license = { text = "MIT for client/SDK/verifier/spec; AGPL-3.0-or-later for server. See LICENSING.md" }
 requires-python = ">=3.11"
 keywords = [
-    "ai-agents", "guardrails", "agent-security", "claude-code", "audit-log",
+    "ai-agents", "guardrails", "agent-security", "claude-code", "undo", "checkpoint",
+    "human-in-the-loop", "kill-switch", "audit-log",
     "tamper-evident", "hash-chain", "ed25519", "rfc3161", "observability",
     "llm", "provenance", "eu-ai-act", "compliance", "mcp",
 ]

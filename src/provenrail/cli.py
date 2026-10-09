@@ -1591,7 +1591,7 @@ def _cmd_guard(args) -> int:
                 sys.stderr.write(f"provenrail: {e}. NOT enforcing.\n")
                 return 0
         code, out, err = guard.run_hook(sys.stdin.read(), default_event=args.event, use=use,
-                                        host=args.host)
+                                        host=args.host, budget_s=args.budget)
         if out:
             print(out)
         if err:
@@ -1945,6 +1945,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "(default: claude-code). One policy, whichever agent is running it. "
                         "Only Claude Code is installed by `install` with a PostToolUse hook; "
                         "the others get the pre-tool hook their own docs describe")
+    g.add_argument("--budget", type=float, default=15,
+                   help="for `hook`: the timeout in seconds the host gives this hook (written "
+                        "by `install`, not by hand). A phone question never waits past it")
     g.add_argument("--out", default="guard-receipt.json", help="receipt bundle path")
     g.set_defaults(func=_cmd_guard)
 
@@ -2075,7 +2078,92 @@ def build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--fail-closed", action="store_true",
                     help="refuse (502) a call that cannot be recorded instead of forwarding it")
     sc.set_defaults(func=_cmd_sidecar)
+
+    from . import brief as _brief
+    from . import checkpoint as _checkpoint
+    from . import remote as _remote
+    from . import scan as _scan
+    un = sub.add_parser("undo",
+                        help="put the working tree back to before an agent action, including "
+                             "what a shell command changed")
+    _checkpoint.add_arguments(un)
+    un.set_defaults(func=_cmd_undo)
+
+    st = sub.add_parser("stop", help="refuse every tool call from every agent on this machine")
+    st.add_argument("reason", nargs="*", help="why, shown to the agent and in `pr remote status`")
+    st.set_defaults(func=_cmd_stop)
+    rs = sub.add_parser("resume", help="lift a `pr stop`")
+    rs.set_defaults(func=_cmd_resume)
+
+    rm = sub.add_parser("remote",
+                        help="approve, refuse and stop agents from your phone (Telegram or ntfy)")
+    _remote.add_arguments(rm)
+    rm.set_defaults(func=_cmd_remote)
+    for name, text in (("away", "send agents' questions to your phone"),
+                       ("back", "ask agents' questions at this machine again")):
+        aw = sub.add_parser(name, help=text)
+        aw.set_defaults(func=_cmd_away)
+
+    sn = sub.add_parser("scan",
+                        help="what in this repository runs or steers an agent without asking "
+                             "(hooks, MCP servers, tasks, hidden instructions)")
+    _scan.add_arguments(sn)
+    sn.set_defaults(func=_cmd_scan)
+
+    br = sub.add_parser("brief",
+                        help="a review brief of what the agent changed, from recorded facts")
+    _brief.add_arguments(br)
+    br.set_defaults(func=_cmd_brief)
     return p
+
+
+def _cmd_undo(args) -> int:
+    from . import checkpoint
+    return checkpoint.run(args)
+
+
+def _cmd_scan(args) -> int:
+    from . import scan
+    return scan.run(args)
+
+
+def _cmd_brief(args) -> int:
+    from . import brief
+    return brief.run(args)
+
+
+def _cmd_remote(args) -> int:
+    from . import guard, remote
+    return remote.run(args, licensed=guard._licensed())
+
+
+def _cmd_stop(args) -> int:
+    """Refuse every tool call from every agent on this machine until `pr resume`."""
+    from . import watch
+    order = watch.halt(by="pr stop", reason=" ".join(args.reason))
+    print("Stopped. " + watch.halt_reason(order)[0].upper() + watch.halt_reason(order)[1:] + ".")
+    print("This takes effect at each agent's next tool call. A tool already running finishes.")
+    return 0
+
+
+def _cmd_resume(args) -> int:
+    from . import watch
+    print("Resumed. Agents on this machine may run again." if watch.resume()
+          else "Nothing was stopped.")
+    return 0
+
+
+def _cmd_away(args) -> int:
+    from . import remote
+    remote.set_away(args.cmd == "away")
+    if remote.load() is None:
+        print("Noted, but no phone remote is set up, so questions have nowhere else to go. "
+              "`pr remote setup` shows how.")
+        return 1
+    print("Away: questions from your agents go to your phone until `pr back`."
+          if args.cmd == "away" else
+          "Back: questions are asked at this machine while you are at it.")
+    return 0
 
 
 def _print_welcome() -> None:

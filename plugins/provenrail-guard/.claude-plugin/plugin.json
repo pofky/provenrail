@@ -1,7 +1,7 @@
 {
   "name": "provenrail-guard",
-  "version": "0.5.0",
-  "description": "A day spend cap that refuses the next tool call once your agent has spent it, plus delete and git rules that screen where a command points rather than what it says. Deterministic, offline, and it runs in `claude -p`, the Agent SDK and CI, where the auto mode classifier does not run at all.",
+  "version": "0.6.0",
+  "description": "Undo for coding agents, including what a shell command did, plus a stop switch, a loop breaker, a warning when two sessions edit one file, phone approvals, and rules that refuse destructive commands. Deterministic and offline, and it runs in `claude -p`, the Agent SDK and CI.",
   "author": {
     "name": "Provenrail",
     "email": "support@provenrail.com",
@@ -11,15 +11,17 @@
   "repository": "https://github.com/pofky/provenrail",
   "license": "MIT",
   "keywords": [
-    "spend-cap",
-    "budget",
-    "cost-control",
+    "undo",
+    "checkpoint",
+    "rewind",
+    "human-in-the-loop",
+    "approvals",
+    "kill-switch",
     "guardrails",
+    "spend-cap",
     "ci",
     "headless",
     "safety",
-    "audit-log",
-    "tamper-evident",
     "agent-safety"
   ]
 }

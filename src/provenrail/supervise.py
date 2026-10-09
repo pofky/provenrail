@@ -1,0 +1,282 @@
+"""The supervisor: what happens around a tool call besides matching it against rules.
+
+The rules decide whether one call is acceptable. Everything here is about the session the
+call belongs to: has someone ordered a stop, is the agent going round in circles, is another
+agent in the same file, can the working tree be put back if this goes wrong, and is there a
+person who can be asked when they are not at the keyboard.
+
+Both enforcement engines call `pre` after they have reached their own verdict and `post`
+after a tool ran. This module can only ever make a verdict STRICTER or leave it alone, with
+one exception that is the point of it: a human answering "approve" on their phone turns an
+"ask" into an "allow", which is what a human answering at the keyboard does too.
+
+Nothing in here may break a session. Every step is wrapped, and a step that fails reports
+itself once a day and steps aside. The stop switch is the exception in the other direction:
+it is checked first, with one `stat`, and nothing that fails afterwards can lift it.
+
+Standard library only, Python 3.9 compatible: vendored into the zero-install plugin.
+"""
+
+from __future__ import annotations
+
+import os
+import time
+from typing import Any
+
+try:                                  # installed as part of the package
+    from . import checkpoint, lanes, localstate, watch
+    from .shell import command_shape
+except ImportError:                   # vendored: the hook imports it as a top-level module
+    import checkpoint  # type: ignore[no-redef]
+    import lanes  # type: ignore[no-redef]
+    import localstate  # type: ignore[no-redef]
+    import watch  # type: ignore[no-redef]
+    from shell import command_shape  # type: ignore[no-redef]
+
+#: Kept in step with `remote.CONFIG_FILENAME` by a test. Named here so that deciding whether
+#: a remote exists costs one `stat` and not the import of the module that would know.
+_REMOTE_CONFIG = "remote.json"
+#: Characters of a command shown on the phone. See `remote.MAX_BODY_CHARS`, which a test
+#: holds this equal to.
+_MAX_PREVIEW = 600
+
+
+def _remote_module() -> Any:
+    """The phone remote, imported only on a machine that has one set up.
+
+    This module runs on every tool call an agent makes. The remote brings `secrets`,
+    `subprocess` and their dependencies with it, which is several milliseconds on every call
+    for a feature most installs never switch on.
+    """
+    try:
+        from . import remote
+    except ImportError:
+        import remote  # type: ignore[no-redef]
+    return remote
+
+RULE_STOPPED = "supervisor.stopped"
+RULE_LOOP = "supervisor.loop"
+RULE_LANE = "supervisor.lane"
+
+#: What the phone is told about without being asked. A refusal is worth a message because an
+#: unattended agent that has been refused usually stops making progress; an allow is not.
+DEFAULT_NOTIFY_ON = ("deny",)
+
+#: The hook timeout assumed when the hook command does not state one, which is every install
+#: made before the phone remote existed. It is the timeout those installs were written with.
+LEGACY_BUDGET_S = 15
+#: Seconds of the hook's timeout kept back from a phone wait: ten for the checkpoint that
+#: follows an approval (`checkpoint.SNAPSHOT_BUDGET_S`) and ten for everything else, so the
+#: hook always answers before the host gives up on it.
+RESERVE_S = 20
+#: Below this a phone wait is not attempted. Nobody reads a command and answers in under half
+#: a minute, so a shorter wait would only ever add a delay before the same fallback.
+MIN_WAIT_S = 30
+
+
+def _enabled(section: dict[str, Any]) -> bool:
+    return section.get("enabled", True) is not False
+
+
+def _number(section: dict[str, Any], key: str, default: float, low: float, high: float) -> float:
+    value = section.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return default
+    return max(low, min(float(value), high))
+
+
+def _preview(tool: str, tool_input: Any, detail: str) -> str:
+    """What the phone shows of the call. `shape` keeps every operand on the machine."""
+    data = tool_input if isinstance(tool_input, dict) else {}
+    command = data.get("command") if data else tool_input
+    if tool == "Bash" and isinstance(command, str):
+        return command_shape(command) if detail == "shape" else command[:_MAX_PREVIEW]
+    for key in ("file_path", "path", "notebook_path", "url"):
+        if isinstance(data.get(key), str):
+            return data[key][:_MAX_PREVIEW]
+    return ""
+
+
+def _project(root: Any, cwd: str) -> str:
+    return os.path.basename(str(root or cwd or "")) or "an agent"
+
+
+def pre(hook: dict[str, Any], host: str, verdict: str, rule_id: Any, reason: str,
+        config_path: Any, host_can_ask: bool, journal: Any, once: Any,
+        licensed: Any = None, budget_s: float = LEGACY_BUDGET_S) -> tuple:
+    """Run the supervisor before a tool call. Returns (verdict, rule_id, reason, notice).
+
+    `journal(entry)` appends to the engine's local journal and `once(name, message)` returns
+    `message` at most once a day, else "". Both are the engine's own, so the two engines keep
+    one journal format and one notice budget each. `licensed` is True, False, None, or a
+    callable returning one of those, so the engine that can verify a licence only pays for
+    doing so on the rare call that reaches the phone.
+
+    `budget_s` is the timeout the host was told to give this hook. A host that kills a hook
+    treats it as having had no opinion, so a question still waiting on the phone at that
+    moment would become an allow. The wait is therefore cut to fit inside the budget, and
+    when the budget is too small to wait at all the phone is not used and the user is told
+    how to fix the install.
+    """
+    notice = ""
+    tool = hook.get("tool") or ""
+    tool_input = hook.get("input")
+    session = hook.get("session_id") or ""
+    cwd = hook.get("cwd") or ""
+
+    # 1. The stop switch. First, cheapest, and unconditional.
+    try:
+        order = watch.halted()
+    except Exception:  # noqa: BLE001
+        order = None
+    if order is not None:
+        return "deny", RULE_STOPPED, watch.halt_reason(order), notice
+
+    try:
+        root = localstate.find_root(cwd or None)
+    except Exception:  # noqa: BLE001
+        root = None
+
+    config = localstate.read_json(config_path, {}) if config_path else {}
+
+    def section(name: str) -> dict[str, Any]:
+        value = config.get(name) if isinstance(config, dict) else None
+        return value if isinstance(value, dict) else {}
+
+    cfg = None
+    remote = None
+    remote_section = section("remote")
+    try:
+        if _enabled(remote_section) and (localstate.home() / _REMOTE_CONFIG).exists():
+            remote = _remote_module()
+            cfg = remote.load()
+        if cfg is not None:
+            cfg = dict(cfg, **{k: v for k, v in remote_section.items()
+                               if k in ("ask", "detail", "wait_s", "notify_on")})
+            remote.poll_in_background()
+    except Exception:  # noqa: BLE001
+        cfg = None
+
+    # 2. The loop breaker. Only on a call the rules would have let through: a call that is
+    # already being refused or questioned needs no second reason.
+    watch_section = section("watch")
+    if verdict == "allow" and _enabled(watch_section):
+        try:
+            count = watch.observe(session, watch.fingerprint(tool, tool_input),
+                                  int(_number(watch_section, "repeats", watch.DEFAULT_REPEATS,
+                                              2, watch.WINDOW // watch.MAX_PERIOD)))
+            if count:
+                verdict, rule_id, reason = "ask", RULE_LOOP, watch.loop_reason(count)
+        except Exception as exc:  # noqa: BLE001
+            notice += once("watch-failed", f"provenrail: the loop watcher failed ({exc}); "
+                                           "this session is not being watched for loops\n")
+
+    # 3. File lanes.
+    lanes_section = section("lanes")
+    if verdict == "allow" and root is not None and _enabled(lanes_section):
+        try:
+            ttl = _number(lanes_section, "minutes", lanes.DEFAULT_TTL_S / 60, 1, 24 * 60) * 60
+            rel = lanes.target(tool, tool_input, root, cwd)
+            note = lanes.held_by_other(root, session, rel, ttl) if rel else None
+            if note:
+                verdict, rule_id, reason = "ask", RULE_LANE, lanes.reason(rel, note)
+        except Exception as exc:  # noqa: BLE001
+            notice += once("lanes-failed", f"provenrail: file lanes failed ({exc}); edits "
+                                           "are not being checked against other sessions\n")
+
+    # 4. The phone.
+    if cfg is not None and remote is not None and verdict in ("ask", "deny"):
+        try:
+            usable, note = remote.entitled(cfg, licensed() if callable(licensed) else licensed)
+            where = _project(root, cwd)
+            detail = str(cfg.get("detail") or "full")
+            wait = min(_number(cfg, "wait_s", remote.DEFAULT_WAIT_S, 1, remote.MAX_WAIT_S),
+                       float(budget_s) - RESERVE_S)
+            if not usable:
+                notice += once("remote-unlicensed", f"provenrail: {note}\n")
+            elif verdict == "ask" and wait < min(MIN_WAIT_S, _number(
+                    cfg, "wait_s", remote.DEFAULT_WAIT_S, 1, remote.MAX_WAIT_S)):
+                notice += once("remote-no-budget", (
+                    "provenrail: the phone remote is set up, but this hook was installed with "
+                    f"a {int(budget_s)}-second timeout, which is too short to wait for an "
+                    "answer. Run `pr guard install` again (or update the plugin) to fix it. "
+                    "Until then questions stay on this machine\n"))
+            elif verdict == "ask" and remote.wants_remote(cfg, host_can_ask):
+                body = f"{rule_id}: {reason}\n\n{tool}: {_preview(tool, tool_input, detail)}"
+                answer = remote.ask(cfg, f"Approve? {tool} in {where} ({host})", body, wait)
+                journal({"at": int(time.time()), "event": "pre", "tool": tool,
+                         "session_id": session, "host": host,
+                         "verdict": {"approve": "allow", "deny": "deny"}.get(answer, verdict),
+                         "rule": rule_id, "reason": reason, "remote": answer})
+                if answer == "approve":
+                    # Recorded above with the rule that asked, so the journal shows a
+                    # question and who answered it rather than an unexplained allow.
+                    verdict = "allow"
+                elif answer == "deny":
+                    verdict = "deny"
+                    reason += " [refused from the phone remote]"
+                else:
+                    notice += once("remote-" + answer, (
+                        "provenrail: the phone did not answer in time, so the question "
+                        "stays here\n" if answer == "timeout" else
+                        "provenrail: the phone remote could not be reached, so the question "
+                        "stays here\n"))
+            elif verdict == "deny" and "deny" in (cfg.get("notify_on") or DEFAULT_NOTIFY_ON):
+                remote.notify(cfg, f"Blocked: {tool} in {where} ({host})",
+                              f"{rule_id}: {reason}\n\n{_preview(tool, tool_input, detail)}")
+        except Exception as exc:  # noqa: BLE001
+            notice += once("remote-failed", f"provenrail: the phone remote failed "
+                                            f"({type(exc).__name__}); the verdict is unchanged\n")
+
+    # 5. The checkpoint, last, so it is the state the action will actually start from. Taken
+    # for an "ask" as well: if the human says yes, the tool runs with no further hook.
+    undo_section = section("undo")
+    if verdict != "deny" and root is not None and _enabled(undo_section):
+        try:
+            if checkpoint.needs_snapshot(tool, tool_input):
+                include = undo_section.get("include")
+                if not (isinstance(include, list) and all(isinstance(i, str) for i in include)):
+                    include = checkpoint.DEFAULT_INCLUDE
+                checkpoint.snapshot(root, session_id=session, host=host, tool=tool,
+                                    label=checkpoint.label_for(tool, tool_input, root),
+                                    include=include)
+        except checkpoint.CheckpointPaused as exc:
+            notice += once("undo-paused", f"provenrail: checkpoints are paused here: {exc}\n")
+        except checkpoint.CheckpointError as exc:
+            notice += once("undo-failed", f"provenrail: no checkpoint was taken ({exc}), so "
+                                          "`pr undo` cannot rewind this action\n")
+        except Exception as exc:  # noqa: BLE001
+            notice += once("undo-failed", f"provenrail: no checkpoint was taken "
+                                          f"({type(exc).__name__}), so `pr undo` cannot rewind "
+                                          "this action\n")
+    # 6. Take the lane now, on an allow. The zero-install plugin runs no engine after a tool
+    # call, so waiting for the post event would mean lanes never existed there. An edit that
+    # was only asked about takes no lane: nobody has said it will run.
+    if verdict == "allow" and root is not None and _enabled(lanes_section):
+        try:
+            rel = lanes.target(tool, tool_input, root, cwd)
+            if rel:
+                lanes.claim(root, session, host, rel,
+                            _number(lanes_section, "minutes", lanes.DEFAULT_TTL_S / 60, 1,
+                                    24 * 60) * 60)
+        except Exception:  # noqa: BLE001 - a lane that could not be noted is a missed question
+            pass
+    return verdict, rule_id, reason, notice
+
+
+def post(hook: dict[str, Any], host: str, config_path: Any) -> None:
+    """After a tool ran: take the lane on the file it wrote."""
+    try:
+        section = localstate.section(config_path, "lanes")
+        if not _enabled(section):
+            return
+        cwd = hook.get("cwd") or ""
+        root = localstate.find_root(cwd or None)
+        if root is None:
+            return
+        rel = lanes.target(hook.get("tool") or "", hook.get("input"), root, cwd)
+        if rel:
+            ttl = _number(section, "minutes", lanes.DEFAULT_TTL_S / 60, 1, 24 * 60) * 60
+            lanes.claim(root, hook.get("session_id") or "", host, rel, ttl)
+    except Exception:  # noqa: BLE001 - a lane that could not be noted is a missed question
+        return

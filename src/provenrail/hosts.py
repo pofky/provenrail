@@ -497,6 +497,8 @@ def render(host: str, verdict: str, reason: str) -> str:
 #: The matchers are regular expressions on every host that has one except Claude Code, whose
 #: matcher is a glob; `.*` and `*` are the same intent spelled two ways, and getting this
 #: backwards would install a guard that matches one tool called ".*".
+GEMINI_TIMEOUT_UNITS_PER_S = 1000
+
 _INSTALL: dict[str, dict[str, Any]] = {
     "codex": {
         "path": (".codex", "hooks.json"),
@@ -507,9 +509,14 @@ _INSTALL: dict[str, dict[str, Any]] = {
     "gemini": {
         "path": (".gemini", "settings.json"),
         "top": {},
+        # Gemini CLI's `timeout` is "Execution timeout in milliseconds (default: 60000)"
+        # (https://geminicli.com/docs/hooks/reference/, checked 2026-10-09). Every other host
+        # here counts in seconds. Until 0.6.0 this wrote the seconds figure unconverted, which
+        # asked Gemini to give the guard fifteen milliseconds.
         "events": lambda cmd, t: {"BeforeTool": [
             {"matcher": ".*", "hooks": [{"type": "command", "command": cmd,
-                                         "name": "provenrail-guard", "timeout": t}]}]},
+                                         "name": "provenrail-guard",
+                                         "timeout": t * GEMINI_TIMEOUT_UNITS_PER_S}]}]},
     },
     "copilot": {
         # Its own file under `.github/hooks/`, which the vendor documents as a directory of
