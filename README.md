@@ -1,13 +1,104 @@
 # Provenrail
 
-**A hard limit on what your coding agent may spawn, spend and touch.** The control with no
-equivalent anywhere else is the fan-out cap: Claude Code refuses a subagent at depth 3 of 3,
-nothing limits how many subagents one session may start, and a runaway spawns dozens, each a
-fresh context billed and metered on top of the one it came from. Provenrail counts them and asks
-you before the twenty-first. Every decision is also signed into a hash-chained record anyone can
-verify, trusting neither the agent nor the sink.
+**The supervisor for coding agents.** Undo anything an agent did, including what a shell
+command did. Stop every agent on the machine with one command, or from your phone. Get asked
+before a risky call runs when you are not at the keyboard. One hook, on Claude Code, Codex,
+Gemini CLI, Copilot and Cursor, and nothing leaves your machine unless you set up the remote.
 
-### Start here: `pr report --fanout`, how wide your own sessions spread
+```
+> Run exactly this shell command: rm -rf src
+
+  Deleted `src` (untracked, so not recoverable from git).
+
+$ pr undo
+  #1     2s ago    0ebfd150  Bash rm -rf          2 files (-2)
+
+$ pr undo last
+Restored checkpoint #1: 2 file(s) written back, 0 removed.
+  ~ src/app.py
+  ~ src/wip.py
+Verified: the working tree now matches the checkpoint exactly.
+Changed your mind? `pr undo 2` puts it back.
+```
+
+That is a real Claude Code session and the real output. The files were never committed, so
+git had nothing to give back, and the agent said so.
+
+### Install: one command in Claude Code, nothing else on the machine
+
+```
+/plugin marketplace add pofky/provenrail
+/plugin install provenrail-guard@provenrail
+```
+
+It works from the next tool call, on whatever `python3` the machine has (3.9 or later), with
+no account and no config file. For the `pr` command line and the other hosts:
+
+```bash
+uv tool install git+https://github.com/pofky/provenrail   # 0.6.0; PyPI still serves 0.4.3
+pr guard install                 # Claude Code, in this project
+pr guard install --host codex    # or gemini, copilot, cursor
+```
+
+### What it does
+
+| | Command | In the plugin |
+|---|---|---|
+| **Undo.** A checkpoint of the working tree before every action that can change a file. | `pr undo`, `pr undo last`, `pr undo <n> --diff` | `/guard-undo` |
+| **Stop.** Every tool call from every agent on this machine is refused until you resume. | `pr stop`, `pr resume` | `/guard-stop` |
+| **Loop breaker.** Asks you after the same call, or the same short cycle, runs 8 times back to back. | on by default | on by default |
+| **File lanes.** Asks before one session edits a file another session wrote in the last 15 minutes. | on by default | on by default |
+| **Phone remote.** Approve, refuse, stop and resume from Telegram or ntfy. No server of ours. | `pr remote setup`, `pr away`, `pr back` | needs the CLI |
+| **Rules and caps.** 45 rules that screen where a command points, a spend cap, a subagent cap. | `pr guard status`, `pr guard budget 25` | `/guard-status`, `/guard-budget` |
+| **Scan.** What in a cloned repository runs or steers an agent without asking. | `pr scan [path]` | `/guard-scan` |
+| **Brief.** What the agent changed, from recorded facts, for whoever reviews it. | `pr brief` | needs the CLI |
+
+**Undo, exactly.** The checkpoint lives in a second git object store under `~/.provenrail`,
+outside your repository. Your real `.git` is never opened: no stash, no commit, no ref,
+nothing in `git status`. A restore snapshots the current state first, so an undo can itself be
+undone, and a full restore is checked by tree hash before it says "Verified". On a 381-file
+repository the first snapshot took 1.04 s and each one after it 0.03 s.
+
+What it does not cover: files your `.gitignore` excludes (apart from root-level `.env` files),
+any file over 50 MiB (skipped, and listed), commits and branches in your real repository,
+databases, and anything outside the repository. It runs inside git repositories only.
+
+**The loop breaker's threshold is measured.** `tools/measure_loops.py` replays your own
+transcripts. On the machine this was written on, across 3,186 sessions and 147,356 tool calls,
+97.1% of sessions never repeated a block at all, and 0.47% would have been asked once.
+
+**The phone remote never fails open.** No answer, no network, an unpaired chat, an ended
+evaluation: each leaves the verdict exactly what it was. It also never waits longer than the
+hook timeout the host was given, because a host that kills a hook treats it as having had no
+opinion. On a host with no approval prompt of its own (Codex, Gemini CLI), a rule that needs
+a human becomes a real question on your phone instead of a flat refusal.
+
+```bash
+pr remote setup ntfy                          # no account: a secret topic in the ntfy app
+pr remote setup telegram --token <token>      # a bot you create, answers only from your chat
+pr away                                       # questions go to the phone until `pr back`
+```
+
+The text of a question (the rule, the tool, and by default the command) goes from your machine
+to the channel you chose. `"remote": {"detail": "shape"}` in `.provenrail.json` sends the verb
+and flags only. The remote is free for 14 days with no account, then part of the $9 a month
+plan; everything else in the table is free and stays free.
+
+**Tuning.** All of it is on by default and each part has a switch in `.provenrail.json`:
+
+```json
+{
+  "undo":   {"enabled": true, "include": [".env", ".env.*"]},
+  "watch":  {"enabled": true, "repeats": 8},
+  "lanes":  {"enabled": true, "minutes": 15},
+  "remote": {"ask": "auto", "detail": "full", "wait_s": 300}
+}
+```
+
+Every decision can also be signed into a hash-chained record anyone can verify, trusting
+neither the agent nor the sink. That part is described under "The record underneath".
+
+### `pr report --fanout`: how wide your own sessions already spread
 
 You already have the data. Claude Code writes a transcript of every session it runs, and they
 pile up in `~/.claude/projects` whether or not you ever look at them. One command reads them:

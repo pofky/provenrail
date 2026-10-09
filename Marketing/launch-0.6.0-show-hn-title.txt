@@ -1,0 +1,1 @@
+Show HN: Undo for coding agents, including what their shell commands did

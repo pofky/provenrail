@@ -1,0 +1,19 @@
+/rewind brings back file edits Claude made with its edit tools. It does not bring back what a Bash command did, and that is how I have actually lost work: rm -rf on a folder with uncommitted files, git checkout . on a dirty tree, a script it wrote and ran.
+
+So I wrote a plugin that takes a snapshot of the working tree before every tool call that can write, Bash included, and gives you /guard-undo. The snapshot goes into a separate git object store under ~/.provenrail. Your own .git is never touched, nothing shows in git status, and a restore is checked by tree hash before it says "Verified".
+
+The test I ran: asked Claude to rm -rf a src folder holding two files I had never committed. Its reply was "Deleted src (untracked, so not recoverable from git)." Then undo last put both back, identical checksums.
+
+It also adds /guard-stop (every agent on the machine is refused at its next tool call until you resume), a loop breaker that asks you after 8 identical calls in a row, and a warning when a second session is about to edit a file another session just wrote.
+
+What it does not cover: gitignored files except root .env files, files over 50 MiB, your git history, databases, anything outside the repo. It only runs inside git repos.
+
+Two lines to install, nothing else needed, works on the system python3:
+
+/plugin marketplace add pofky/provenrail
+
+/plugin install provenrail-guard@provenrail
+
+Free and MIT. Source: https://github.com/pofky/provenrail
+
+If it fails to restore something for you I want to know exactly what, that is the one bug this cannot have.

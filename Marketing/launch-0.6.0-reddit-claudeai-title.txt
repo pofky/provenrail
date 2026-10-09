@@ -1,0 +1,1 @@
+Claude told me "untracked, so not recoverable from git" after an rm -rf. I built the undo for that.

@@ -1,0 +1,24 @@
+0.6.0 is built from main, tested and proven against the wheel. Three things are blocked for the agent or need a login only you have. Run them from the project directory, in this order.
+
+  cd /Volumes/T7/Projects/AgenticTools/flightrecorder
+
+Step 1. Publish 0.6.0 to PyPI. Until this runs, `uv tool install provenrail` gives 0.4.3, which has none of undo, stop, remote, scan or brief. The site and README tell people to install the CLI from GitHub for that reason, and they can go back to the short command once this is done. The token is in ~/.pypirc.
+
+.venv/bin/python -m twine upload dist/provenrail-0.6.0*
+
+Step 2. Confirm the index serves it.
+
+SB=$(mktemp -d) && uv venv -q $SB/.v && VIRTUAL_ENV=$SB/.v uv pip install provenrail && $SB/.v/bin/pr --version
+
+Expected: provenrail 0.6.0
+
+Step 3. Prove Codex. The Codex login on this machine has expired, so undo has been proven on Claude Code only. This is one command after you log in, and it prints PASS or FAIL. Do not post anything that says undo works on Codex until it has printed PASS.
+
+codex login
+tools/prove_codex.sh
+
+Step 4. Optional, in the Polar dashboard. The $9 product is still named "Anchored statements". It now also unlocks the phone remote after the 14 day evaluation, so a name like "Provenrail Pro" fits better. Renaming a product does not change its id, its price or any licence already issued. Archiving the old Builder ($29) and Team ($99) products is still open from last time.
+
+Step 5. Submit the plugin. The form fields are in Marketing/plugin-directory-submission.txt, rewritten for 0.6.0. `claude plugin validate ./plugins/provenrail-guard` passes.
+
+Step 6. Post. Nothing has ever been posted for this project and that is still the only reason nobody uses it. The copy is in Marketing/launch-0.6.0-*.txt, one file per field. Order: the Show HN, then r/ClaudeAI the same day, then the Codex issue comment only after step 3 has passed.

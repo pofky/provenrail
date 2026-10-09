@@ -234,13 +234,27 @@ def _scope(log: list[dict[str, Any]], session: str, since: int, all_sessions: bo
            ) -> tuple[list[dict[str, Any]], str]:
     """The checkpoints in scope, and the reason when there are none."""
     entries = list(log)
+    # An undo's own safety snapshot carries no session id: it was taken by the person at the
+    # terminal, not by an agent. It still belongs in the brief of the session it rewound, and
+    # it must never be mistaken for "the most recent session", which is what happened when
+    # the newest checkpoint in the log was one of these.
+    agent = [e for e in entries if e.get("tool") != checkpoint.UNDO_TOOL]
     if session:
-        entries = [e for e in entries if str(e.get("session", "")).startswith(session)]
-        if not entries:
+        chosen = {str(e.get("session", "")) for e in agent
+                  if str(e.get("session", "")).startswith(session)}
+        if not chosen:
             return [], f"no checkpoints belong to a session starting with `{_ascii(session)}`"
-    elif not all_sessions and entries:
-        latest = entries[-1].get("session", "")
-        entries = [e for e in entries if e.get("session", "") == latest]
+    elif not all_sessions and agent:
+        chosen = {str(agent[-1].get("session", ""))}
+    else:
+        chosen = None
+    if chosen is not None:
+        mine = [e for e in agent if str(e.get("session", "")) in chosen]
+        first = mine[0]["n"] if mine else 0
+        entries = [e for e in entries
+                   if (e.get("tool") != checkpoint.UNDO_TOOL
+                       and str(e.get("session", "")) in chosen)
+                   or (e.get("tool") == checkpoint.UNDO_TOOL and e["n"] > first)]
     if since:
         entries = [e for e in entries if e["n"] >= since]
         if not entries:
@@ -289,7 +303,8 @@ def build(root: Any, session: str = "", since: int = 0, all_sessions: bool = Fal
         commands.append({"n": row["n"], "at": row.get("at"), "shape": row.get("label", ""),
                          **counts, "files": len(changed)})
 
-    sessions = sorted({str(e.get("session", "")) for e in scope})
+    sessions = sorted({str(e.get("session", "")) for e in scope
+                       if e.get("tool") != checkpoint.UNDO_TOOL})
     first_at, last_at = scope[0].get("at", 0), scope[-1].get("at", 0)
     journal_rows = []
     for entry in guard.read_journal():

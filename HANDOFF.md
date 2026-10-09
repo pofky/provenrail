@@ -1,125 +1,122 @@
 # HANDOFF
 
-Last updated 2026-09-17. Branch `main`, tag `v0.5.0` (one commit behind `main`, see below).
-**0.5.0 is built, proven and NOT on PyPI.** The upload is blocked for the agent and is written
-up in `Marketing/release-0.5.0-operator-steps.txt`. The site is deployed and current. Read this
-first, then `WORKLOG.md` for history.
-
-**2026-10-09: direction review, no code changed.** A full review of where this project
-should go ran this day and ended in a decision not to build. The memo and its evidence are in
-the private repo: `provenrail-internal/docs/direction-2026-10-09.md`. Read it before starting
-any new feature here.
+Last updated 2026-10-09. Branch `main`. **0.6.0 is built, proven against the wheel and NOT on
+PyPI** (PyPI serves 0.4.3; the upload is refused for the agent). The plugin serves 0.6.0 from
+this repository as soon as it is pushed, so the zero-install path is live. Read this first,
+then `WORKLOG.md` for history.
 
 ## Where things stand
 
-**The product was pointed at the wrong half of itself, and 2026-09-17 turned it.** Research
-across three source bases said the same thing independently: on the same audience in the same
-window, a security firewall for agents took 112 points on HN while every tamper-evident
-audit-trail and cost-ledger tool took 2 to 5. Blocking outranks recording by 25 to 50 times.
-Corroborated by KPMG Q2 2026 (66% of orgs have AI cost dashboards, 36% can control anything)
-and by 13 observability products of which zero block anything.
+**0.6.0 turned the product from a rule engine with a record into a supervisor for coding
+agents.** The operator's instruction on 2026-10-09 was to build a comprehensive tool for
+agentic work (security, logging, human in the loop) and to keep the existing record as an
+addition. The direction review of the same day (`provenrail-internal/docs/direction-2026-10-09.md`)
+had found no market for audit or proof and real, loud demand for undo, for a kill switch, and
+for approvals when nobody is at the keyboard. So the hook now does those, on all five hosts,
+and the signed record sits underneath as before.
 
-**The new lead is the subagent fan-out cap, because it is the one control no vendor can ship.**
-Claude Code refuses a subagent at depth 3 of 3, which bounds how DEEP the tree goes; nothing
-anywhere bounds how WIDE it goes, and width is what the public reports describe. #68619 is open
-and critical: 1.2M tokens in about 30 minutes with `CLAUDE_CODE_FORK_SUBAGENT=0` ignored.
-#68110 is unbounded recursive spawning. A vendor will not ship "refuse the 21st subagent",
-because every refused spawn is refused revenue or a paying customer told to use less.
+**The lead is undo, because it is the one with measured demand and a one-line demo.** Claude
+Code's own documentation says "Checkpointing does not track files modified by Bash commands",
+and `openai/codex#9203` ("Please make /undo back") is open with 476 upvotes. A real Claude
+Code session told to delete a directory of uncommitted files replied "Deleted `src`
+(untracked, so not recoverable from git)", and `pr undo last` restored both files with
+identical checksums.
 
-**What was killed, on evidence.** "Prove to a client what your agent did" is dead: agency and
-studio owners have the lowest AI disclosure rate of any group measured (Envato, n=1,780, 28%),
-the ACM CHI 2026 freelancer study is titled "Better Ask for Forgiveness than Permission", and
-no procurement questionnaire found anywhere asks whether delivered code was AI-generated. The
-44 git and delete rules target a pain that mostly is not happening: across 39,000 claude-code
-issues in 4.5 months, 154 mention `git reset`, 133 `force push`, and 5 mention a dropped
-database, while auto mode has covered the interactive case free since 2026-08-14.
+**What is in 0.6.0** (each is one stdlib-only module, vendored into the plugin):
+`checkpoint.py` undo, `watch.py` loop breaker and stop switch, `lanes.py` two sessions in one
+file, `remote.py` phone approvals over Telegram or ntfy with no server of ours, `supervise.py`
+the single entry both engines call, `scan.py` what a cloned repository auto-runs, `brief.py`
+a review brief from recorded facts, `localstate.py` state under `~/.provenrail`.
 
-**What the vendor already took since the last handoff.** `claude -p --max-budget-usd` has
-enforced a per-run dollar cap since v2.1.217, counting subagent spend and killing background
-subagents at the cap. `/usage` has a 7-day toggle, per-subagent attribution and behaviour flags
-for long context and cache misses. So the spend cap and the weekly meter are both the vendor's
-now. Do not re-enter either lane.
+**What is paid.** Everything is free and local except the phone remote, which runs for 14 days
+with no account and then needs the existing $9 licence (`remote.entitled`). No Polar change
+was needed for that: any valid licence unlocks it. The zero-install engine cannot verify a
+licence (no signature library), so after the evaluation it tells the user to install the CLI.
 
 **Distribution is unchanged and is still the only thing that matters.** Nothing has ever been
-posted. The analytics show no human traffic at all: the per-page counts are a crawler walking
-the sitemap. Every direction above is unfalsifiable until something is posted.
+posted. The copy for this release is written, one file per field, in
+`Marketing/launch-0.6.0-*.txt`.
 
 ## Done and verified
 
-- **0.5.0 built from `main`, proven against the artifact rather than the source tree.**
-  32 end-to-end flows drive a clean venv install of the wheel (`tools/verify_flows.py`), and the
-  wheel was also proven to FAIL: one byte changed inside a signed record and `pr verify` exits 1
-  naming `recv_hash_mismatch` and the broken chain. Not uploaded.
-- **2116 tests pass. `ruff check .` is clean over the whole tree**, which it had never been:
-  CI linted `src` only, and the 49 errors that gate would have caught were all in
-  `guard_standalone.py`, the file the zero-install plugin actually executes. CI and the Makefile
-  now lint what `PUBLISH.md` says to lint.
-- **`claude plugin validate` passes, and did not before.** `hooks/hooks.json` declared its two
-  events at the top level instead of inside a `"hooks"` object. It loaded and fired correctly
-  that way, so five releases shipped with it, and the community-marketplace review pipeline runs
-  exactly that check on every submission. The listing we did not have was not pending, it was
-  impossible. Pinned three ways, including running the validator itself as a test.
-- **The wrapped hook was then proven at runtime, not assumed.** A real `claude -p` session with
-  `--plugin-dir` and `bypassPermissions` was refused at `git reset --hard` by
-  `git-worktree.reset-hard`, with the journal written.
-- **One policy, five hosts.** Claude Code, Codex (`PreToolUse`), Gemini CLI (`BeforeTool`),
-  Copilot (`preToolUse`) and Cursor (`beforeShellExecution` / `beforeMCPExecution`), each in its
-  own envelope with tool names mapped to one canonical set. Where a host has no "ask" verdict,
-  a rule that would ask denies instead of quietly allowing (`src/provenrail/hosts.py`).
-- **Twenty live routes swept at 320 px and 375 px in Chromium**, mobile emulation on: no
-  horizontal scroll, no element escaping the viewport outside a deliberate scroller, no broken
-  image, no console error, no page error. All 24 routes return 200 and every one of the 35
-  landing-page links resolves.
-- **The in-browser verifier reaches the right verdict on the live site**: `Verified and
-  witnessed` on `/verify?demo`, `Tampering detected` on `/verify?tamper`, console clean.
-- **`/account?plan=builder` parks the plan and strips it from the URL**, and a signed-out
-  visitor is told why the sign-in screen appeared. Checkout itself is not driven; it spends real
-  money.
-- **JSON-LD parses on all 15 content routes** with no parse failures, and the only prices in it
-  are `0` and `9`.
-- **A countdown no longer outlives its own date.** Both AI Act pages showed "Article 50
-  transparency applies in" above a clock reading "is now in force", from 2 August until
-  2026-09-16, because each page had its own copy of the script and each wrote the clock and
-  never the label. One implementation in `main.js` now, date and both labels in the markup.
-  Verified in a browser in both states, the elapsed one against the real clock and the counting
-  one against a faked 10 July.
-- **One date per page.** `ai-agent-incidents` told search engines 12 June while showing 5 August,
-  and six pages showed 5 August after being rewritten. The visible `<time>` is the source,
-  `dateModified` follows it, and no eyebrow may carry a third date. Pinned by a test.
-- **Three wrong model rates**, checked against the published page: Sonnet 5 carried a 50%
-  increase that was announced and then cancelled, Fable 5.1 and Mythos 5.1 were missing.
-  `pricing.VERIFIED` records the date and a test fails when it goes stale.
+- **2,276 tests pass and `ruff check .` is clean** (run 2026-10-09; the count includes 197 new
+  ones in `test_checkpoint.py`, `test_supervisor.py`, `test_scan.py`, `test_brief.py`).
+- **The wheel is proven, not the source tree.** `tools/verify_flows.py` builds 0.6.0, installs
+  it into a clean venv and drives the flows, now including the supervisor through BOTH engines
+  (installed CLI, and the plugin alone under the system `python3`): delete, list, undo last,
+  byte-for-byte comparison, stop, resume, the eighth identical call, scan, brief. Exit 0.
+- **Undo proven in a real Claude Code session** with `--plugin-dir` and no CLI on PATH: the
+  agent ran `rm -rf src` over two never-committed files, `pr undo last` restored both,
+  `shasum` identical, and the user's `.git` held no stash and no new ref.
+- **The phone round trip proven against the real ntfy.sh**: a question with Approve and Deny
+  actions was published, the action body was posted to the reply topic the way the app does
+  it, `remote.ask` returned `approve` in 5.4 s, and a `stop` typed into the reply topic halted
+  the machine. Telegram is covered by a scripted fake only: no bot token exists here.
+- **The zero-install engine runs on Python 3.9.6** (`/usr/bin/python3`) with every new module,
+  and a machine with no remote set up never imports `remote` or `scan` (a test).
+- **Hook cost measured**: 78 ms against 70 ms before on a call that takes no snapshot, and
+  1.04 s first / 0.03 s after for a snapshot of this repository (381 files).
+- **The loop threshold is measured**: `tools/measure_loops.py` over 3,186 sessions and 147,356
+  tool calls; 8 back-to-back repeats questions 0.47% of sessions. The distribution is pinned
+  in `tests/test_supervisor.py::MEASURED` and the README figures are asserted against it.
+- **`claude plugin validate ./plugins/provenrail-guard` passes** at 0.6.0.
+- **Two old defects found and fixed on the way.** A `.provenrail.json` with no `policy` key
+  armed the defaults under the plugin and NOTHING under the CLI. And `pr guard install --host
+  gemini` wrote a 15 millisecond hook timeout, because Gemini CLI counts in milliseconds
+  (`hosts.GEMINI_TIMEOUT_UNITS_PER_S`, checked against the vendor page 2026-10-09).
 - Everything verified before this session still holds; see WORKLOG.
 
 ## Next in order
 
-1. **Publish 0.5.0.** `Marketing/release-0.5.0-operator-steps.txt`. The wheel is built from
-   `main`, checked, and proven both to verify a real bundle and to exit 1 on a tampered one.
-   The upload is refused for the agent by the classifier, so it is an operator command.
-2. **Submit the plugin.** `Marketing/plugin-directory-submission.txt`, Console form at
-   platform.claude.com/plugins/submit. `claude plugin validate` passes and is a test.
-3. **Post, leading with fan-out.** Comment the working cap and the measured numbers into #68619
-   and #68110, then Show HN around the 171-spawn line. Every number in the copy is a test here.
-4. **The 30-day falsifier, which needs no telemetry and no users to start.** Within 30 days of
-   that post, at least 20 people who are not the operator publicly post their own
-   `pr report --fanout` number, and at least one asks how to enforce the cap on someone else's
-   machine. Under 20 means the fan-out pain is loud on GitHub but not felt widely enough to
-   drive installs, and the governor thesis is wrong. 20 or more with nobody asking about a
-   second machine means the free product is right and the paid shape is wrong: re-price, do not
-   re-aim.
-5. **Pricing is an open operator decision, deliberately not taken here.** $9 is in a dead zone:
-   the only priced self-serve comparable for tamper-evidence is TestifySec at $65/user/month,
-   and $30/seat killed Vibe Kanban with 28,100 stars and thousands of daily engineers. Fable's
-   recommendation is a flat team price ($29/month up to 10 seats, $99 up to 50) on the grounds
-   that the unit of value is a shared quota and a shared config, not a person. Not implemented:
-   it is a commercial decision, the operator already chose the single $9 SKU once, and the Polar
-   side is blocked anyway.
-6. **Capture a real payload for one more host.** `hosts.CAPTURED_PAYLOAD` now contains
-   `claude-code` and nothing else, and the homepage says so in words. `codex login` is the
-   cheapest next one, and the claims test relaxes by itself the moment the fixture lands.
+1. **Publish 0.6.0 and prove Codex.** `Marketing/release-0.6.0-operator-steps.txt`. The Codex
+   login on this machine has expired, so `tools/prove_codex.sh` could not run; it is one
+   command after `codex login` and prints PASS or FAIL.
+2. **Submit the plugin.** `Marketing/plugin-directory-submission.txt`, rewritten for 0.6.0.
+3. **Post.** Show HN (`launch-0.6.0-show-hn-*.txt`), r/ClaudeAI the same day
+   (`launch-0.6.0-reddit-claudeai-*.txt`), and the comment on `openai/codex#9203` only after
+   step 1 printed PASS.
+4. **The falsifier, 30 days from the first post.** Fewer than 100 plugin installs or GitHub
+   stars combined, and nobody reporting a restore (working or failing), means undo is loud in
+   issue trackers and not felt widely enough to install a third-party hook for. Then stop
+   adding features and treat the project as maintained open source. Ten or more people setting
+   up the remote with nobody paying after the evaluation means the free product is right and
+   the paid line is in the wrong place: move it, do not re-aim.
+5. **Capture a real payload for one more host.** `tools/prove_codex.sh` leaves the Codex
+   payload on disk for `hosts.CAPTURED_PAYLOAD`.
 
 ## Traps
 
+- **The supervisor may only make a verdict stricter, with one exception.** A human answering
+  "approve" turns an ask into an allow. Nothing else in `supervise.py` may loosen anything,
+  and every step that fails must leave the verdict as it found it.
+- **A phone wait must end before the host's hook timeout.** A host that kills a hook reads it
+  as "no opinion", so a question still open at that moment becomes an allow. The timeout the
+  host is given and the `--budget` on the hook command are one number (`guard.HOOK_TIMEOUT_S`),
+  a test holds them equal, and an install made before 0.6.0 gets no phone wait at all until
+  `pr guard install` is run again.
+- **Never `git gc --prune=now` in the shadow store.** It runs detached, overlaps the next
+  snapshot, and deleted a tree that snapshot had just written. The default two-week expiry
+  cannot race.
+- **Every inherited `GIT_*` variable is dropped before the shadow store is touched.** One stray
+  `GIT_DIR` from a rebase would point the snapshot at the user's real repository.
+- **A dry run must not log a snapshot, and `last` must skip the future an undo escaped.** Both
+  were bugs the tests caught: `pr undo last --diff` made itself the newest checkpoint, and a
+  second `pr undo last` stepped forward into the damage the first one removed.
+- **The newest checkpoint is often an undo's safety snapshot, which has no session.** Anything
+  that asks "which session was last" must skip `checkpoint.UNDO_TOOL` entries (`brief._scope`).
+- **Lanes are claimed at the pre event on an allow, not at post.** The plugin's shim runs no
+  engine after a tool call unless the CLI is installed, so a post-only claim meant lanes did
+  not exist in the zero-install path.
+- **Nothing the hook runs on every call may import the HTTP stack, `tempfile`, `secrets` or
+  `scan`.** They cost 45 ms a call when they were at module top. `remote` is imported only
+  when `~/.provenrail/remote.json` exists.
+- **Tests must never write to the real `~/.provenrail`.** `conftest.py` points
+  `PROVENRAIL_HOME` at a temp directory for every test; a subprocess with an explicit `env`
+  has to pass it on.
+- **A config file with no `policy` key still arms the default rules, in both engines.**
+- **Gemini CLI counts a hook timeout in milliseconds.** Every other host counts in seconds.
+- **Do not say undo works on a host it has not been driven on.** Claude Code only, until
+  `tools/prove_codex.sh` prints PASS.
 - **Screen the target, never the verb.** The whole thesis of 0.4.x, easy to undo with one
   "helpful" regex. Any new rule about a destructive command needs an answer to "what does this
   do to `rm -rf .next`", and the answer comes from `tools/measure_guard.py`, not from intuition.
@@ -170,6 +167,18 @@ the sitemap. Every direction above is unfalsifiable until something is posted.
 
 ## Open, and why
 
+- **Undo is proven on Claude Code only.** Codex, Gemini CLI, Copilot and Cursor run the same
+  module behind adapters written from each vendor's documented contract.
+- **Telegram has never been driven against the real API**, only a scripted fake. ntfy has.
+- **Cursor fails open on a hook timeout by default** (its docs, checked 2026-10-09), so on
+  Cursor a hook killed mid-question lets the call through. The budget keeps the wait inside
+  the timeout; `failClosed` is still left at the vendor default on purpose.
+- **Nested repositories and submodules are snapshotted as a pointer, not by content.**
+- **A shell command that rewrites a file takes no lane**, because it does not say which files
+  it will touch. Stated in `lanes.py` and the docs.
+- **The paid line is an untested guess.** One feature, one price, a 14-day evaluation counted
+  locally. Nobody has reached it.
+
 - **The tag `v0.5.0` points one commit behind `main`.** Moving a pushed tag needs a force push,
   which is gated. The only difference inside the package is a docstring in `server/plans.py`;
   the wheel in `dist/` is built from `main` and is the one to upload.
@@ -217,6 +226,10 @@ the sitemap. Every direction above is unfalsifiable until something is posted.
   (`--check` in tests).
 - Validate the plugin: `claude plugin validate ./plugins/provenrail-guard`.
 - Measure the rules against your own transcripts: `python3 tools/measure_guard.py`. Local only.
+- Measure the loop threshold the same way: `.venv/bin/python tools/measure_loops.py`.
+- Prove undo on Codex with a real session: `tools/prove_codex.sh` (needs `codex login`).
+- Supervisor state lives in `~/.provenrail` (`PROVENRAIL_HOME` overrides it): one directory per
+  project under `projects/`, plus `remote.json`, `stop.json` and `away`.
 - Local site: `python3 -m http.server 8777 --directory web`. Clean URLs are a Pages feature, so
   `.html` is needed locally but not in production.
 - Deploy the site: `npx wrangler pages deploy web --project-name=provenrail --branch=main`

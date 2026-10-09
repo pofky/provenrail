@@ -582,3 +582,30 @@ def test_a_machine_with_no_remote_never_loads_the_remote_module(repo):
                                               "HOME": str(repo.parent),
                                               "PROVENRAIL_HOME": os.environ["PROVENRAIL_HOME"]})
     assert done.stdout.split() == ["False", "False"], done.stderr
+
+
+def test_every_number_in_the_readme_is_the_number_in_the_code():
+    """The README is the product's claim sheet. A constant changed without the sentence that
+    quotes it is how copy ends up promising something the code stopped doing."""
+    from provenrail import rulesets
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    armed = sum(len(rulesets.CATALOG[pack]["rules"]) for pack in guard.DEFAULT_PACKS)
+    sessions = sum(MEASURED.values())
+    asked = sum(n for run, n in MEASURED.items() if run >= watch.DEFAULT_REPEATS)
+    for claim in (
+        f"{armed} rules",
+        f"runs {watch.DEFAULT_REPEATS} times back to back",
+        f'"repeats": {watch.DEFAULT_REPEATS}',
+        f"in the last {lanes.DEFAULT_TTL_S // 60} minutes",
+        f'"minutes": {lanes.DEFAULT_TTL_S // 60}',
+        f"over {checkpoint.MAX_FILE_BYTES // (1024 * 1024)} MiB",
+        f"free for {remote.TRIAL_DAYS} days",
+        f'"wait_s": {remote.DEFAULT_WAIT_S}',
+        f"{sessions:,} sessions",
+        f"{100 * MEASURED[1] / sessions:.1f}% of sessions never repeated",
+        f"{100 * asked / sessions:.2f}% would have been asked",
+        "Verified: the working tree now matches the checkpoint exactly.",
+    ):
+        assert claim in text, claim
+    assert list(checkpoint.DEFAULT_INCLUDE) == [".env", ".env.*"]
+    assert '"include": [".env", ".env.*"]' in text

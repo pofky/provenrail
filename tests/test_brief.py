@@ -396,3 +396,20 @@ def test_category_table(path, category):
 @pytest.mark.parametrize("path", ["src/app.py", "README.md", "docs/author-notes.md"])
 def test_ordinary_paths_are_not_flagged(path):
     assert brief.sensitive_categories(path) == []
+
+
+def test_after_an_undo_the_default_brief_is_still_the_agent_session(repo):
+    """The newest checkpoint after `pr undo` is the undo's own safety snapshot, which has no
+    session. Scoping to "the latest session" by the last log line produced a brief of nothing:
+    no host, no session, no shell commands."""
+    (repo / "gone.txt").write_text("x\n")
+    entry = checkpoint.snapshot(repo, session_id="agent-session", host="claude-code",
+                                tool="Bash", label="rm -rf")
+    (repo / "gone.txt").unlink()
+    checkpoint.restore(repo, entry["n"])
+
+    data = brief.build(repo)
+
+    assert data["scope"]["sessions"] == ["agent-session"] and data["hosts"] == ["claude-code"]
+    text = brief.render(data)
+    assert "rm -rf" in text and "undo" in text.lower()
