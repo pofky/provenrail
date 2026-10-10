@@ -129,6 +129,7 @@ The tool recomputes the hash chain, every Ed25519 signature, the independent ser
 
 - Homepage: https://provenrail.com
 - Claude Code guardrails, undo and the spend cap, in CI and headless: https://provenrail.com/claude-code-guardrails
+- How to undo Claude Code changes: what /rewind and git bring back, how to recover work already lost, and undo that covers shell commands: https://provenrail.com/undo-claude-code-changes
 - Pricing: https://provenrail.com/pricing
 - Documentation: https://provenrail.com/docs
 - Beginner walkthrough, every keystroke spelled out: https://provenrail.com/start

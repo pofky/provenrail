@@ -191,7 +191,7 @@
       checkpoint exactly." Every restore first takes a checkpoint of the state it replaces, and prints the
       command that puts it back. Checkpoints are kept for 14 days. Nested repositories and submodules are recorded as a pointer and are never touched by a restore. If a snapshot cannot finish in 10 seconds, checkpoints pause for that project and Provenrail says so; the call still runs. A restore that had to leave
       something alone, a nested repository or a directory holding files that are in no checkpoint, says so and is
-      not marked verified. Inside Claude Code it is <code>/guard-undo</code>.</p>
+      not marked verified. Inside Claude Code it is <code>/guard-undo</code>. If work is already gone, <a href="/undo-claude-code-changes#already-happened">try these recovery steps first</a>.</p>
     <pre><code><span class="c"># .provenrail.json</span>
 {"undo": {"enabled": true, "include": [".env", ".env.*"]}}</code></pre>
     <p>A feature switched off in <code>.provenrail.json</code> (undo, watch, lanes) is announced once a day,

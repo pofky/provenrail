@@ -198,6 +198,8 @@ def test_no_page_invents_a_rating_or_a_review():
 #: The questions this product answers, in the wording a person types into ChatGPT or Google. Each
 #: has to be answered somewhere in FAQPage markup, self-contained, or the answer cannot be lifted.
 #: Add a row when the product starts answering a new question; never delete one to make it pass.
+UNDO_PAGE = "undo-claude-code-changes.html"
+
 CITABLE_QUESTIONS = {
     # `pr report` is the front door: it answers before the reader has changed anything, so these
     # are the two searches that reach a stranger who has not decided to install a guard yet.
@@ -207,6 +209,11 @@ CITABLE_QUESTIONS = {
     "does claude code's auto mode run in headless mode": "index.html",
     "how do i put a dollar cap on a claude code session": "claude-code-guardrails.html",
     "do claude code hooks run in claude -p and in ci": "claude-code-guardrails.html",
+    # Autocomplete-confirmed searches (research/2026-10-10-product-round/03-channels.md, section 7)
+    # that the 0.6.0 undo answers and that returned thin results on 2026-10-10.
+    "how do i undo claude code changes": UNDO_PAGE,
+    "does /rewind undo changes made by a bash command in claude code": UNDO_PAGE,
+    "can i recover a file claude code deleted that was never committed to git": UNDO_PAGE,
 }
 
 

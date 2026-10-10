@@ -8,6 +8,8 @@ git diff b61677c..HEAD -- web/privacy.html web/terms.html web/disclaimer.html
 
 npx wrangler pages deploy web --project-name=provenrail --branch=main
 
+The same deploy publishes a new page, /undo-claude-code-changes, written for people searching how to undo what Claude Code changed. It needs nothing from you beyond the deploy.
+
 Step 1. Publish 0.6.0 to PyPI. Until this runs, `uv tool install provenrail` gives 0.4.3, which has none of undo, stop, remote, scan or brief. The site and README tell people to install the CLI from GitHub for that reason, and they can go back to the short command once this is done. The token is in ~/.pypirc.
 
 .venv/bin/python -m twine upload dist/provenrail-0.6.0*

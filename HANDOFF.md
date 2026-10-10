@@ -1,11 +1,20 @@
 # HANDOFF
 
-Last updated 2026-10-09. Branch `main`. **0.6.0 is built, proven against the wheel, tagged `v0.6.0`, and NOT on
+Last updated 2026-10-10. Branch `main`. **0.6.0 is built, proven against the wheel, tagged `v0.6.0`, and NOT on
 PyPI** (PyPI serves 0.4.3; the upload is refused for the agent). The plugin serves 0.6.0 from
 this repository as soon as it is pushed, so the zero-install path is live. Read this first,
 then `WORKLOG.md` for history.
 
 ## Where things stand
+
+**2026-10-10: a second product round ended in no new product.** The operator asked for
+something new and exciting that people would pay for. Four research reports and a red team
+(`provenrail-internal/docs/direction-2026-10-10-product-round.md`) found every finalist
+already built, mostly free, and none above 2% odds of 100 paying users: connectors need the
+vendor to hold users' tokens (the processor role), token and quota tools are saturated, limit
+handoff exists three times. Do not re-propose any of them without new evidence. What the
+evidence did support was one page for a search the 0.6.0 undo already answers, so
+`web/undo-claude-code-changes.html` was added. Nothing else changed in the product.
 
 **0.6.0 turned the product from a rule engine with a record into a supervisor for coding
 agents.** The operator's instruction on 2026-10-09 was to build a comprehensive tool for
@@ -38,6 +47,14 @@ posted. The copy for this release is written, one file per field, in
 `Marketing/launch-0.6.0-*.txt`.
 
 ## Done and verified
+
+- **`/undo-claude-code-changes`**, a how-to page for "how to undo claude code changes"
+  (autocomplete-confirmed, thin results on 2026-10-10): what `/rewind`, git and the plugin each
+  bring back, and recovery steps for work already lost. In the sitemap, `llms.txt` and the
+  citable-question tests. Checked at 320, 375 and 1280 px, dark and light.
+- **WCAG 2.2 AA pass over all 19 pages** (`docs/a11y-review-2026-10-10.md`): axe-core 0
+  violations, 0 low-contrast text nodes in both schemes, every focus stop visible. Three
+  defects fixed. Not run: a screen reader.
 
 - **2,310 tests pass and `ruff check .` is clean** (run 2026-10-09; the count includes the new
   `test_checkpoint.py`, `test_supervisor.py`, `test_supervisor_hardening.py`, `test_scan.py`,
@@ -82,6 +99,7 @@ posted. The copy for this release is written, one file per field, in
 0. **Deploy the site.** Committed, tested, swept at 320 and 375 px, and NOT deployed: the
    release rewrites `privacy.html`, `terms.html` and `disclaimer.html`, and legal wording is
    the operator's to approve. Step 0 of the operator file has the diff command and the deploy.
+   The new undo page goes live with the same deploy; submit it to IndexNow afterwards.
 1. **Publish 0.6.0 and prove Codex.** `Marketing/release-0.6.0-operator-steps.txt`. The Codex
    login on this machine has expired, so `tools/prove_codex.sh` could not run; it is one
    command after `codex login` and prints PASS or FAIL.
