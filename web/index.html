@@ -824,6 +824,8 @@
       .prove-verdict{display:flex;align-items:center;gap:.7rem;font-family:var(--font-mono);font-weight:600;font-size:clamp(1.05rem,3.4vw,1.4rem);letter-spacing:-.01em}
       [data-state="ok"] .prove-verdict{color:#6fcf86}
       [data-state="bad"] .prove-verdict{color:#e0653f}
+      /* Light theme: the two verdict colours above are tuned for the dark card and fall under 4.5:1 on the light one. */
+      @media (prefers-color-scheme: light){[data-state="ok"] .prove-verdict{color:#2c6a3f}[data-state="bad"] .prove-verdict{color:#a8401f}}
       .prove-meta{color:var(--text-mid);font-size:1rem;margin:.7rem 0 0;line-height:1.55;min-height:2.6em}
       .prove-meta code{font-family:var(--font-mono);font-size:.82em;background:var(--bg-3);padding:.1em .4em;border-radius:5px;color:var(--text-hi)}
       .prove-actions{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1.1rem}

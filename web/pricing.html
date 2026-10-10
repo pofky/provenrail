@@ -44,6 +44,7 @@
     .price-note { max-width: 68ch; margin: 2.2rem auto 0; text-align: center; font-family: var(--font-mono); font-size: 1rem; color: var(--text-lo); line-height: 1.7; }
     .price-section { padding-bottom: clamp(3rem, 7vw, 5rem); }
     .price-table-wrap { overflow-x: auto; margin-top: 1.2rem; }
+    .price-table-wrap:focus-visible { outline: none; box-shadow: var(--ring); }
     .table-hint { display: none; color: var(--text-lo); font-size: .88rem; margin: .5rem 0 0; }
     @media (max-width: 700px) { .table-hint { display: block; } }
     table.cmp { width: 100%; border-collapse: collapse; font-size: .95rem; min-width: 640px; }
@@ -175,7 +176,7 @@
           <h2 id="compare-heading">What changes when you pay</h2>
           <p style="color:var(--text-mid)">Little, and that is deliberate. Undo, stop, the engine that refuses a tool call, the cap that stops the spend and the cryptography that makes a decision checkable are the same code whether or not you pay. Money buys two things: a way to answer an agent from your phone, and an outside party's signature on the time, which you cannot produce for yourself.</p>
           <p class="table-hint">Scroll the table sideways if it does not fit.</p>
-          <div class="price-table-wrap">
+          <div class="price-table-wrap" tabindex="0" role="region" aria-label="Free and paid comparison table">
             <table class="cmp">
               <thead>
                 <tr><th>Capability</th><th>Free</th><th>Paid plan</th></tr>
