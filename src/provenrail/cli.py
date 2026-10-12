@@ -1744,12 +1744,12 @@ def _cmd_guard(args) -> int:
     if pending:
         print(f"\n{len(pending)} decision(s) in the local journal: the recording server was")
         print("unreachable when they were made, so they are UNSIGNED and are not evidence "
-              f"({guard.JOURNAL_FILENAME}).")
+              f"({guard._journal_path()}).")
         print("Start it (`pr quickstart`) so later decisions are recorded properly.")
     counts = guard._read_counts_file()
     if counts:
         print(f"\nBlast-radius counters: {len(counts)} session(s) tracked in "
-              f"{guard.COUNTS_FILENAME}.")
+              f"{guard._counts_path()}.")
         print("That file carries `limit` counts across hook processes so a cap actually caps.")
         print("It is local and editable, so it is a convenience, not evidence; deny and")
         print("oversight rules never read it. Clear it with `pr guard reset`.")

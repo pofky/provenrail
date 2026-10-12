@@ -1,8 +1,10 @@
 # HANDOFF
 
-Last updated 2026-10-10. Branch `main`. **0.6.0 is built, proven against the wheel, tagged `v0.6.0`, and NOT on
-PyPI** (PyPI serves 0.4.3; the upload is refused for the agent). The plugin serves 0.6.0 from
-this repository as soon as it is pushed, so the zero-install path is live. Read this first,
+Last updated 2026-10-12. Branch `main`. **0.6.1 is built, proven against the wheel, tagged `v0.6.1`, and NOT on
+PyPI** (PyPI serves 0.4.3; the upload was tried on 2026-10-12 with the operator's go-ahead and
+refused by the permission layer). **The site IS deployed** (2026-10-12, on the operator's
+instruction to deploy). The plugin serves 0.6.1 from this repository, so the zero-install path
+is live. Read this first,
 then `WORKLOG.md` for history.
 
 ## Where things stand
@@ -47,6 +49,24 @@ posted. The copy for this release is written, one file per field, in
 `Marketing/launch-0.6.0-*.txt`.
 
 ## Done and verified
+
+- **The site is live at 0.6.1** (deployed 2026-10-12): 17 sitemap pages driven in a browser at
+  320, 375 and 1280 px with no console error, no failed request and no sideways scroll; 526
+  links checked, every internal one lands and every fragment exists. IndexNow accepted all 17
+  URLs. Not checked: `npmjs.com` answers bots 403.
+- **0.6.1, two defects found by installing from public GitHub the way a new user would.** The
+  hook wrote its notice stamp and journal into the working directory of any project without a
+  `.provenrail.json`, so they showed in `git status`; they now go under `~/.provenrail`
+  (`localstate.guard_dir`, `localstate.notice_dir`, same rule in both engines). `/guard-undo`
+  told plugin-only users to run `pr undo`; it now names the command typed
+  (`checkpoint.CLI_COMMAND`, `guard_standalone.SLASH_COMMANDS`). Four tests in
+  `tests/test_guard_standalone.py`. 2,337 tests pass, ruff clean, 54/54 wheel flows.
+- **A fresh install from GitHub restores a deleted uncommitted folder** (2026-10-12, system
+  Python 3.9.6, clean HOME, hook driven with real payloads around a real `rm -rf src`):
+  checksums identical after `/guard-undo last`.
+- **One refund and renewal statement.** `pricing.html` and `account.html` now say what
+  `terms.html` says: refund by email within 14 days, processed by Polar; renews monthly until
+  cancelled.
 
 - **`/undo-claude-code-changes`**, a how-to page for "how to undo claude code changes"
   (autocomplete-confirmed, thin results on 2026-10-10): what `/rewind`, git and the plugin each
@@ -96,11 +116,7 @@ posted. The copy for this release is written, one file per field, in
 
 ## Next in order
 
-0. **Deploy the site.** Committed, tested, swept at 320 and 375 px, and NOT deployed: the
-   release rewrites `privacy.html`, `terms.html` and `disclaimer.html`, and legal wording is
-   the operator's to approve. Step 0 of the operator file has the diff command and the deploy.
-   The new undo page goes live with the same deploy; submit it to IndexNow afterwards.
-1. **Publish 0.6.0 and prove Codex.** `Marketing/release-0.6.0-operator-steps.txt`. The Codex
+1. **Publish 0.6.1 and prove Codex.** The upload is one `twine` command the operator runs. `Marketing/release-0.6.0-operator-steps.txt`. The Codex
    login on this machine has expired, so `tools/prove_codex.sh` could not run; it is one
    command after `codex login` and prints PASS or FAIL.
 2. **Submit the plugin.** `Marketing/plugin-directory-submission.txt`, rewritten for 0.6.0.
@@ -237,10 +253,11 @@ posted. The copy for this release is written, one file per field, in
 - **The remote does not defend against hostile software in the user's own account**, which can
   read its state files, and on ntfy can read the topic and answer its own question. Said in
   `remote.py`, in the setup text and on the site. Telegram is the stronger channel.
-- **Three legal notes left for the operator, all older than 0.6.0**: the terms do not say the
-  subscription renews until cancelled, the refund channel differs between `terms.html` (email)
-  and `pricing.html` (the Polar portal), and neither can be settled without knowing how the
-  Polar product is actually configured.
+- **One legal note left for the operator**: `terms.html` itself still does not say the
+  subscription renews until cancelled (pricing and account do since 2026-10-12). The refund
+  channel mismatch is closed in favour of the terms. Retraction: the earlier note that this
+  could not be settled without the Polar configuration was wrong for the refund channel, since
+  the terms are the binding text and the other pages only had to match them.
 - **The 8 ms hook overhead was measured once, on a quiet machine** (70 ms against 78 ms,
   interleaved). Under load both figures move by more than the difference.
 - **The paid line is an untested guess.** One feature, one price, a 14-day evaluation counted

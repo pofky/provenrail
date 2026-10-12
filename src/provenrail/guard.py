@@ -395,15 +395,28 @@ def _journal_path() -> Path:
 
     Anchored to the directory holding `.provenrail.json`, not to the current directory, so an
     agent launched from a subdirectory keeps writing to the same place the policy came from.
+    With no `.provenrail.json` they live under the home directory (`localstate.guard_dir`).
     Otherwise a session run from `apps/web` would start a second, invisible journal and its
     blast-radius counters would restart from zero.
     """
     override = os.environ.get("PROVENRAIL_GUARD_JOURNAL")
     if override:
         return Path(override)
+    from . import localstate
     from .easy import find_config_file
-    config = find_config_file()
-    return (config.parent / JOURNAL_FILENAME) if config else Path(JOURNAL_FILENAME)
+    return localstate.guard_dir(find_config_file(), JOURNAL_FILENAME) / JOURNAL_FILENAME
+
+
+def _notice_path(filename: str) -> Path:
+    """A once-a-day stamp. Beside an explicitly overridden journal, else under the home
+    directory, never in the working tree: it used to appear in `git status` of every project
+    the hook ran in."""
+    override = os.environ.get("PROVENRAIL_GUARD_JOURNAL")
+    if override:
+        return Path(override).with_name(filename)
+    from . import localstate
+    from .easy import find_config_file
+    return localstate.notice_dir(find_config_file()) / filename
 
 
 def journal(entry: dict[str, Any]) -> None:
@@ -714,7 +727,7 @@ def _once_a_day(name: str, message: str) -> str:
     import time
 
     try:
-        path = _journal_path().with_name(NOTICE_FILENAME + "-" + name)
+        path = _notice_path(NOTICE_FILENAME + "-" + name)
         now = time.time()
         if path.is_file() and now - path.stat().st_mtime < _NOTICE_INTERVAL_S:
             return ""
@@ -734,7 +747,7 @@ def _no_policy_notice() -> str:
     import time
 
     try:
-        path = _journal_path().with_name(NOTICE_FILENAME)
+        path = _notice_path(NOTICE_FILENAME)
         now = time.time()
         if path.is_file() and now - path.stat().st_mtime < _NOTICE_INTERVAL_S:
             return ""
@@ -757,7 +770,7 @@ def _first_run_notice(policy: Any, config_exists: bool) -> str:
     from . import rulesets, welcome
 
     try:
-        path = _journal_path().with_name(".provenrail-guard-notice-armed")
+        path = _notice_path(NOTICE_FILENAME + "-armed")
         now = time.time()
         if path.is_file() and now - path.stat().st_mtime < _NOTICE_INTERVAL_S:
             return ""

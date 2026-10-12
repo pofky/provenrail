@@ -1,6 +1,6 @@
 [project]
 name = "provenrail"
-version = "0.6.0"
+version = "0.6.1"
 description = "A supervisor for coding agents. Undo anything an agent did, including shell commands; stop every agent from your phone; approve risky calls when you are away; block destructive commands before they run. One hook on Claude Code, Codex, Gemini CLI, Copilot and Cursor, with a signed record underneath."
 readme = "README.md"
 license = { text = "MIT for client/SDK/verifier/spec; AGPL-3.0-or-later for server. See LICENSING.md" }

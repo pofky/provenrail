@@ -280,10 +280,10 @@ def pre(hook: dict[str, Any], host: str, verdict: str, rule_id: Any, reason: str
             notice += once("undo-paused", f"provenrail: checkpoints are paused here: {exc}\n")
         except checkpoint.CheckpointError as exc:
             notice += once("undo-failed", f"provenrail: no checkpoint was taken ({exc}), so "
-                                          "`pr undo` cannot rewind this action\n")
+                                          "undo cannot rewind this action\n")
         except Exception as exc:  # noqa: BLE001
             notice += once("undo-failed", f"provenrail: no checkpoint was taken "
-                                          f"({type(exc).__name__}), so `pr undo` cannot rewind "
+                                          f"({type(exc).__name__}), so undo cannot rewind "
                                           "this action\n")
     # 6. Take the lane now, on an allow. The zero-install plugin runs no engine after a tool
     # call, so waiting for the post event would mean lanes never existed there. An edit that

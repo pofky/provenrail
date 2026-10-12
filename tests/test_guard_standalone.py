@@ -608,3 +608,96 @@ def test_the_zero_install_engine_refuses_a_wide_fan_out_where_nobody_can_be_aske
         assert proc.returncode == 0, proc.stderr
         verdicts.append(json.loads(proc.stdout)["permission"] if proc.stdout.strip() else "allow")
     assert "ask" not in verdicts, "Cursor has no ask verdict; the cap must refuse instead"
+
+
+# ---------------------------------------------------------------- nothing left in the repo
+
+
+def _git_repo(path):
+    path.mkdir()
+    subprocess.run(["git", "init", "-q", str(path)], check=True)
+    return path
+
+
+def _untracked(repo):
+    out = subprocess.run(["git", "-C", str(repo), "status", "--porcelain", "--untracked-files=all"],
+                         capture_output=True, text=True, check=True).stdout
+    return sorted(line[3:] for line in out.splitlines())
+
+
+def _plugin_env(home):
+    return {"PATH": "/usr/bin:/bin", "HOME": str(home)}
+
+
+def _plugin_hook(repo, home, command, cwd=None):
+    raw = json.dumps({"session_id": "s1", "hook_event_name": "PreToolUse", "tool_name": "Bash",
+                      "cwd": str(cwd or repo), "tool_input": {"command": command}})
+    return subprocess.run([sys.executable, str(STANDALONE), "--event", "pre"], input=raw,
+                          capture_output=True, text=True, cwd=str(cwd or repo),
+                          env=_plugin_env(home))
+
+
+def test_the_plugin_leaves_nothing_in_a_project_that_has_no_config(tmp_path):
+    """A new user's first `git status` after installing must show their work and nothing else.
+
+    The armed notice stamp and the journal used to be written into the current directory, so
+    every project the hook ran in grew untracked dotfiles, and a session started from a
+    subdirectory left them there too."""
+    repo, home = _git_repo(tmp_path / "repo"), tmp_path / "home"
+    nested = repo / "apps" / "web"
+    nested.mkdir(parents=True)
+    (nested / "a.py").write_text("x = 1\n", encoding="utf-8")
+    assert "armed with" in _plugin_hook(repo, home, "ls", cwd=nested).stderr      # the notice
+    assert _plugin_hook(repo, home, "rm -rf /", cwd=nested).returncode == 0       # a journalled deny
+    assert _untracked(repo) == ["apps/web/a.py"]
+    journals = list((home / ".provenrail").rglob(guard.JOURNAL_FILENAME))
+    assert len(journals) == 1
+    assert json.loads(journals[0].read_text(encoding="utf-8").splitlines()[-1])["verdict"] == "deny"
+
+
+def test_the_installed_engine_leaves_nothing_in_a_project_that_has_no_config(tmp_path,
+                                                                            monkeypatch):
+    repo = _git_repo(tmp_path / "repo")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "nowhere"))
+    monkeypatch.delenv("PROVENRAIL_GUARD_JOURNAL", raising=False)
+    for command in ("ls", "rm -rf /"):
+        guard.run_hook(json.dumps({"session_id": "s1", "hook_event_name": "PreToolUse",
+                                   "tool_name": "Bash", "cwd": str(repo),
+                                   "tool_input": {"command": command}}))
+    assert _untracked(repo) == []
+    assert guard.read_journal()[-1]["verdict"] == "deny"
+
+
+def test_both_engines_keep_using_a_journal_already_in_the_project(tmp_path, monkeypatch):
+    """History written before state moved under the home directory must not be orphaned."""
+    repo, home = _git_repo(tmp_path / "repo"), tmp_path / "home"
+    legacy = repo / guard.JOURNAL_FILENAME
+    legacy.write_text(json.dumps({"verdict": "deny", "rule": "old"}) + "\n", encoding="utf-8")
+    _plugin_hook(repo, home, "rm -rf /")
+    assert len(legacy.read_text(encoding="utf-8").splitlines()) == 2
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "nowhere"))
+    monkeypatch.delenv("PROVENRAIL_GUARD_JOURNAL", raising=False)
+    assert guard._journal_path() == Path.cwd() / guard.JOURNAL_FILENAME
+
+
+def test_the_plugin_names_its_own_undo_command_and_never_a_cli_it_does_not_have(tmp_path):
+    """`pr undo last` is a dead end on a machine with only the plugin."""
+    repo, home = _git_repo(tmp_path / "repo"), tmp_path / "home"
+    (repo / "a.txt").write_text("one\n", encoding="utf-8")
+    _plugin_hook(repo, home, "rm a.txt")
+    (repo / "a.txt").unlink()
+
+    def undo(*argv):
+        proc = subprocess.run([sys.executable, str(STANDALONE), "--undo", *argv],
+                              capture_output=True, text=True, cwd=str(repo),
+                              env=_plugin_env(home))
+        return proc.stdout + proc.stderr
+
+    listed, restored, missing = undo(), undo("last"), undo("999")
+    assert "/guard-undo last" in listed
+    assert "/guard-undo" in restored and (repo / "a.txt").read_text(encoding="utf-8") == "one\n"
+    assert missing.startswith("/guard-undo:")
+    for text in (listed, restored, missing):
+        assert "pr undo" not in text

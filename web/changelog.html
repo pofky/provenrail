@@ -61,7 +61,7 @@
   {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://provenrail.com/"}, {"@type": "ListItem", "position": 2, "name": "Changelog", "item": "https://provenrail.com/changelog"}]}
   </script>
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"WebPage","name":"Changelog | Provenrail","url":"https://provenrail.com/changelog","description":"What changed in Provenrail and when. Releases of the SDK, the verifier, and the platform.","dateModified":"2026-10-09","isPartOf":{"@type":"WebSite","name":"Provenrail","url":"https://provenrail.com/"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
+  {"@context":"https://schema.org","@type":"WebPage","name":"Changelog | Provenrail","url":"https://provenrail.com/changelog","description":"What changed in Provenrail and when. Releases of the SDK, the verifier, and the platform.","dateModified":"2026-10-12","isPartOf":{"@type":"WebSite","name":"Provenrail","url":"https://provenrail.com/"},"publisher":{"@type":"Organization","name":"Provenrail","url":"https://provenrail.com/"}}
   </script>
 </head>
 <body>
@@ -95,7 +95,16 @@
     <p class="eyebrow">Changelog</p>
     <h1>What changed, and when</h1>
     <p class="lede">Notable releases of the Provenrail SDK, the open-source verifier, and the platform. The Python package is on <a href="https://pypi.org/project/provenrail/">PyPI</a> and the recording SDK is on <a href="https://www.npmjs.com/package/provenrail">npm</a>.</p>
-    <p class="updated">Last updated <time datetime="2026-10-09">9 October 2026</time></p>
+    <p class="updated">Last updated <time datetime="2026-10-12">12 October 2026</time></p>
+
+    <div class="rel">
+      <div class="rel-head"><span class="ver">0.6.1</span><span class="date">October 12, 2026</span><span class="tag">Out of your working tree</span></div>
+      <ul>
+        <li><b>The hook left files in projects that never asked for them.</b> In a project with no <code>.provenrail.json</code>, the once-a-day notice stamp and the decision journal were written into whatever directory the session started in, so they showed up in <code>git status</code> and could be staged by <code>git add -A</code>. They now live under <code>~/.provenrail</code>. A project that has a <code>.provenrail.json</code> keeps its journal beside it as before, and a journal already in a project stays in use. The notice stamps moved for every project.</li>
+        <li><b><code>/guard-undo</code> told plugin users to run <code>pr undo</code>.</b> On a machine with only the plugin there is no <code>pr</code>. The list, the restore message and the errors now name the command that was typed.</li>
+        <li><b><code>pr guard status</code> prints the full path of the journal and the counters</b>, since they are no longer always in the project.</li>
+      </ul>
+    </div>
 
     <div class="rel">
       <div class="rel-head"><span class="ver">0.6.0</span><span class="date">October 9, 2026</span><span class="tag">The supervisor</span></div>

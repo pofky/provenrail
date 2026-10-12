@@ -38,7 +38,7 @@ It works from the next tool call, on whatever `python3` the machine has (3.9 or 
 no account and no config file. For the `pr` command line and the other hosts:
 
 ```bash
-uv tool install git+https://github.com/pofky/provenrail   # 0.6.0; PyPI still serves 0.4.3
+uv tool install git+https://github.com/pofky/provenrail   # 0.6.1; PyPI still serves 0.4.3
 pr guard install                 # Claude Code, in this project
 pr guard install --host codex    # or gemini, copilot, cursor
 ```

@@ -1,6 +1,6 @@
 {
   "name": "provenrail-guard",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Undo for coding agents, including what a shell command did, plus a stop switch, a loop breaker, a warning when two sessions edit one file, phone approvals, and rules that refuse destructive commands. Deterministic and offline, and it runs in `claude -p`, the Agent SDK and CI.",
   "author": {
     "name": "Provenrail",

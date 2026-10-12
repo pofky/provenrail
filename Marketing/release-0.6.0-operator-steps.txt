@@ -1,24 +1,18 @@
-0.6.0 is built from main, tested and proven against the wheel. Three things are blocked for the agent or need a login only you have. Run them from the project directory, in this order.
+0.6.1 is built from main, tested and proven against the wheel. It is 0.6.0 plus two fixes found by installing it the way a new user would (see the changelog). What is left is blocked for the agent or needs a login only you have. The PyPI upload was tried on 2026-10-12 and refused by the permission layer. Run them from the project directory, in this order.
 
   cd /Volumes/T7/Projects/AgenticTools/flightrecorder
 
-Step 0. Deploy the site. It is committed and tested but NOT deployed, because this release rewrites three legal pages and that wording is yours to approve: privacy.html (what the phone remote sends, and a new anchoring paragraph), terms.html and disclaimer.html (undo is not a backup, stop only reaches agents running the hook, the remote depends on a service you choose). Read them, then deploy from the repo root. The live site still describes the old product until you do.
+Step 0 is done. The site was deployed on 2026-10-12 after you said to deploy: the three rewritten legal pages, the new /undo-claude-code-changes page and the 0.6.1 changelog are live on provenrail.com, every page was driven in a browser at 320, 375 and 1280 px, and IndexNow accepted all 17 URLs. The pricing page said refunds are handled in the billing portal while the terms say to email support; pricing and the account page now say what the terms say, and that the plan renews monthly until cancelled.
 
-git diff b61677c..HEAD -- web/privacy.html web/terms.html web/disclaimer.html
+Step 1. Publish 0.6.1 to PyPI. Until this runs, `uv tool install provenrail` gives 0.4.3, which has none of undo, stop, remote, scan or brief. The site and README tell people to install the CLI from GitHub for that reason, and they can go back to the short command once this is done. The token is in ~/.pypirc.
 
-npx wrangler pages deploy web --project-name=provenrail --branch=main
-
-The same deploy publishes a new page, /undo-claude-code-changes, written for people searching how to undo what Claude Code changed. It needs nothing from you beyond the deploy.
-
-Step 1. Publish 0.6.0 to PyPI. Until this runs, `uv tool install provenrail` gives 0.4.3, which has none of undo, stop, remote, scan or brief. The site and README tell people to install the CLI from GitHub for that reason, and they can go back to the short command once this is done. The token is in ~/.pypirc.
-
-.venv/bin/python -m twine upload dist/provenrail-0.6.0*
+.venv/bin/python -m twine upload dist/provenrail-0.6.1*
 
 Step 2. Confirm the index serves it.
 
 SB=$(mktemp -d) && uv venv -q $SB/.v && VIRTUAL_ENV=$SB/.v uv pip install provenrail && $SB/.v/bin/pr --version
 
-Expected: provenrail 0.6.0
+Expected: provenrail 0.6.1
 
 Step 3. Prove Codex. The Codex login on this machine has expired, so undo has been proven on Claude Code only. This is one command after you log in, and it prints PASS or FAIL. Do not post anything that says undo works on Codex until it has printed PASS.
 

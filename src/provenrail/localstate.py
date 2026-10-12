@@ -91,6 +91,38 @@ def project_dir(root: Any, create: bool = True) -> Path:
     return path
 
 
+def state_anchor(config_path: Any = None) -> Path:
+    """The directory a project's state is keyed by: where its `.provenrail.json` is, else the
+    repository root, else the current directory."""
+    if config_path:
+        return Path(config_path).parent
+    return find_root() or Path.cwd()
+
+
+def guard_dir(config_path: Any, journal_name: str) -> Path:
+    """Where the guard's journal and counters live.
+
+    Beside `.provenrail.json` when the project has one: whoever wrote that file chose to keep
+    Provenrail's files in the project, and `pr guard status` has always read them there. A
+    project with no config chose nothing, so its state goes under the home directory, where it
+    cannot show up in `git status`, be staged by `git add -A`, or be scattered across whichever
+    subdirectories sessions happened to start in. A journal already sitting in the current
+    directory, written before this rule existed, stays in use so its history is not orphaned.
+    """
+    if config_path:
+        return Path(config_path).parent
+    here = Path.cwd()
+    if (here / journal_name).is_file():
+        return here
+    return project_dir(state_anchor())
+
+
+def notice_dir(config_path: Any = None) -> Path:
+    """Where the once-a-day notice stamps live. Always under the home directory: a stamp is a
+    cache of "already said today" and never belongs in a working tree."""
+    return project_dir(state_anchor(config_path))
+
+
 def read_json(path: Any, default: Any) -> Any:
     """The parsed file, or `default` when it is missing or unreadable.
 

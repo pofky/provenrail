@@ -444,7 +444,8 @@ def _snapshot_locked(pdir: Path, root: Path, stamp: float, session_id: str, host
         tree, skipped = _write_tree(shadow, root, include, budget_s)
     except subprocess.TimeoutExpired:
         why = (f"a snapshot of this repository took longer than {budget_s:g} seconds. "
-               "Run `pr undo init` once to build it outside the hook.")
+               "Run `pr undo init` (in the plugin: `/guard-undo init`) once to build it "
+               "outside the hook.")
         localstate.write_json(paused, {"reason": why, "at": int(stamp)})
         raise CheckpointPaused(why) from None
     if tree == EMPTY_TREE and tool != UNDO_TOOL and _has_files(root):
@@ -531,7 +532,7 @@ def find(root: Any, n: int) -> dict[str, Any]:
         if entry.get("n") == n:
             return entry
     raise CheckpointError(f"there is no checkpoint #{n} for this project (they are kept for "
-                          f"{KEEP_DAYS} days). `pr undo` lists the ones that exist.")
+                          f"{KEEP_DAYS} days). Run undo with no number to list the ones that exist.")
 
 
 def changes(root: Any, from_tree: str, to_tree: str, paths: Any = None) -> list[tuple]:
@@ -782,7 +783,13 @@ def _summary(changed: Any) -> str:
     return f"{len(changed)} file{'s' if len(changed) != 1 else ''} ({' '.join(parts)})"
 
 
-def render_list(root: Any, limit: int, session: str = "", now: float | None = None) -> str:
+#: What the user types to reach this module. The zero-install plugin passes `/guard-undo`,
+#: because a hint naming `pr undo` is a dead end on a machine that has no `pr`.
+CLI_COMMAND = "pr undo"
+
+
+def render_list(root: Any, limit: int, session: str = "", now: float | None = None,
+                command: str = CLI_COMMAND) -> str:
     log = read_log(root)
     if session:
         log = [e for e in log if str(e.get("session", "")).startswith(session)]
@@ -806,9 +813,11 @@ def render_list(root: Any, limit: int, session: str = "", now: float | None = No
         lines.append(f"  #{row['n']:<5} {_ago(stamp - row.get('at', stamp)):<9} "
                      f"{str(row.get('session', ''))[:8]:<8}  {action[:44]:<44}  "
                      f"{_summary(row['changed'])}")
-    lines += ["", "  pr undo last        put the tree back to before the most recent action",
-              "  pr undo <n>         put the tree back to checkpoint #n",
-              "  pr undo <n> --diff  list what that would change, and change nothing", ""]
+    hints = (("last", "put the tree back to before the most recent action"),
+             ("<n>", "put the tree back to checkpoint #n"),
+             ("<n> --diff", "list what that would change, and change nothing"))
+    width = max(len(f"{command} {arg}") for arg, _ in hints)
+    lines += [""] + [f"  {f'{command} {arg}':<{width}}  {what}" for arg, what in hints] + [""]
     return "\n".join(lines)
 
 
@@ -826,9 +835,10 @@ def add_arguments(parser: Any) -> None:
 def run(args: Any, out: Any = None) -> int:
     import sys
     out = out or sys.stdout
+    command = getattr(args, "command", None) or CLI_COMMAND
     root = localstate.find_root()
     if root is None:
-        print("pr undo: not inside a git repository. Checkpoints are per repository.",
+        print(f"{command}: not inside a git repository. Checkpoints are per repository.",
               file=sys.stderr)
         return 2
     target = (args.target or "").strip().lstrip("#")
@@ -839,10 +849,10 @@ def run(args: Any, out: Any = None) -> int:
                 json.dump(rows, out, indent=2)
                 out.write("\n")
             else:
-                out.write(render_list(root, args.limit, args.session))
+                out.write(render_list(root, args.limit, args.session, command=command))
             return 0
         if target == "init":
-            entry = snapshot(root, tool="init", label="pr undo init", budget_s=None, force=True)
+            entry = snapshot(root, tool="init", label=f"{command} init", budget_s=None, force=True)
             out.write(f"Checkpoint #{entry['n']} taken. The store is built, so snapshots in "
                       "the hook are now incremental.\n")
             return 0
@@ -855,7 +865,7 @@ def run(args: Any, out: Any = None) -> int:
                 raise CheckpointError(f"`{args.target}` is not a checkpoint number") from None
         result = restore(root, n, paths=args.paths or None, dry_run=args.diff)
     except CheckpointError as exc:
-        print(f"pr undo: {exc}", file=sys.stderr)
+        print(f"{command}: {exc}", file=sys.stderr)
         return 1
     if args.json:
         json.dump(result, out, indent=2)
@@ -885,5 +895,5 @@ def run(args: Any, out: Any = None) -> int:
         elif result["verified"] is False:
             out.write("NOT verified: the working tree still differs from the checkpoint. "
                       "See the lines marked ! above.\n")
-        out.write(f"Changed your mind? `pr undo {result['safety']}` puts it back.\n")
+        out.write(f"Changed your mind? `{command} {result['safety']}` puts it back.\n")
     return 1 if result["errors"] or result["refused"] or result["verified"] is False else 0

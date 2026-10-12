@@ -44,6 +44,7 @@ from pathlib import Path
 # second time here. Imported by path, because this file runs before Provenrail is installed.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hosts  # noqa: E402
+import localstate  # noqa: E402
 import spend as spend_ledger  # noqa: E402
 import supervise  # noqa: E402
 import transcript  # noqa: E402
@@ -304,7 +305,8 @@ def match_text(value):
 
 
 def state_dir(config_path):
-    """Where the journal and its siblings live: beside the policy, else the current directory.
+    """Where the journal and its siblings live: beside the policy, else under the home
+    directory (`localstate.guard_dir`, the same rule the installed CLI applies).
 
     Anchored to the config, not to cwd, so a session launched from `apps/web` keeps writing to
     the same journal and the same blast-radius counters as one launched from the repo root.
@@ -312,7 +314,15 @@ def state_dir(config_path):
     override = os.environ.get("PROVENRAIL_GUARD_JOURNAL")
     if override:
         return Path(override).parent
-    return config_path.parent if config_path else Path.cwd()
+    return localstate.guard_dir(config_path, JOURNAL_FILENAME)
+
+
+def notice_dir(config_path):
+    """Where the once-a-day stamps live: never in the working tree."""
+    override = os.environ.get("PROVENRAIL_GUARD_JOURNAL")
+    if override:
+        return Path(override).parent
+    return localstate.notice_dir(config_path)
 
 
 def journal_path(config_path):
@@ -439,7 +449,7 @@ def once_a_day(config_path, name, message):
     every one of them to say nothing.
     """
     try:
-        path = state_dir(config_path) / (NOTICE_FILENAME + "-" + name)
+        path = notice_dir(config_path) / (NOTICE_FILENAME + "-" + name)
         now = time.time()
         if path.is_file() and now - path.stat().st_mtime < NOTICE_INTERVAL_S:
             return ""
@@ -937,6 +947,11 @@ def status():
     return "\n".join(lines) + "\n"
 
 
+#: What a plugin-only user types for each vendored tool, so its hints do not name a `pr`
+#: command this machine does not have.
+SLASH_COMMANDS = {"checkpoint": "/guard-undo"}
+
+
 def _tool(name, argv):
     # Imported by name on demand: none of these is needed to answer a hook, and the hook is
     # what this file is run for hundreds of times an hour.
@@ -945,7 +960,9 @@ def _tool(name, argv):
     module = importlib.import_module(name)
     parser = argparse.ArgumentParser(prog="provenrail-guard")
     module.add_arguments(parser)
-    return module.run(parser.parse_args(argv))
+    args = parser.parse_args(argv)
+    args.command = SLASH_COMMANDS.get(name)
+    return module.run(args)
 
 
 def _stop(argv):
