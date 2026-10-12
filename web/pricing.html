@@ -144,7 +144,7 @@
             <div class="plan-popular-badge" aria-label="The paid plan">The paid plan</div>
             <div class="plan-name" id="plan-statements-name">Phone remote and anchored statements</div>
             <div class="plan-price">$9<span>/mo</span></div>
-            <div class="plan-period">billed monthly</div>
+            <div class="plan-period">billed monthly, renews until you cancel</div>
             <ul class="plan-features" aria-label="Paid plan features">
               <li class="plan-feature">The phone remote: approve or refuse a risky call, and stop or resume every agent, from Telegram (your own bot) or ntfy (a secret topic). A 14-day evaluation first, no account needed</li>
               <li class="plan-feature">No Provenrail server is in that path. Messages go from your machine to the channel you chose</li>
@@ -255,7 +255,7 @@
             <dd>Almost nothing, by design. An anchor request carries a stream label, a 64-character fingerprint of your records, and how many records it covers. There is no field a record could arrive in. We cannot read your prompts, reconstruct your chain, or show anyone what your agents did, because we were never sent it. What we can do is refuse to sign a rewritten history: coverage of a stream only grows, and the same length cannot get two different fingerprints.</dd>
 
             <dt>How do refunds work?</dt>
-            <dd>14 days, no questions. Billing runs through Polar as merchant of record, so cancellation and refunds are handled from the same portal you subscribed in.</dd>
+            <dd>A full refund within 14 days of a purchase: email support@provenrail.com and Polar, the merchant of record, processes it. The subscription renews each month until you cancel, which you do from the billing portal on your account page.</dd>
 
             <dt>Can I pay annually, or in euros?</dt>
             <dd>Billing is monthly in US dollars today. If annual billing or another currency is a blocker for you, write to <a href="mailto:support@provenrail.com">support@provenrail.com</a> and say so; that is the kind of request that decides what ships next.</dd>
@@ -344,7 +344,7 @@
       { "@type": "Question", "name": "Does Provenrail store my agent records?", "acceptedAnswer": { "@type": "Answer", "text": "No. Provenrail hosts identity and billing only. Agent records live in your own sink on your own infrastructure, which is why the verifier runs entirely in the browser with no upload." } },
       { "@type": "Question", "name": "Can I self-host Provenrail instead of paying?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The client, SDK, verifier and spec are MIT-licensed and the server is AGPL-3.0-or-later, so you can run the whole system yourself at no cost. The paid option adds external time and independent anchoring. There is no hosted tier to buy: you run the sink either way." } },
       { "@type": "Question", "name": "What is independent anchoring, and what leaves my machine?", "acceptedAnswer": { "@type": "Answer", "text": "Your records are hashed into a chain. Independent anchoring sends Provenrail the single root of that chain, 32 bytes, plus how many records it covers, and nothing else. Provenrail timestamps that root and publishes it at a URL anyone can read without an account. Your auditor recomputes the root from the records you show them and checks that it matches." } },
-      { "@type": "Question", "name": "How do Provenrail refunds work?", "acceptedAnswer": { "@type": "Answer", "text": "14 days. Billing runs through Polar as merchant of record, so cancellation and refunds are handled from the same portal you subscribed in." } }
+      { "@type": "Question", "name": "How do Provenrail refunds work?", "acceptedAnswer": { "@type": "Answer", "text": "A full refund within 14 days of a purchase: email support@provenrail.com and Polar, the merchant of record, processes it. The subscription renews each month until you cancel, which you do from the billing portal on your account page." } }
     ]
   }
   </script>
