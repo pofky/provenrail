@@ -67,3 +67,6 @@ guard-receipt.json
 # Local budget ledger, not a record. See README.
 .provenrail-spend.json
 .provenrail-spend.json.lock
+
+# Device signing key, client-held, never committed (leaked once in b6a47d4, rotated 2026-10-23)
+.provenrail.key
